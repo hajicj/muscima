@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>muscima.grammar &#8212; muscima  documentation</title>
+    <title>muscima.grammar &#8212; muscima 0.3.0 documentation</title>
     
     <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
@@ -14,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../../',
-        VERSION:     '',
+        VERSION:     '0.3.0',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -23,7 +23,7 @@
     <script type="text/javascript" src="../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <link rel="top" title="muscima  documentation" href="../../index.html" />
+    <link rel="top" title="muscima 0.3.0 documentation" href="../../index.html" />
     <link rel="up" title="Module code" href="../index.html" />
    
   <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
@@ -78,7 +78,7 @@
 <span class="n">__author__</span> <span class="o">=</span> <span class="s2">&quot;Jan Hajic jr.&quot;</span>
 
 
-<div class="viewcode-block" id="DependencyGrammarParseError"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammarParseError">[docs]</a><span class="k">class</span> <span class="nc">DependencyGrammarParseError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<div class="viewcode-block" id="DependencyGrammarParseError"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammarParseError">[docs]</a><span class="k">class</span> <span class="nc">DependencyGrammarParseError</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
     <span class="k">pass</span></div>
 
 
@@ -251,10 +251,11 @@
 <span class="sd">    &gt;&gt;&gt; rules, inlink_cards, outlink_cards, _, _ = g.parse_dependency_grammar_line(l)</span>
 <span class="sd">    &gt;&gt;&gt; rules</span>
 <span class="sd">    [(&#39;notehead-empty&#39;, &#39;stem&#39;), (&#39;notehead-full&#39;, &#39;stem&#39;)]</span>
-<span class="sd">    &gt;&gt;&gt; outlink_cards[&#39;notehead-empty&#39;]</span>
-<span class="sd">    {&#39;stem&#39;: (0, 2)}</span>
-<span class="sd">    &gt;&gt;&gt; inlink_cards[&#39;stem&#39;]</span>
-<span class="sd">    {&#39;notehead-empty&#39;: (0, 10000), &#39;notehead-full&#39;: (0, 10000)}</span>
+<span class="sd">    &gt;&gt;&gt; outlink_cards[&#39;notehead-empty&#39;] == {&#39;stem&#39;: (0, 2)}</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; inlink_cards[&#39;stem&#39;] == {&#39;notehead-empty&#39;: (0, 10000), &#39;notehead-full&#39;: (0, 10000)}</span>
+<span class="sd">    True</span>
+
 
 <span class="sd">    A key signature can have any number of sharps, flats, or naturals,</span>
 <span class="sd">    but if a given symbol is part of a key signature, it can only be part of one.</span>
@@ -262,9 +263,12 @@
 <span class="sd">    &gt;&gt;&gt; l = &#39;key-signature | sharp{1} flat{1} natural{1}&#39;</span>
 <span class="sd">    &gt;&gt;&gt; rules, inlink_cards, _, _, _ = g.parse_dependency_grammar_line(l)</span>
 <span class="sd">    &gt;&gt;&gt; rules</span>
-<span class="sd">    [(&#39;key-signature&#39;, &#39;sharp&#39;), (&#39;key-signature&#39;, &#39;flat&#39;), (&#39;key-signature&#39;, &#39;natural&#39;)]</span>
-<span class="sd">    &gt;&gt;&gt; inlink_cards</span>
-<span class="sd">    {&#39;natural&#39;: {&#39;key-signature&#39;: (1, 1)}, &#39;sharp&#39;: {&#39;key-signature&#39;: (1, 1)}, &#39;flat&#39;: {&#39;key-signature&#39;: (1, 1)}}</span>
+<span class="sd">    [(&#39;key-signature&#39;, &#39;flat&#39;), (&#39;key-signature&#39;, &#39;natural&#39;), (&#39;key-signature&#39;, &#39;sharp&#39;)]</span>
+<span class="sd">    &gt;&gt;&gt; inlink_cards == {&#39;natural&#39;: {&#39;key-signature&#39;: (1, 1)},</span>
+<span class="sd">    ...                  &#39;sharp&#39;: {&#39;key-signature&#39;: (1, 1)},</span>
+<span class="sd">    ...                  &#39;flat&#39;: {&#39;key-signature&#39;: (1, 1)}}</span>
+<span class="sd">    True</span>
+
 
 <span class="sd">    You can also give *aggregate* cardinality rules, of the style &quot;whatever rule</span>
 <span class="sd">    applies, there should be at least X/at most Y edges for this type of object&quot;.</span>
@@ -273,16 +277,16 @@
 
 <span class="sd">    &gt;&gt;&gt; l = &#39;key-signature{1,} |&#39;</span>
 <span class="sd">    &gt;&gt;&gt; _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)</span>
-<span class="sd">    &gt;&gt;&gt; out_aggregate_cards</span>
-<span class="sd">    {&#39;key-signature&#39;: (1, 10000)}</span>
+<span class="sd">    &gt;&gt;&gt; out_aggregate_cards == {&#39;key-signature&#39;: (1, 10000)}</span>
+<span class="sd">    True</span>
 <span class="sd">    &gt;&gt;&gt; l = &#39;grace-notehead*{1,} |&#39;</span>
 <span class="sd">    &gt;&gt;&gt; _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)</span>
-<span class="sd">    &gt;&gt;&gt; out_aggregate_cards</span>
-<span class="sd">    {&#39;grace-notehead-empty&#39;: (1, 10000), &#39;grace-notehead-full&#39;: (1, 10000)}</span>
+<span class="sd">    &gt;&gt;&gt; out_aggregate_cards == {&#39;grace-notehead-empty&#39;: (1, 10000), &#39;grace-notehead-full&#39;: (1, 10000)}</span>
+<span class="sd">    True</span>
 <span class="sd">    &gt;&gt;&gt; l = &#39;| beam{1,} stem{1,} flat{1,}&#39;</span>
 <span class="sd">    &gt;&gt;&gt; _, _, _, in_aggregate_cards, _ = g.parse_dependency_grammar_line(l)</span>
-<span class="sd">    &gt;&gt;&gt; in_aggregate_cards</span>
-<span class="sd">    {&#39;stem&#39;: (1, 10000), &#39;beam&#39;: (1, 10000), &#39;flat&#39;: (1, 10000)}</span>
+<span class="sd">    &gt;&gt;&gt; in_aggregate_cards == {&#39;stem&#39;: (1, 10000), &#39;beam&#39;: (1, 10000), &#39;flat&#39;: (1, 10000)}</span>
+<span class="sd">    True</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -329,8 +333,9 @@
             <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: Outlink aggregated cardinalities: </span><span class="si">{0}</span><span class="s1">&#39;</span>
                           <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">oac</span><span class="p">)))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Not able to parse dependency grammar file </span><span class="si">{0}</span><span class="s1">.&#39;</span>
-                             <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">grammar_filename</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="n">DependencyGrammarParseError</span><span class="p">(</span>
+                <span class="s1">&#39;Not able to parse dependency grammar file </span><span class="si">{0}</span><span class="s1">.&#39;</span>
+                <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">grammar_filename</span><span class="p">))</span>
 
 <div class="viewcode-block" id="DependencyGrammar.validate_edge"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.validate_edge">[docs]</a>    <span class="k">def</span> <span class="nf">validate_edge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head_name</span><span class="p">,</span> <span class="n">child_name</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Check whether a given ``head --&gt; child`` edge conforms</span>
@@ -415,7 +420,7 @@
         <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
             <span class="n">nf</span><span class="p">,</span> <span class="n">nt</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">vertices</span><span class="p">[</span><span class="n">f</span><span class="p">]),</span> <span class="nb">str</span><span class="p">(</span><span class="n">vertices</span><span class="p">[</span><span class="n">t</span><span class="p">])</span>
             <span class="k">if</span> <span class="p">(</span><span class="n">nf</span><span class="p">,</span> <span class="n">nt</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Wrong edge: </span><span class="si">{0}</span><span class="s1"> --&gt; </span><span class="si">{1}</span><span class="s1">, rules:</span><span class="se">\n</span><span class="si">{2}</span><span class="s1">&#39;</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Wrong edge: </span><span class="si">{0}</span><span class="s1"> --&gt; </span><span class="si">{1}</span><span class="s1">, rules:</span><span class="se">\n</span><span class="si">{2}</span><span class="s1">&#39;</span>
                                 <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nf</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">)))</span>
 
                 <span class="n">wrong_inlinks</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
@@ -497,7 +502,38 @@
         <span class="k">return</span> <span class="n">wrong_vertices</span><span class="p">,</span> <span class="n">wrong_inlinks</span><span class="p">,</span> <span class="n">wrong_outlinks</span></div>
 
 <div class="viewcode-block" id="DependencyGrammar.parse_dependency_grammar_rules"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.parse_dependency_grammar_rules">[docs]</a>    <span class="k">def</span> <span class="nf">parse_dependency_grammar_rules</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns the Rules stored in the given rule file.&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Returns the rules stored in the given rule file.</span>
+
+<span class="sd">        A dependency grammar rule file contains grammar lines,</span>
+<span class="sd">        comment lines, and other lines. A grammar line is any line that</span>
+<span class="sd">        contains the ``|`` symbol and does *not* have a ``#`` as the first</span>
+<span class="sd">        non-whitespace symbol.</span>
+
+<span class="sd">        Comment lines are those that have ``#`` as the first non-whitespace</span>
+<span class="sd">        symbol. They are ignored, even if they contain ``|``. All other lines</span>
+<span class="sd">        that do contain ``|`` are considered to be grammar lines.</span>
+
+<span class="sd">        All lines that do not contain ``|`` are considered non-grammar lines</span>
+<span class="sd">        and are ignored.</span>
+
+<span class="sd">        :param filename: The path to the rule file.</span>
+
+<span class="sd">        :returns: A quintuplet of the grammar rules.</span>
+
+<span class="sd">            * ``rules``: a list of ``(from_class, to_class)`` tuples. Each rule tuple</span>
+<span class="sd">              encodes that relationships leading from symbols of type ``from_class``</span>
+<span class="sd">              to symbols of type ``to_class`` may exist.</span>
+<span class="sd">            * ``inlink_cards``: a dictionary that encodes the range of permitted cardinalities</span>
+<span class="sd">              for each RHS symbol of *inlinks* from the LHS symbols.</span>
+<span class="sd">            * ``outlink_cards``: a dictionary that encodes the range of permitted cardinalities</span>
+<span class="sd">              for each LHS of *outlinks* to the RHS symbols.</span>
+<span class="sd">            * ``inlink_aggregate_cards``: A dict that holds for each RHS the range of</span>
+<span class="sd">              permitted total inlink counts. E.g., a stem must always have at least one inlink.</span>
+<span class="sd">            * ``outlink_aggregate_cards``: A dict that holds for each LHS the range</span>
+<span class="sd">              of permitted total outlink counts. E.g., a full notehead must always have</span>
+<span class="sd">              at least one outlink.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">rules</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">inlink_cardinalities</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
         <span class="n">outlink_cardinalities</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
@@ -538,7 +574,42 @@
 
 <div class="viewcode-block" id="DependencyGrammar.parse_dependency_grammar_line"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.parse_dependency_grammar_line">[docs]</a>    <span class="k">def</span> <span class="nf">parse_dependency_grammar_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Parse one dependency grammar line. See DependencyGrammar</span>
-<span class="sd">        I/O documentation for the format.&quot;&quot;&quot;</span>
+<span class="sd">        I/O documentation for the full format description of valid</span>
+<span class="sd">        grammar lines.</span>
+
+<span class="sd">        The grammar line specifies two kinds of information: which symbol</span>
+<span class="sd">        classes may form relationships, and what the valid cardinalities</span>
+<span class="sd">        for these relationships are. For instance, while ``time_signature``</span>
+<span class="sd">        symbols have outlinks to ``numeral_X`` symbols, one numeral cannot</span>
+<span class="sd">        be part of more than one time signature.</span>
+
+<span class="sd">        A grammar line has a left-hand side (lhs) and a right-hand side (rhs),</span>
+<span class="sd">        separated by the ``|`` symbol.</span>
+
+<span class="sd">        (See :class:`DependencyGramamr` documentation for examples.)</span>
+
+<span class="sd">        :param line: One line of a dependency grammar rule file.</span>
+<span class="sd">        :type line: str</span>
+
+<span class="sd">        :returns: A quintuplet of:</span>
+
+<span class="sd">            * ``rules``: a list of ``(from_class, to_class)`` tuples. Each rule tuple</span>
+<span class="sd">              encodes that relationships leading from symbols of type ``from_class``</span>
+<span class="sd">              to symbols of type ``to_class`` may exist.</span>
+<span class="sd">            * ``inlink_cards``: a dictionary that encodes the range of permitted cardinalities</span>
+<span class="sd">              for each RHS symbol of *inlinks* from the LHS symbols.</span>
+<span class="sd">            * ``outlink_cards``: a dictionary that encodes the range of permitted cardinalities</span>
+<span class="sd">              for each LHS of *outlinks* to the RHS symbols.</span>
+<span class="sd">            * ``inlink_aggregate_cards``: A dict that holds for each RHS the range of</span>
+<span class="sd">              permitted total inlink counts. E.g., a stem must always have at least one inlink.</span>
+<span class="sd">            * ``outlink_aggregate_cards``: A dict that holds for each LHS the range</span>
+<span class="sd">              of permitted total outlink counts. E.g., a full notehead must always have</span>
+<span class="sd">              at least one outlink.</span>
+
+<span class="sd">            For non-grammar lines (see :meth:`parse_dependency_grammar_rules`),</span>
+<span class="sd">            this method returns empty data structures.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">rules</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">out_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
         <span class="n">in_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
@@ -636,6 +707,10 @@
         <span class="c1">#              &#39;&#39;.format(pprint.pformat(in_cards)))</span>
         <span class="c1"># logging.info(&#39;DependencyGrammar: got outlink cardinalities:\n{0}&#39;</span>
         <span class="c1">#              &#39;&#39;.format(pprint.pformat(out_cards)))</span>
+
+        <span class="c1"># Fixed rule ordering</span>
+        <span class="n">rules</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">rules</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">rules</span><span class="p">,</span> <span class="n">in_cards</span><span class="p">,</span> <span class="n">out_cards</span><span class="p">,</span> <span class="n">in_agg_cards</span><span class="p">,</span> <span class="n">out_agg_cards</span></div>
 
 <div class="viewcode-block" id="DependencyGrammar.parse_token"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.parse_token">[docs]</a>    <span class="k">def</span> <span class="nf">parse_token</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">l</span><span class="p">):</span>

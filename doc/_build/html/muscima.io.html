@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>muscima.io module &#8212; muscima  documentation</title>
+    <title>muscima.io module &#8212; muscima 0.3.0 documentation</title>
     
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -14,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    './',
-        VERSION:     '',
+        VERSION:     '0.3.0',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -23,8 +23,9 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="muscima  documentation" href="index.html" />
+    <link rel="top" title="muscima 0.3.0 documentation" href="index.html" />
     <link rel="up" title="muscima package" href="muscima.html" />
+    <link rel="next" title="analyze_agreement module" href="analyze_agreement.html" />
     <link rel="prev" title="muscima.grammar module" href="muscima.grammar.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -192,6 +193,16 @@ explains the <cite>CROPOBJECT_MASK_ORDER=&#8217;C&#8217;</cite> hack in <cite>se
 <p>See e.g. <code class="docutils literal"><span class="pre">test/test_data/mff-muscima-classes-annot.xml</span></code>,
 which is incidentally the real CropObjectClass list used
 for annotating MUSCIMA++.</p>
+<p>Similarly to a <code class="docutils literal"><span class="pre">&lt;CropObjectList&gt;</span></code>, the <code class="docutils literal"><span class="pre">&lt;CropObjectClass&gt;</span></code>
+elements are organized inside a <code class="docutils literal"><span class="pre">&lt;CropObjectClassList&gt;</span></code>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">CropObjectClassList</span><span class="o">&gt;</span>
+   <span class="o">&lt;</span><span class="n">CropObjectClasses</span><span class="o">&gt;</span>
+     <span class="o">&lt;</span><span class="n">CropObjectClass</span><span class="o">&gt;</span> <span class="o">...</span> <span class="o">&lt;/</span><span class="n">CropObjectClass</span><span class="o">&gt;</span>
+     <span class="o">&lt;</span><span class="n">CropObjectClass</span><span class="o">&gt;</span> <span class="o">...</span> <span class="o">&lt;/</span><span class="n">CropObjectClass</span><span class="o">&gt;</span>
+   <span class="o">&lt;/</span><span class="n">CropObjectClasses</span><span class="o">&gt;</span>
+ <span class="o">&lt;/</span><span class="n">CropObjectClassesList</span><span class="o">&gt;</span>
+</pre></div>
+</div>
 <p>The <code class="xref py py-class docutils literal"><span class="pre">CropObjectClass</span></code> represents one possible <code class="xref py py-class docutils literal"><span class="pre">CropObject</span></code>
 symbol class, such as a notehead or a time signature. Aside from defining
 the &#8220;vocabulary&#8221; of available object classes for annotation, it also contains
@@ -390,6 +401,7 @@ a <code class="docutils literal"><span class="pre">ValueError</span></code> othe
   <li><a href="index.html">Documentation overview</a><ul>
   <li><a href="muscima.html">muscima package</a><ul>
       <li>Previous: <a href="muscima.grammar.html" title="previous chapter">muscima.grammar module</a></li>
+      <li>Next: <a href="analyze_agreement.html" title="next chapter">analyze_agreement module</a></li>
   </ul></li>
   </ul></li>
 </ul>

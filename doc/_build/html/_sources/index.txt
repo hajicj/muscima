@@ -12,7 +12,7 @@ Contents:
    :maxdepth: 4
 
    muscima
-
+   scripts
 
 Indices and tables
 ==================

@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>muscima.cropobject &#8212; muscima  documentation</title>
+    <title>muscima.cropobject &#8212; muscima 0.3.0 documentation</title>
     
     <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
@@ -14,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../../',
-        VERSION:     '',
+        VERSION:     '0.3.0',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -23,7 +23,7 @@
     <script type="text/javascript" src="../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <link rel="top" title="muscima  documentation" href="../../index.html" />
+    <link rel="top" title="muscima 0.3.0 documentation" href="../../index.html" />
     <link rel="up" title="Module code" href="../index.html" />
    
   <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
@@ -164,7 +164,7 @@
 <span class="sd">    be used:</span>
 
 <span class="sd">    &gt;&gt;&gt; c.default_uid</span>
-<span class="sd">    &#39;MUSCIMA_DEFAULT_DATASET_PLACEHOLDER___default-document__0&#39;</span>
+<span class="sd">    &#39;MUSCIMA_DEFAULT_DATASET_PLACEHOLDER___default-document___0&#39;</span>
 
 <span class="sd">    (Don&#39;t abuse the default, though! It&#39;s intended just for transitioning</span>
 <span class="sd">    documents without UIDs to those that have them.)</span>
@@ -281,7 +281,7 @@
 <span class="sd">    explains the ``order=&#39;C&#39;`` hack in ``set_mask()``.)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">objid</span><span class="p">,</span> <span class="n">clsname</span><span class="p">,</span> <span class="n">top</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span>
-                 <span class="n">outlinks</span><span class="o">=</span><span class="p">[],</span> <span class="n">inlinks</span><span class="o">=</span><span class="p">[],</span>
+                 <span class="n">outlinks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">inlinks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">uid</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Initializing CropObject with objid </span><span class="si">{0}</span><span class="s1">, uid </span><span class="si">{5}</span><span class="s1">, x=</span><span class="si">{1}</span><span class="s1">,&#39;</span>
@@ -302,7 +302,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">set_mask</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
 
+        <span class="k">if</span> <span class="n">inlinks</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inlinks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">inlinks</span> <span class="o">=</span> <span class="n">inlinks</span>
+
+        <span class="k">if</span> <span class="n">outlinks</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">outlinks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">outlinks</span> <span class="o">=</span> <span class="n">outlinks</span>
 
         <span class="c1"># Deal with the UID</span>
@@ -311,7 +316,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">set_uid</span><span class="p">(</span><span class="n">uid</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">is_selected</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;...done!&#39;</span><span class="p">)</span>
+        <span class="c1">#logging.debug(&#39;...done!&#39;)</span>
 
     <span class="c1">##########################################################################</span>
     <span class="c1"># Dealing with unique identification of a CropObject, also across</span>
@@ -330,6 +335,9 @@
     <span class="k">def</span> <span class="nf">default_uid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Constructs the default ``uid`` that the CropObject would</span>
 <span class="sd">        have, unless one was supplied at initialization.</span>
+
+<span class="sd">        &gt;&gt;&gt; c.default_uid</span>
+<span class="sd">        &#39;MUSCIMA_DEFAULT_DATASET_PLACEHOLDER___default-document___0&#39;</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">UID_DELIMITER</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">UID_DEFAULT_DATASET_NAMESPACE</span><span class="p">,</span>
                                         <span class="bp">self</span><span class="o">.</span><span class="n">UID_DEFAULT_DOCUMENT_NAMESPACE</span><span class="p">,</span>
@@ -344,6 +352,11 @@
 <span class="sd">        acts as the &quot;technical&quot; identifier, since it is known to be</span>
 <span class="sd">        an integer and therefore usable for e.g. indexing within</span>
 <span class="sd">        the MUSCIMarker annotation app.</span>
+
+<span class="sd">        See :meth:`_parse_uid` for format &amp; test. Compared</span>
+<span class="sd">        to :meth:`_parse_uid`, this method checks the parsed ``num``</span>
+<span class="sd">        in the ``uid`` against this CropObject&#39;s ``objid``,</span>
+<span class="sd">        to verify that the UID is really valid for this object.</span>
 
 <span class="sd">        The delimiter is expected to be ``___``</span>
 <span class="sd">        (kept as ``CropObject.UID_DELIMITER``)</span>
@@ -1010,9 +1023,9 @@
     <span class="sd">&quot;&quot;&quot;Merges the given list of cropobjects into one. Masks are combined</span>
 <span class="sd">    by an OR operation.</span>
 
-<span class="sd">    &gt;&gt;&gt; c1 = CropObject(0, 1, &#39;name&#39;, 10, 10, 4, 1, mask=numpy.ones((1, 4), dtype=&#39;uint8&#39;))</span>
-<span class="sd">    &gt;&gt;&gt; c2 = CropObject(1, 1, &#39;name&#39;, 11, 10, 6, 1, mask=numpy.ones((1, 6), dtype=&#39;uint8&#39;))</span>
-<span class="sd">    &gt;&gt;&gt; c3 = CropObject(2, 1, &#39;name&#39;, 9, 14,  2, 4, mask=numpy.ones((4, 2), dtype=&#39;uint8&#39;))</span>
+<span class="sd">    &gt;&gt;&gt; c1 = CropObject(0, &#39;name&#39;, 10, 10, 4, 1, mask=numpy.ones((1, 4), dtype=&#39;uint8&#39;))</span>
+<span class="sd">    &gt;&gt;&gt; c2 = CropObject(1, &#39;name&#39;, 11, 10, 6, 1, mask=numpy.ones((1, 6), dtype=&#39;uint8&#39;))</span>
+<span class="sd">    &gt;&gt;&gt; c3 = CropObject(2, &#39;name&#39;, 9, 14,  2, 4, mask=numpy.ones((4, 2), dtype=&#39;uint8&#39;))</span>
 <span class="sd">    &gt;&gt;&gt; c = [c1, c2, c3]</span>
 <span class="sd">    &gt;&gt;&gt; m1 = cropobjects_merge_mask(c)</span>
 <span class="sd">    &gt;&gt;&gt; m1.shape</span>
@@ -1096,8 +1109,11 @@
 <span class="sd">    image. Uses deepcopy to avoid exposing the original lists</span>
 <span class="sd">    to modification through the merged list.</span>
 
-<span class="sd">    If you are ever exporting the merged list, make sure to</span>
-<span class="sd">    set the ``uid`` correctly, if you want to create a new document.</span>
+<span class="sd">    .. warning::</span>
+
+<span class="sd">        If you are ever exporting the merged list, make sure to</span>
+<span class="sd">        set the ``uid`` for the outputs correctly, if you want</span>
+<span class="sd">        to create a new document.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">lengths</span> <span class="o">=</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobject_lists</span><span class="p">]</span>

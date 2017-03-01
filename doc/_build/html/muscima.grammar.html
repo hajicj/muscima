@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>muscima.grammar module &#8212; muscima  documentation</title>
+    <title>muscima.grammar module &#8212; muscima 0.3.0 documentation</title>
     
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -14,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    './',
-        VERSION:     '',
+        VERSION:     '0.3.0',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -23,7 +23,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="muscima  documentation" href="index.html" />
+    <link rel="top" title="muscima 0.3.0 documentation" href="index.html" />
     <link rel="up" title="muscima package" href="muscima.html" />
     <link rel="next" title="muscima.io module" href="muscima.io.html" />
     <link rel="prev" title="muscima.dataset module" href="muscima.dataset.html" />
@@ -221,10 +221,10 @@ if no cardinality is provided).</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">rules</span><span class="p">,</span> <span class="n">inlink_cards</span><span class="p">,</span> <span class="n">outlink_cards</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">parse_dependency_grammar_line</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">rules</span>
 <span class="go">[(&#39;notehead-empty&#39;, &#39;stem&#39;), (&#39;notehead-full&#39;, &#39;stem&#39;)]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">outlink_cards</span><span class="p">[</span><span class="s1">&#39;notehead-empty&#39;</span><span class="p">]</span>
-<span class="go">{&#39;stem&#39;: (0, 2)}</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">inlink_cards</span><span class="p">[</span><span class="s1">&#39;stem&#39;</span><span class="p">]</span>
-<span class="go">{&#39;notehead-empty&#39;: (0, 10000), &#39;notehead-full&#39;: (0, 10000)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">outlink_cards</span><span class="p">[</span><span class="s1">&#39;notehead-empty&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s1">&#39;stem&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)}</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">inlink_cards</span><span class="p">[</span><span class="s1">&#39;stem&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s1">&#39;notehead-empty&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10000</span><span class="p">),</span> <span class="s1">&#39;notehead-full&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10000</span><span class="p">)}</span>
+<span class="go">True</span>
 </pre></div>
 </div>
 <p>A key signature can have any number of sharps, flats, or naturals,
@@ -232,9 +232,11 @@ but if a given symbol is part of a key signature, it can only be part of one.</p
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">l</span> <span class="o">=</span> <span class="s1">&#39;key-signature | sharp</span><span class="si">{1}</span><span class="s1"> flat</span><span class="si">{1}</span><span class="s1"> natural</span><span class="si">{1}</span><span class="s1">&#39;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">rules</span><span class="p">,</span> <span class="n">inlink_cards</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">parse_dependency_grammar_line</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">rules</span>
-<span class="go">[(&#39;key-signature&#39;, &#39;sharp&#39;), (&#39;key-signature&#39;, &#39;flat&#39;), (&#39;key-signature&#39;, &#39;natural&#39;)]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">inlink_cards</span>
-<span class="go">{&#39;natural&#39;: {&#39;key-signature&#39;: (1, 1)}, &#39;sharp&#39;: {&#39;key-signature&#39;: (1, 1)}, &#39;flat&#39;: {&#39;key-signature&#39;: (1, 1)}}</span>
+<span class="go">[(&#39;key-signature&#39;, &#39;flat&#39;), (&#39;key-signature&#39;, &#39;natural&#39;), (&#39;key-signature&#39;, &#39;sharp&#39;)]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">inlink_cards</span> <span class="o">==</span> <span class="p">{</span><span class="s1">&#39;natural&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;key-signature&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)},</span>
+<span class="gp">... </span>                 <span class="s1">&#39;sharp&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;key-signature&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)},</span>
+<span class="gp">... </span>                 <span class="s1">&#39;flat&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;key-signature&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)}}</span>
+<span class="go">True</span>
 </pre></div>
 </div>
 <p>You can also give <em>aggregate</em> cardinality rules, of the style &#8220;whatever rule
@@ -243,16 +245,16 @@ applies, there should be at least X/at most Y edges for this type of object&#822
 is used, which is by default 10000).</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">l</span> <span class="o">=</span> <span class="s1">&#39;key-signature{1,} |&#39;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">out_aggregate_cards</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">parse_dependency_grammar_line</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">out_aggregate_cards</span>
-<span class="go">{&#39;key-signature&#39;: (1, 10000)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_aggregate_cards</span> <span class="o">==</span> <span class="p">{</span><span class="s1">&#39;key-signature&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10000</span><span class="p">)}</span>
+<span class="go">True</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">l</span> <span class="o">=</span> <span class="s1">&#39;grace-notehead*{1,} |&#39;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">out_aggregate_cards</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">parse_dependency_grammar_line</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">out_aggregate_cards</span>
-<span class="go">{&#39;grace-notehead-empty&#39;: (1, 10000), &#39;grace-notehead-full&#39;: (1, 10000)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_aggregate_cards</span> <span class="o">==</span> <span class="p">{</span><span class="s1">&#39;grace-notehead-empty&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10000</span><span class="p">),</span> <span class="s1">&#39;grace-notehead-full&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10000</span><span class="p">)}</span>
+<span class="go">True</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">l</span> <span class="o">=</span> <span class="s1">&#39;| beam{1,} stem{1,} flat{1,}&#39;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">in_aggregate_cards</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">parse_dependency_grammar_line</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">in_aggregate_cards</span>
-<span class="go">{&#39;stem&#39;: (1, 10000), &#39;beam&#39;: (1, 10000), &#39;flat&#39;: (1, 10000)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_aggregate_cards</span> <span class="o">==</span> <span class="p">{</span><span class="s1">&#39;stem&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10000</span><span class="p">),</span> <span class="s1">&#39;beam&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10000</span><span class="p">),</span> <span class="s1">&#39;flat&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10000</span><span class="p">)}</span>
+<span class="go">True</span>
 </pre></div>
 </div>
 <dl class="attribute">
@@ -346,13 +348,81 @@ also returns three more: dicts of written reasons for each error
 <dt id="muscima.grammar.DependencyGrammar.parse_dependency_grammar_line">
 <code class="descname">parse_dependency_grammar_line</code><span class="sig-paren">(</span><em>line</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/grammar.html#DependencyGrammar.parse_dependency_grammar_line"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.grammar.DependencyGrammar.parse_dependency_grammar_line" title="Permalink to this definition">¶</a></dt>
 <dd><p>Parse one dependency grammar line. See DependencyGrammar
-I/O documentation for the format.</p>
+I/O documentation for the full format description of valid
+grammar lines.</p>
+<p>The grammar line specifies two kinds of information: which symbol
+classes may form relationships, and what the valid cardinalities
+for these relationships are. For instance, while <code class="docutils literal"><span class="pre">time_signature</span></code>
+symbols have outlinks to <code class="docutils literal"><span class="pre">numeral_X</span></code> symbols, one numeral cannot
+be part of more than one time signature.</p>
+<p>A grammar line has a left-hand side (lhs) and a right-hand side (rhs),
+separated by the <code class="docutils literal"><span class="pre">|</span></code> symbol.</p>
+<p>(See <code class="xref py py-class docutils literal"><span class="pre">DependencyGramamr</span></code> documentation for examples.)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>line</strong> (<em>str</em>) &#8211; One line of a dependency grammar rule file.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A quintuplet of:<ul class="simple">
+<li><code class="docutils literal"><span class="pre">rules</span></code>: a list of <code class="docutils literal"><span class="pre">(from_class,</span> <span class="pre">to_class)</span></code> tuples. Each rule tuple
+encodes that relationships leading from symbols of type <code class="docutils literal"><span class="pre">from_class</span></code>
+to symbols of type <code class="docutils literal"><span class="pre">to_class</span></code> may exist.</li>
+<li><code class="docutils literal"><span class="pre">inlink_cards</span></code>: a dictionary that encodes the range of permitted cardinalities
+for each RHS symbol of <em>inlinks</em> from the LHS symbols.</li>
+<li><code class="docutils literal"><span class="pre">outlink_cards</span></code>: a dictionary that encodes the range of permitted cardinalities
+for each LHS of <em>outlinks</em> to the RHS symbols.</li>
+<li><code class="docutils literal"><span class="pre">inlink_aggregate_cards</span></code>: A dict that holds for each RHS the range of
+permitted total inlink counts. E.g., a stem must always have at least one inlink.</li>
+<li><code class="docutils literal"><span class="pre">outlink_aggregate_cards</span></code>: A dict that holds for each LHS the range
+of permitted total outlink counts. E.g., a full notehead must always have
+at least one outlink.</li>
+</ul>
+<p>For non-grammar lines (see <a class="reference internal" href="#muscima.grammar.DependencyGrammar.parse_dependency_grammar_rules" title="muscima.grammar.DependencyGrammar.parse_dependency_grammar_rules"><code class="xref py py-meth docutils literal"><span class="pre">parse_dependency_grammar_rules()</span></code></a>),
+this method returns empty data structures.</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="muscima.grammar.DependencyGrammar.parse_dependency_grammar_rules">
 <code class="descname">parse_dependency_grammar_rules</code><span class="sig-paren">(</span><em>filename</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/grammar.html#DependencyGrammar.parse_dependency_grammar_rules"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.grammar.DependencyGrammar.parse_dependency_grammar_rules" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the Rules stored in the given rule file.</p>
+<dd><p>Returns the rules stored in the given rule file.</p>
+<p>A dependency grammar rule file contains grammar lines,
+comment lines, and other lines. A grammar line is any line that
+contains the <code class="docutils literal"><span class="pre">|</span></code> symbol and does <em>not</em> have a <code class="docutils literal"><span class="pre">#</span></code> as the first
+non-whitespace symbol.</p>
+<p>Comment lines are those that have <code class="docutils literal"><span class="pre">#</span></code> as the first non-whitespace
+symbol. They are ignored, even if they contain <code class="docutils literal"><span class="pre">|</span></code>. All other lines
+that do contain <code class="docutils literal"><span class="pre">|</span></code> are considered to be grammar lines.</p>
+<p>All lines that do not contain <code class="docutils literal"><span class="pre">|</span></code> are considered non-grammar lines
+and are ignored.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>filename</strong> &#8211; The path to the rule file.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A quintuplet of the grammar rules.<ul class="simple">
+<li><code class="docutils literal"><span class="pre">rules</span></code>: a list of <code class="docutils literal"><span class="pre">(from_class,</span> <span class="pre">to_class)</span></code> tuples. Each rule tuple
+encodes that relationships leading from symbols of type <code class="docutils literal"><span class="pre">from_class</span></code>
+to symbols of type <code class="docutils literal"><span class="pre">to_class</span></code> may exist.</li>
+<li><code class="docutils literal"><span class="pre">inlink_cards</span></code>: a dictionary that encodes the range of permitted cardinalities
+for each RHS symbol of <em>inlinks</em> from the LHS symbols.</li>
+<li><code class="docutils literal"><span class="pre">outlink_cards</span></code>: a dictionary that encodes the range of permitted cardinalities
+for each LHS of <em>outlinks</em> to the RHS symbols.</li>
+<li><code class="docutils literal"><span class="pre">inlink_aggregate_cards</span></code>: A dict that holds for each RHS the range of
+permitted total inlink counts. E.g., a stem must always have at least one inlink.</li>
+<li><code class="docutils literal"><span class="pre">outlink_aggregate_cards</span></code>: A dict that holds for each LHS the range
+of permitted total outlink counts. E.g., a full notehead must always have
+at least one outlink.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -407,7 +477,7 @@ to the alphabet of the grammar.</li>
 <dl class="exception">
 <dt id="muscima.grammar.DependencyGrammarParseError">
 <em class="property">exception </em><code class="descclassname">muscima.grammar.</code><code class="descname">DependencyGrammarParseError</code><a class="reference internal" href="_modules/muscima/grammar.html#DependencyGrammarParseError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.grammar.DependencyGrammarParseError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">ValueError</span></code></p>
 </dd></dl>
 
 </div>

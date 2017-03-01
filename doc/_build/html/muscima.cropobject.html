@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>muscima.cropobject module &#8212; muscima  documentation</title>
+    <title>muscima.cropobject module &#8212; muscima 0.3.0 documentation</title>
     
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -14,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    './',
-        VERSION:     '',
+        VERSION:     '0.3.0',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -23,7 +23,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="muscima  documentation" href="index.html" />
+    <link rel="top" title="muscima 0.3.0 documentation" href="index.html" />
     <link rel="up" title="muscima package" href="muscima.html" />
     <link rel="next" title="muscima.cropobject_class module" href="muscima.cropobject_class.html" />
     <link rel="prev" title="muscima package" href="muscima.html" />
@@ -48,7 +48,7 @@
 the basic unit of annotation. See the <a class="reference internal" href="#muscima.cropobject.CropObject" title="muscima.cropobject.CropObject"><code class="xref py py-class docutils literal"><span class="pre">CropObject</span></code></a> documentation.</p>
 <dl class="class">
 <dt id="muscima.cropobject.CropObject">
-<em class="property">class </em><code class="descclassname">muscima.cropobject.</code><code class="descname">CropObject</code><span class="sig-paren">(</span><em>objid</em>, <em>clsname</em>, <em>top</em>, <em>left</em>, <em>width</em>, <em>height</em>, <em>outlinks=[]</em>, <em>inlinks=[]</em>, <em>mask=None</em>, <em>uid=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/cropobject.html#CropObject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.cropobject.CropObject" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">muscima.cropobject.</code><code class="descname">CropObject</code><span class="sig-paren">(</span><em>objid</em>, <em>clsname</em>, <em>top</em>, <em>left</em>, <em>width</em>, <em>height</em>, <em>outlinks=None</em>, <em>inlinks=None</em>, <em>mask=None</em>, <em>uid=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/cropobject.html#CropObject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.cropobject.CropObject" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>One annotated object.</p>
 <p>The CropObject represents one instance of an annotation. It implements
@@ -146,7 +146,7 @@ names are available through appropriate instance attributes:</p>
 <p>If you supply no <code class="docutils literal"><span class="pre">uid</span></code> at initialization time, a default UID will
 be used:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">default_uid</span>
-<span class="go">&#39;MUSCIMA_DEFAULT_DATASET_PLACEHOLDER___default-document__0&#39;</span>
+<span class="go">&#39;MUSCIMA_DEFAULT_DATASET_PLACEHOLDER___default-document___0&#39;</span>
 </pre></div>
 </div>
 <p>(Don&#8217;t abuse the default, though! It&#8217;s intended just for transitioning
@@ -375,6 +375,10 @@ to the 2D numpy array.</p>
 <code class="descname">default_uid</code><a class="headerlink" href="#muscima.cropobject.CropObject.default_uid" title="Permalink to this definition">¶</a></dt>
 <dd><p>Constructs the default <code class="docutils literal"><span class="pre">uid</span></code> that the CropObject would
 have, unless one was supplied at initialization.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">default_uid</span>
+<span class="go">&#39;MUSCIMA_DEFAULT_DATASET_PLACEHOLDER___default-document___0&#39;</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="attribute">
@@ -518,6 +522,10 @@ This numeric ID should always match the <code class="docutils literal"><span cla
 acts as the &#8220;technical&#8221; identifier, since it is known to be
 an integer and therefore usable for e.g. indexing within
 the MUSCIMarker annotation app.</p>
+<p>See <code class="xref py py-meth docutils literal"><span class="pre">_parse_uid()</span></code> for format &amp; test. Compared
+to <code class="xref py py-meth docutils literal"><span class="pre">_parse_uid()</span></code>, this method checks the parsed <code class="docutils literal"><span class="pre">num</span></code>
+in the <code class="docutils literal"><span class="pre">uid</span></code> against this CropObject&#8217;s <code class="docutils literal"><span class="pre">objid</span></code>,
+to verify that the UID is really valid for this object.</p>
 <p>The delimiter is expected to be <code class="docutils literal"><span class="pre">___</span></code>
 (kept as <code class="docutils literal"><span class="pre">CropObject.UID_DELIMITER</span></code>)</p>
 </dd></dl>
@@ -632,9 +640,9 @@ will need to have their inlinks/outlinks redirected to the new object.)</p>
 <code class="descclassname">muscima.cropobject.</code><code class="descname">cropobjects_merge_mask</code><span class="sig-paren">(</span><em>cropobjects</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/cropobject.html#cropobjects_merge_mask"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.cropobject.cropobjects_merge_mask" title="Permalink to this definition">¶</a></dt>
 <dd><p>Merges the given list of cropobjects into one. Masks are combined
 by an OR operation.</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c1</span> <span class="o">=</span> <span class="n">CropObject</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint8&#39;</span><span class="p">))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c2</span> <span class="o">=</span> <span class="n">CropObject</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint8&#39;</span><span class="p">))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c3</span> <span class="o">=</span> <span class="n">CropObject</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span>  <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint8&#39;</span><span class="p">))</span>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c1</span> <span class="o">=</span> <span class="n">CropObject</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint8&#39;</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c2</span> <span class="o">=</span> <span class="n">CropObject</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint8&#39;</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c3</span> <span class="o">=</span> <span class="n">CropObject</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span>  <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint8&#39;</span><span class="p">))</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="p">[</span><span class="n">c1</span><span class="p">,</span> <span class="n">c2</span><span class="p">,</span> <span class="n">c3</span><span class="p">]</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">m1</span> <span class="o">=</span> <span class="n">cropobjects_merge_mask</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">m1</span><span class="o">.</span><span class="n">shape</span>
@@ -668,8 +676,12 @@ of data, and you want to merge these annotations).</p>
 and outlinks). It is assumed the lists pertain to the same
 image. Uses deepcopy to avoid exposing the original lists
 to modification through the merged list.</p>
-<p>If you are ever exporting the merged list, make sure to
-set the <code class="docutils literal"><span class="pre">uid</span></code> correctly, if you want to create a new document.</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">If you are ever exporting the merged list, make sure to
+set the <code class="docutils literal"><span class="pre">uid</span></code> for the outputs correctly, if you want
+to create a new document.</p>
+</div>
 </dd></dl>
 
 </div>
