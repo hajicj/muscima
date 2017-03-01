@@ -1,10 +1,14 @@
 #!/usr/bin/env python
-"""This is a script that analyzes the agreement between two
+"""``analyze_agreement.py`` is a script that analyzes the agreement between two
 annotations of the same file. The script measures:
 
 * Object counts: are they the same?
 * Object assignment: given the least-squares mapping of objects
   onto each other, to what extent do they differ?
+
+For an overview of command-line options, call::
+
+  analyze_agreement.py -h
 
 Alignment algorithm
 -------------------

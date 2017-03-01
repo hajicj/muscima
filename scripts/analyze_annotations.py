@@ -1,20 +1,21 @@
 #!/usr/bin/env python
-"""This is a script that analyzes annotation results.
+"""``analyze_annotation.py`` is a script that analyzes annotation results.
 
-Functionality:
+For an overview of command-line options, call::
+
+  analyze_annotation.py -h
+
+
+Functionality
+-------------
 
 * Count symbols
 * Count symbol classes
 * Compute symbol parameters per class (size, morphological features..?) [NOT IMPLEMENTED]
 
-* Count relationships [NOT IMPLEMENTED]
-* Count relationship classes [NOT IMPLEMENTED]
-* Compute relationship parameters per class pair [NOT IMPLEMENTED]
-
-
-Other questions:
-
-
+* Count relationships
+* Count relationship classes
+* Compute relationship parameters per class pair
 
 """
 from __future__ import print_function, unicode_literals

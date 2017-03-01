@@ -1,14 +1,17 @@
 #!/usr/bin/env python
-"""This is a script that performs a quick and dirty analysis
-of a MUSCIMarker event log.
+"""``analyze_tracking_log.py`` is a script that performs a quick and dirty analysis
+of a MUSCIMarker event log. It is not necessary for using the dataset,
+but you might want it running if you are annotating something with MUSCIMarker.
 
-What we want to know:
+For an overview of command-line options, call::
 
-* Number of hours worked
+  analyze_tracking_log.py -h
+
+What does the script track?
+
+* Number of minutes/hours worked
 * Speed: how much was done in total?
 * Densities: frequency of events (calls) per minute/hour
-
-* Clearly distinguish between user actions and internal tracked actions.
 
 Visualizations:
 

@@ -1,15 +1,22 @@
 #!/usr/bin/env python
-"""This is a script that copies out the images for which MUSCIMA++
-provides symbol annotations from a download of the CVC-MUSCIMA staff
-removal dataset. The ``symbol`` images get copied.
+"""``get_images_from_muscima.py`` is a script that copies out the images
+for which MUSCIMA++ provides symbol annotations from a download
+of the CVC-MUSCIMA staff removal dataset.
 
 You have to download the dataset first and provide a path to its
-root directory to this script.
+root directory to this script. Either supply it directly using the ``-r`` option,
+or set a ``CVC_MUSCIMA_ROOT`` environmental variable.
 
 Example invocation::
 
     get_images_from_muscima.py -o ./images -i 4:10 17:8 5:12 21:10 34:3
 
+MUSCIMA++ 0.9 provides a file with the writer:number pairs for its 140
+annotated images in this format.
+
+For an overview of all command-line options, call::
+
+  get_images_from_muscima.py -h
 
 """
 from __future__ import print_function, unicode_literals
