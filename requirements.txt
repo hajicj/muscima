@@ -1,3 +1,2 @@
-muscima
 numpy>=1.11.1
 lxml>=3.6.4
