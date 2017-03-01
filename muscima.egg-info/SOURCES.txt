@@ -1,0 +1,12 @@
+setup.py
+muscima/__init__.py
+muscima/cropobject.py
+muscima/cropobject_class.py
+muscima/grammar.py
+muscima/io.py
+muscima.egg-info/PKG-INFO
+muscima.egg-info/SOURCES.txt
+muscima.egg-info/dependency_links.txt
+muscima.egg-info/requires.txt
+muscima.egg-info/top_level.txt
+test/test_muscima.py

@@ -1,0 +1,193 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>muscima.cropobject_class module &#8212; muscima  documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="muscima  documentation" href="index.html" />
+    <link rel="up" title="muscima package" href="muscima.html" />
+    <link rel="next" title="muscima.dataset module" href="muscima.dataset.html" />
+    <link rel="prev" title="muscima.cropobject module" href="muscima.cropobject.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-muscima.cropobject_class">
+<span id="muscima-cropobject-class-module"></span><h1>muscima.cropobject_class module<a class="headerlink" href="#module-muscima.cropobject_class" title="Permalink to this headline">¶</a></h1>
+<p>This module implements the <a class="reference internal" href="#muscima.cropobject_class.CropObjectClass" title="muscima.cropobject_class.CropObjectClass"><code class="xref py py-class docutils literal"><span class="pre">CropObjectClass</span></code></a>, which
+represents one possible <code class="xref py py-class docutils literal"><span class="pre">CropObject</span></code> class, such as
+a notehead or a time signature. Aside from defining the &#8220;vocabulary&#8221;
+of available object classes for annotation, it also contains
+some information about how objects of the given class should
+be displayed in the MUSCIMarker annotation software (ordering
+related object classes together in menus, implementing a sensible
+color scheme, etc.). There is nothing interesting about this class,
+we pulled it into the <code class="docutils literal"><span class="pre">muscima</span></code> package because the object
+grammar (i.e. which relationships are allowed and which are not)
+depends on having CropObjectClass object as its &#8220;vocabulary&#8221;,
+and you will probably want to manipulate the data somehow based
+on the objects&#8217; relationships (like reassembling notes from notation
+primitives: notehead plus stem plus flags...), and the grammar
+file is a reference for doing that.</p>
+<p>CropObjectClass is a plain old data class, nothing interesting
+about it. The only catch is that colors for rendering
+in MUSCIMarker are kept as a <code class="docutils literal"><span class="pre">#RRGGBB</span></code> string in the XML
+file, but represented in the <code class="docutils literal"><span class="pre">CropObjectClass.color</span></code> attribute
+as a triplet of floats between 0 (<code class="docutils literal"><span class="pre">00</span></code>) and 255 (<code class="docutils literal"><span class="pre">ff</span></code>).</p>
+<p>The <code class="docutils literal"><span class="pre">___str__()</span></code> method of the class will output the correct
+XML representation.</p>
+<div class="section" id="xml-example">
+<h2>XML example<a class="headerlink" href="#xml-example" title="Permalink to this headline">¶</a></h2>
+<p>This is what a single CropObjectClass element might look like:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">CropObjectClass</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">Id</span><span class="o">&gt;</span><span class="mi">1</span><span class="o">&lt;/</span><span class="n">Id</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">Name</span><span class="o">&gt;</span><span class="n">notehead</span><span class="o">-</span><span class="n">empty</span><span class="o">&lt;/</span><span class="n">Name</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">GroupName</span><span class="o">&gt;</span><span class="n">note</span><span class="o">-</span><span class="n">primitive</span><span class="o">/</span><span class="n">notehead</span><span class="o">-</span><span class="n">empty</span><span class="o">&lt;/</span><span class="n">GroupName</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">Color</span><span class="o">&gt;</span><span class="c1">#FF7566&lt;/Color&gt;</span>
+    <span class="o">&lt;/</span><span class="n">CropObjectClass</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>See e.g. <code class="docutils literal"><span class="pre">test/test_data/mff-muscima-classes-annot.xml</span></code>,
+which is incidentally the real CropObjectClass list used
+for annotating MUSCIMA++.</p>
+<dl class="class">
+<dt id="muscima.cropobject_class.CropObjectClass">
+<em class="property">class </em><code class="descclassname">muscima.cropobject_class.</code><code class="descname">CropObjectClass</code><span class="sig-paren">(</span><em>clsid</em>, <em>name</em>, <em>group_name</em>, <em>color</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/cropobject_class.html#CropObjectClass"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.cropobject_class.CropObjectClass" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Information about the annotation class. We&#8217;re using it
+mostly to get the color of rendered CropObjects.</p>
+<p>CropObjectClass is a Plain Old Data class, there is no other
+functionality beyond simply existing and writing itself
+out in the appropriate XML format.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.cropobject_class.hex2rgb">
+<code class="descclassname">muscima.cropobject_class.</code><code class="descname">hex2rgb</code><span class="sig-paren">(</span><em>hstr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/cropobject_class.html#hex2rgb"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.cropobject_class.hex2rgb" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parse a hex-coded color like &#8216;#AA0202&#8217; into a floating-point representation.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hex2rgb</span><span class="p">(</span><span class="s1">&#39;#abe822&#39;</span><span class="p">)</span>
+<span class="go">(0.6705882352941176, 0.9098039215686274, 0.13333333333333333)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.cropobject_class.parse_hex">
+<code class="descclassname">muscima.cropobject_class.</code><code class="descname">parse_hex</code><span class="sig-paren">(</span><em>hstr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/cropobject_class.html#parse_hex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.cropobject_class.parse_hex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a hexadecimal number string to integer.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">parse_hex</span><span class="p">(</span><span class="s1">&#39;33&#39;</span><span class="p">)</span>
+<span class="go">51</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">parse_hex</span><span class="p">(</span><span class="s1">&#39;abe8&#39;</span><span class="p">)</span>
+<span class="go">44008</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.cropobject_class.rgb2hex">
+<code class="descclassname">muscima.cropobject_class.</code><code class="descname">rgb2hex</code><span class="sig-paren">(</span><em>rgb</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/cropobject_class.html#rgb2hex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.cropobject_class.rgb2hex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a floating-point representation of R, G, B values
+between 0 and 1 (inclusive) to a hex string (strating with a
+hashmark). Will use uppercase letters for 10 - 15.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">rgb</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.6705882352941176</span><span class="p">,</span> <span class="mf">0.9098039215686274</span><span class="p">,</span> <span class="mf">0.13333333333333333</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rgb2hex</span><span class="p">(</span><span class="n">rgb</span><span class="p">)</span>
+<span class="go">&#39;#ABE822&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">muscima.cropobject_class module</a><ul>
+<li><a class="reference internal" href="#xml-example">XML example</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="muscima.html">muscima package</a><ul>
+      <li>Previous: <a href="muscima.cropobject.html" title="previous chapter">muscima.cropobject module</a></li>
+      <li>Next: <a href="muscima.dataset.html" title="next chapter">muscima.dataset module</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/muscima.cropobject_class.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+      |
+      <a href="_sources/muscima.cropobject_class.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

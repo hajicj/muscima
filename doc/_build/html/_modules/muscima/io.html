@@ -1,0 +1,602 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>muscima.io &#8212; muscima  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="muscima  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for muscima.io</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;This module implements functions for reading and writing</span>
+<span class="sd">the data formats used by MUSCIMA++.</span>
+
+<span class="sd">Data formats</span>
+<span class="sd">============</span>
+
+<span class="sd">All MUSCIMA++ data is stored as XML, in ``&lt;CropObject&gt;`` elements.</span>
+<span class="sd">These are grouped into ``&lt;CropObjectList&gt;`` elements, which are</span>
+<span class="sd">the top-level elements in the ``*.xml`` dataset files.</span>
+
+<span class="sd">The list of object classes used in the dataset is also stored as XML,</span>
+<span class="sd">in ``&lt;CropObjectClass&gt;`` elements (within a ``&lt;CropObjectClassList&gt;``</span>
+<span class="sd">element).</span>
+
+<span class="sd">CropObject</span>
+<span class="sd">----------</span>
+
+<span class="sd">To read a CropObject list file (in this case, a test data file):</span>
+
+<span class="sd">    &gt;&gt;&gt; from muscima.io import parse_cropobject_list</span>
+<span class="sd">    &gt;&gt;&gt; import os</span>
+<span class="sd">    &gt;&gt;&gt; file = os.path.join(os.path.dirname(__file__), &#39;../test/test_data/01_basic.xml&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; cropobjects = parse_cropobject_list(file)</span>
+
+<span class="sd">The ``CropObject`` string representation is a XML object::</span>
+
+<span class="sd">    &lt;CropObject xml:id=&quot;MUSCIMA-pp_1.0___CVC-MUSCIMA_W-01_N-10_D-ideal___25&quot;&gt;</span>
+<span class="sd">      &lt;Id&gt;25&lt;/Id&gt;</span>
+<span class="sd">      &lt;MLClassName&gt;grace-notehead-full&lt;/MLClassName&gt;</span>
+<span class="sd">      &lt;Top&gt;119&lt;/Top&gt;</span>
+<span class="sd">      &lt;Left&gt;413&lt;/Left&gt;</span>
+<span class="sd">      &lt;Width&gt;16&lt;/Width&gt;</span>
+<span class="sd">      &lt;Height&gt;6&lt;/Height&gt;</span>
+<span class="sd">      &lt;Selected&gt;false&lt;/Selected&gt;</span>
+<span class="sd">      &lt;Mask&gt;1:5 0:11 (...) 1:4 0:6 1:5 0:1&lt;/Mask&gt;</span>
+<span class="sd">      &lt;Outlinks&gt;12 24 26&lt;/Outlinks&gt;</span>
+<span class="sd">      &lt;Inlinks&gt;13&lt;/Inlinks&gt;</span>
+<span class="sd">    &lt;/CropObject&gt;</span>
+
+<span class="sd">The CropObjects are themselves kept as a list::</span>
+
+<span class="sd">    &lt;CropObjectList&gt;</span>
+<span class="sd">      &lt;CropObjects&gt;</span>
+<span class="sd">        &lt;CropObject&gt; ... &lt;/CropObject&gt;</span>
+<span class="sd">        &lt;CropObject&gt; ... &lt;/CropObject&gt;</span>
+<span class="sd">      &lt;/CropObjects&gt;</span>
+<span class="sd">    &lt;/CropObjectList&gt;</span>
+
+<span class="sd">Parsing is only implemented for files that consist of a single</span>
+<span class="sd">``&lt;CropObjectList&gt;``.</span>
+
+<span class="sd">Unique identification of a CropObject</span>
+<span class="sd">^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+
+<span class="sd">``xml:id`` is a string that uniquely identifies the CropObject</span>
+<span class="sd">in the entire dataset. It is derived from a global dataset name and version</span>
+<span class="sd">identifier (in this case, ``MUSCIMA++_1.0``), a CropObjectList identifier</span>
+<span class="sd">which is unique within the dataset (derived from the filename:</span>
+<span class="sd">usually in the format ``CVC-MUSCIMA_W-{:02}_N-{:02}_D-ideal``),</span>
+<span class="sd">and the number of the CropObject within the given CropObjectList</span>
+<span class="sd">(which matches the ``&lt;Id&gt;`` value). The delimiter is three underscores</span>
+<span class="sd">(``___``), in order to comply with XML rules for the ``xml:id`` attribute.</span>
+
+
+<span class="sd">Individual elements of a ``&lt;CropObject&gt;``</span>
+<span class="sd">^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+
+<span class="sd">* ``&lt;Id&gt;`` is the integer ID of the CropObject inside a given</span>
+<span class="sd">  ``&lt;CropObjectList&gt;`` (which generally corresponds to one XML file</span>
+<span class="sd">  of CropObjects -- one document namespace).</span>
+<span class="sd">* ``&lt;MLClassName&gt;`` is the name of the object&#39;s class (such as</span>
+<span class="sd">  ``notehead-full``, ``beam``, ``numeral_3``, etc.).</span>
+<span class="sd">* ``&lt;Top&gt;`` is the vertical coordinate of the upper left corner of the object&#39;s</span>
+<span class="sd">  bounding box.</span>
+<span class="sd">* ``&lt;Left&gt;`` is the horizontal coordinate of the upper left corner of</span>
+<span class="sd">  the object&#39;s bounding box.</span>
+<span class="sd">* ``&lt;Width&gt;``: the amount of rows that the CropObject spans.</span>
+<span class="sd">* ``&lt;Height&gt;``: the amount of columns that the CropObject spans.</span>
+<span class="sd">* ``&lt;Mask&gt;``: a run-length-encoded binary (0/1) array that denotes the area</span>
+<span class="sd">  within the CropObject&#39;s bounding box (specified by ``top``, ``left``,</span>
+<span class="sd">  ``height`` and ``width``) that the CropObject actually occupies. If</span>
+<span class="sd">  the mask is not given, the object is understood to occupy the entire</span>
+<span class="sd">  bounding box. For the representation, see Implementation notes</span>
+<span class="sd">  below.</span>
+<span class="sd">* ``&lt;Inlinks&gt;``: whitespace-separate ``objid`` list, representing CropObjects</span>
+<span class="sd">  **from** which a relationship leads to this CropObject. (Relationships are</span>
+<span class="sd">  directed edges, forming a directed graph of CropObjects.) The objids are</span>
+<span class="sd">  valid in the same scope as the CropObject&#39;s ``objid``: don&#39;t mix</span>
+<span class="sd">  CropObjects from multiple scopes (e.g., multiple CropObjectLists)!</span>
+<span class="sd">  If you are using CropObjects from multiple CropObjectLists at the same</span>
+<span class="sd">  time, make sure to check against the ``uid``s.</span>
+<span class="sd">* ``&lt;Outlinks&gt;``: whitespace-separate ``objid`` list, representing CropObjects</span>
+<span class="sd">  **to** which a relationship leads to this CropObject. (Relationships are</span>
+<span class="sd">  directed edges, forming a directed graph of CropObjects.) The objids are</span>
+<span class="sd">  valid in the same scope as the CropObject&#39;s ``objid``: don&#39;t mix</span>
+<span class="sd">  CropObjects from multiple scopes (e.g., multiple CropObjectLists)!</span>
+<span class="sd">  If you are using CropObjects from multiple CropObjectLists at the same</span>
+<span class="sd">  time, make sure to check against the ``uid``s.</span>
+
+<span class="sd">The parser function provided for CropObjects does *not* check against</span>
+<span class="sd">the presence of other elements. You can extend CropObjects for your</span>
+<span class="sd">own purposes -- but you will have to implement parsing.</span>
+
+<span class="sd">Legacy issues with X, Y, and positions</span>
+<span class="sd">^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+
+<span class="sd">Formerly, instead of ``&lt;Top&gt;`` and ``&lt;Left&gt;``, there was a different way</span>
+<span class="sd">of marking CropObject position:</span>
+
+<span class="sd">* ``&lt;X&gt;`` was the HORIZONTAL coordinate of the object&#39;s upper left corner.</span>
+<span class="sd">* ``&lt;Y&gt;`` was the VERTICAL coordinate of the object&#39;s upper left corner.</span>
+
+<span class="sd">Due to legacy issues, the ``&lt;X&gt;`` in the XML file recorded the horizontal</span>
+<span class="sd">position (column) and ``&lt;Y&gt;`` recorded the vertical position (row). However,</span>
+<span class="sd">a ``CropObject`` instance uses these attributes in the more natural sense:</span>
+<span class="sd">``cropobject.x`` is the **top** coordinate, ``cropobject.y`` is the **bottom**</span>
+<span class="sd">coordinate.</span>
+
+<span class="sd">This was unfortunate, and mostly caused by ambiguity of what X and Y mean.</span>
+<span class="sd">So, the definition of the XML changed: instead of storing nondescript letters,</span>
+<span class="sd">we will use tags ``&lt;Top&gt;`` and ``&lt;Left&gt;``. Note that we also swapped the order:</span>
+<span class="sd">where previously the ordering was ``&lt;X&gt;`` (left) first and ``&lt;Y&gt;`` (top)</span>
+<span class="sd">second, we make ``&lt;Top&gt;`` first and ``&lt;Left&gt;`` second. This corresponds</span>
+<span class="sd">to how 2-D numpy arrays are indexed: row first, column second.</span>
+
+<span class="sd">You may still run into CropObjectList files that use ``&lt;X&gt;`` and ``&lt;Y&gt;``.</span>
+<span class="sd">The function for reading CropObjectList files, ``parse_cropobject_list()``,</span>
+<span class="sd">can deal with it and correctly assign the coordinates, but the CropObjects</span>
+<span class="sd">will be exported with ``&lt;Top&gt;`` and ``&lt;Left&gt;``. (This may break some</span>
+<span class="sd">there-and-back reencoding tests.)</span>
+
+<span class="sd">Implementation notes on the mask</span>
+<span class="sd">^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+
+<span class="sd">The mask is a numpy array that will be saved using run-length encoding.</span>
+<span class="sd">The numpy array is first flattened, then runs of successive 0&#39;s and 1&#39;s</span>
+<span class="sd">are encoded as e.g. ``0:10 `` for a run of 10 zeros.</span>
+
+<span class="sd">How much space does this take?</span>
+
+<span class="sd">Objects tend to be relatively convex, so after flattening, we can expect</span>
+<span class="sd">more or less two runs per row (flattening is done in ``C`` order). Because</span>
+<span class="sd">each run takes (approximately) 5 characters, each mask takes roughly ``5 * n_rows``</span>
+<span class="sd">bytes to encode. This makes it efficient for objects wider than 5 pixels, with</span>
+<span class="sd">a compression ratio approximately ``n_cols / 5``.</span>
+<span class="sd">(Also, the numpy array needs to be made C-contiguous for that, which</span>
+<span class="sd">explains the `CROPOBJECT_MASK_ORDER=&#39;C&#39;` hack in `set_mask()`.)</span>
+
+
+<span class="sd">CropObjectClass</span>
+<span class="sd">---------------</span>
+
+<span class="sd">This is what a single CropObjectClass element might look like::</span>
+
+<span class="sd">    &lt;CropObjectClass&gt;</span>
+<span class="sd">        &lt;Id&gt;1&lt;/Id&gt;</span>
+<span class="sd">        &lt;Name&gt;notehead-empty&lt;/Name&gt;</span>
+<span class="sd">        &lt;GroupName&gt;note-primitive/notehead-empty&lt;/GroupName&gt;</span>
+<span class="sd">        &lt;Color&gt;#FF7566&lt;/Color&gt;</span>
+<span class="sd">        &lt;/CropObjectClass&gt;</span>
+
+<span class="sd">See e.g. ``test/test_data/mff-muscima-classes-annot.xml``,</span>
+<span class="sd">which is incidentally the real CropObjectClass list used</span>
+<span class="sd">for annotating MUSCIMA++.</span>
+
+<span class="sd">The :class:`CropObjectClass` represents one possible :class:`CropObject`</span>
+<span class="sd">symbol class, such as a notehead or a time signature. Aside from defining</span>
+<span class="sd">the &quot;vocabulary&quot; of available object classes for annotation, it also contains</span>
+<span class="sd">some information about how objects of the given class should</span>
+<span class="sd">be displayed in the MUSCIMarker annotation software (ordering</span>
+<span class="sd">related object classes together in menus, implementing a sensible</span>
+<span class="sd">color scheme, etc.). There is nothing interesting about this class,</span>
+<span class="sd">we pulled it into the ``muscima`` package because the object</span>
+<span class="sd">grammar (i.e. which relationships are allowed and which are not)</span>
+<span class="sd">depends on having CropObjectClass object as its &quot;vocabulary&quot;,</span>
+<span class="sd">and you will probably want to manipulate the data somehow based</span>
+<span class="sd">on the objects&#39; relationships (like reassembling notes from notation</span>
+<span class="sd">primitives: notehead plus stem plus flags...), and the grammar</span>
+<span class="sd">file is a reference for doing that.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">unicode_literals</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">from</span> <span class="nn">lxml</span> <span class="k">import</span> <span class="n">etree</span>
+
+<span class="kn">from</span> <span class="nn">muscima.cropobject</span> <span class="k">import</span> <span class="n">CropObject</span>
+<span class="kn">from</span> <span class="nn">muscima.cropobject_class</span> <span class="k">import</span> <span class="n">CropObjectClass</span>
+
+<span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;1.0&quot;</span>
+<span class="n">__author__</span> <span class="o">=</span> <span class="s2">&quot;Jan Hajic jr.&quot;</span>
+
+
+<span class="c1">##############################################################################</span>
+
+
+<div class="viewcode-block" id="parse_cropobject_list"><a class="viewcode-back" href="../../muscima.io.html#muscima.io.parse_cropobject_list">[docs]</a><span class="k">def</span> <span class="nf">parse_cropobject_list</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;From a xml file with a CropObjectList as the top element, parse</span>
+<span class="sd">    a list of CropObjects. (See ``CropObject`` class documentation</span>
+<span class="sd">    for a description of the XMl format.)</span>
+
+<span class="sd">    Let&#39;s test whether the parsing function works:</span>
+
+<span class="sd">    &gt;&gt;&gt; test_data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)),</span>
+<span class="sd">    ...                              &#39;test&#39;, &#39;test_data&#39;,</span>
+<span class="sd">    ...                              &#39;cropobjects_xy_vs_topleft&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; clfile = os.path.join(test_data_dir, &#39;01_basic_topleft.xml&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; cropobjects = parse_cropobject_list(clfile)</span>
+<span class="sd">    &gt;&gt;&gt; len(cropobjects)</span>
+<span class="sd">    48</span>
+
+<span class="sd">    This parsing function can deal with the old-style CropObject XML</span>
+<span class="sd">    that uses ``&lt;Y&gt;`` and ``&lt;X&gt;`` to index the top left corner:</span>
+
+<span class="sd">    &gt;&gt;&gt; clfile_xy = os.path.join(test_data_dir, &#39;01_basic_xy.xml&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; cropobjects_xy = parse_cropobject_list(clfile_xy)</span>
+<span class="sd">    &gt;&gt;&gt; len(cropobjects_xy)</span>
+<span class="sd">    48</span>
+<span class="sd">    &gt;&gt;&gt; len(cropobjects) == len(cropobjects_xy)</span>
+<span class="sd">    True</span>
+
+<span class="sd">    However, the CropObjects export themselves back only with ``&lt;Top&gt;``</span>
+<span class="sd">    and ``&lt;Left&gt;``.</span>
+
+<span class="sd">    &gt;&gt;&gt; export_xy = export_cropobject_list(cropobjects_xy)</span>
+<span class="sd">    &gt;&gt;&gt; raw_data_topleft = &#39;\\n&#39;.join([l.rstrip() for l in open(clfile)])</span>
+<span class="sd">    &gt;&gt;&gt; raw_data_topleft == export_xy</span>
+<span class="sd">    True</span>
+
+<span class="sd">    Note that what is Y in the data gets translated to cropobj.x (vertical),</span>
+<span class="sd">    what is X gets translated to cropobj.y (horizontal).</span>
+
+<span class="sd">    :returns: A list of ``CropObject``s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tree</span> <span class="o">=</span> <span class="n">etree</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tree</span><span class="o">.</span><span class="n">getroot</span><span class="p">()</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;XML parsed.&#39;</span><span class="p">)</span>
+    <span class="n">cropobject_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">cropobject</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">iter</span><span class="p">(</span><span class="s1">&#39;CropObject&#39;</span><span class="p">)):</span>
+        <span class="c1">######################################################</span>
+        <span class="c1"># Parsing one CropObject</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Parsing CropObject </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+
+        <span class="c1"># The problem with changing objid: it is often used as</span>
+        <span class="c1"># an integer in MUSCIMarker...</span>
+        <span class="n">objid</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Id&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">))</span>
+
+        <span class="c1"># ...So: we introduce UniqueId (uid). But there needs</span>
+        <span class="c1"># to be some transition, to deal with files that don&#39;t</span>
+        <span class="c1"># have it.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># This is ugly, but the xml: namespace is not in the</span>
+                <span class="c1"># cropobject.nsmap dict...</span>
+                <span class="n">uid</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">attrib</span><span class="p">[</span><span class="s1">&#39;{http://www.w3.org/XML/1998/namespace}id&#39;</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="c1"># Fallback</span>
+                <span class="n">uid</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;UniqueId&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">uid</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="c1"># Generate a default UID at this level?</span>
+            <span class="c1"># No: leave it to the CropObject class default UID mechanism.</span>
+
+        <span class="c1"># Dealing with clsname transition: there shoud be no more</span>
+        <span class="c1"># CropObjectLists without a clsname. The clsid has been</span>
+        <span class="c1"># removed from CropObject specification, anyway.</span>
+        <span class="c1"># clsname=None</span>
+        <span class="c1"># _has_clsname = False</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;MLClassName&#39;</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">clsname</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;MLClassName&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CropObject </span><span class="si">{0}</span><span class="s1">: no clsname provided.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objid</span><span class="p">))</span>
+
+        <span class="c1">#################################</span>
+        <span class="c1"># Top left corner position</span>
+
+        <span class="c1"># Helper functions for TopLeft/XY transition</span>
+        <span class="k">def</span> <span class="nf">_uses_xy</span><span class="p">(</span><span class="n">cropobject</span><span class="p">):</span>
+            <span class="n">xs</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Y&#39;</span><span class="p">)</span>
+            <span class="n">ys</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;X&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">xs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">_uses_topleft</span><span class="p">(</span><span class="n">cropobject</span><span class="p">):</span>
+            <span class="n">xs</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Top&#39;</span><span class="p">)</span>
+            <span class="n">ys</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Left&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">xs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">_uses_xy</span><span class="p">(</span><span class="n">cropobject</span><span class="p">):</span>
+            <span class="c1">###########################################</span>
+            <span class="c1"># DANGER! DANGER! DANGER! DANGER! DANGER! #</span>
+            <span class="c1">#                                         #</span>
+            <span class="c1">#      NOTE THE SWAP OF COORDINATES!      #</span>
+            <span class="c1">#                                         #</span>
+            <span class="c1">###########################################</span>
+            <span class="n">top</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Y&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;X&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">_uses_topleft</span><span class="p">(</span><span class="n">cropobject</span><span class="p">):</span>
+            <span class="n">top</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Top&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Left&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s1">&#39;Cropobject </span><span class="si">{0}</span><span class="s1"> has neither Top/Left, nor Y/Y&#39;</span>
+                           <span class="s1">&#39; position information!&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objid</span><span class="p">))</span>
+
+        <span class="c1">#################################</span>
+        <span class="c1"># Shape</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Width&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+        <span class="n">height</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Height&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+        <span class="c1">#################################</span>
+        <span class="c1"># Parsing the graph structure (Can deal with missing Inlinks/Outlinks)</span>
+        <span class="n">inlinks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">i_s</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Inlinks&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">i_s</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">i_s_text</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Inlinks&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+            <span class="k">if</span> <span class="n">i_s_text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Zero-length links</span>
+                <span class="n">inlinks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">i_s_text</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)))</span>
+
+        <span class="n">outlinks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">o_s</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Outlinks&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">o_s</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">o_s_text</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Outlinks&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+            <span class="k">if</span> <span class="n">o_s_text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">outlinks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">o_s_text</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)))</span>
+
+        <span class="c1">#################################</span>
+        <span class="c1"># Create the object.</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">CropObject</span><span class="p">(</span><span class="n">objid</span><span class="o">=</span><span class="n">objid</span><span class="p">,</span>
+                         <span class="n">uid</span><span class="o">=</span><span class="n">uid</span><span class="p">,</span>
+                         <span class="n">clsname</span><span class="o">=</span><span class="n">clsname</span><span class="p">,</span>
+                         <span class="n">top</span><span class="o">=</span><span class="n">top</span><span class="p">,</span>
+                         <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span>
+                         <span class="n">width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span>
+                         <span class="n">height</span><span class="o">=</span><span class="n">height</span><span class="p">,</span>
+                         <span class="n">inlinks</span><span class="o">=</span><span class="n">inlinks</span><span class="p">,</span>
+                         <span class="n">outlinks</span><span class="o">=</span><span class="n">outlinks</span><span class="p">)</span>
+
+        <span class="c1">#################################</span>
+        <span class="c1"># Add mask.</span>
+        <span class="c1"># We do this only after the CropObject has been created,</span>
+        <span class="c1"># to make sure that the width &amp; height used to reshape</span>
+        <span class="c1"># the flattened mask reflects what is in the CropObject.</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Mask&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">decode_mask</span><span class="p">(</span><span class="n">cropobject</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Mask&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">,</span>
+                                   <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">width</span><span class="p">))</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">set_mask</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Created CropObject with ID </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">objid</span><span class="p">))</span>
+
+        <span class="n">cropobject_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;CropObjectList loaded.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">validate_cropobjects_graph_structure</span><span class="p">(</span><span class="n">cropobject_list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid CropObject graph structure! Check warnings&#39;</span>
+                         <span class="s1">&#39; in log for the individual errors.&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cropobject_list</span></div>
+
+
+<div class="viewcode-block" id="validate_cropobjects_graph_structure"><a class="viewcode-back" href="../../muscima.io.html#muscima.io.validate_cropobjects_graph_structure">[docs]</a><span class="k">def</span> <span class="nf">validate_cropobjects_graph_structure</span><span class="p">(</span><span class="n">cropobjects</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Check that the graph defined by the ``inlinks`` and ``outlinks``</span>
+<span class="sd">    in the given list of CropObjects is valid: no relationships</span>
+<span class="sd">    leading from or to objects with non-existent ``objid``s.</span>
+
+<span class="sd">    Can deal with ``cropobjects`` coming from a combination</span>
+<span class="sd">    of documents, through the CropObject ``doc`` property.</span>
+<span class="sd">    Warns about documents which are found inconsistent.</span>
+
+<span class="sd">    :param cropobjects: A list of :class:`CropObject` instances.</span>
+
+<span class="sd">    :returns: ``True`` if graph is valid, ``False`` otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Split into lists by doc</span>
+    <span class="n">cropobjects_by_doc</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobjects</span><span class="p">:</span>
+        <span class="n">cropobjects_by_doc</span><span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">doc</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+    <span class="n">is_valid</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">doc_cropobjects</span> <span class="ow">in</span> <span class="n">cropobjects_by_doc</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">doc_is_valid</span> <span class="o">=</span> <span class="n">validate_document_graph_structure</span><span class="p">(</span><span class="n">doc_cropobjects</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">doc_is_valid</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Document </span><span class="si">{0}</span><span class="s1"> has invalid cropobject graph!&#39;</span>
+                            <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">doc</span><span class="p">))</span>
+            <span class="n">is_valid</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">is_valid</span></div>
+
+
+<div class="viewcode-block" id="validate_document_graph_structure"><a class="viewcode-back" href="../../muscima.io.html#muscima.io.validate_document_graph_structure">[docs]</a><span class="k">def</span> <span class="nf">validate_document_graph_structure</span><span class="p">(</span><span class="n">cropobjects</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Check that the graph defined by the ``inlinks`` and ``outlinks``</span>
+<span class="sd">    in the given list of CropObjects is valid: no relationships</span>
+<span class="sd">    leading from or to objects with non-existent ``objid``s.</span>
+
+<span class="sd">    Checks that all the CropObjects come from one document. (Raises</span>
+<span class="sd">    a ``ValueError`` otherwise.)</span>
+
+<span class="sd">    :param cropobjects: A list of :class:`CropObject` instances.</span>
+
+<span class="sd">    :returns: ``True`` if graph is valid, ``False`` otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">docs</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">doc</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobjects</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">docs</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Got CropObjects from multiple documents!&#39;</span><span class="p">)</span>
+
+    <span class="n">is_valid</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">objids</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">([</span><span class="n">c</span><span class="o">.</span><span class="n">objid</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobjects</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobjects</span><span class="p">:</span>
+        <span class="n">inlinks</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">inlinks</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inlinks</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">objids</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Invalid graph structure in CropObjectList:&#39;</span>
+                                <span class="s1">&#39; object </span><span class="si">{0}</span><span class="s1"> has inlink from non-existent&#39;</span>
+                                <span class="s1">&#39; object </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+                <span class="n">is_valid</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="n">outlinks</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">outlinks</span>
+        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">outlinks</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">o</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">objids</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Invalid graph structure in CropObjectList:&#39;</span>
+                                <span class="s1">&#39; object </span><span class="si">{0}</span><span class="s1"> has outlink to non-existent&#39;</span>
+                                <span class="s1">&#39; object </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">))</span>
+                <span class="n">is_valid</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">return</span> <span class="n">is_valid</span></div>
+
+
+<div class="viewcode-block" id="export_cropobject_graph"><a class="viewcode-back" href="../../muscima.io.html#muscima.io.export_cropobject_graph">[docs]</a><span class="k">def</span> <span class="nf">export_cropobject_graph</span><span class="p">(</span><span class="n">cropobjects</span><span class="p">,</span> <span class="n">validate</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Collects the inlink/outlink CropObject graph</span>
+<span class="sd">    and returns it as a list of ``(from, to)`` edges.</span>
+
+<span class="sd">    :param cropobjects: A list of CropObject instances.</span>
+<span class="sd">        All are expected to be within one document.</span>
+
+<span class="sd">    :param validate: If set, will raise a ValueError</span>
+<span class="sd">        if the graph defined by the CropObjects is</span>
+<span class="sd">        invalid.</span>
+
+<span class="sd">    :returns: A list of ``(from, to)`` objid pairs</span>
+<span class="sd">        that represent edges in the CropObject graph.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">validate</span><span class="p">:</span>
+        <span class="n">validate_cropobjects_graph_structure</span><span class="p">(</span><span class="n">cropobjects</span><span class="p">)</span>
+
+    <span class="n">edges</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobjects</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">outlinks</span><span class="p">:</span>
+            <span class="n">edges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">c</span><span class="o">.</span><span class="n">objid</span><span class="p">,</span> <span class="n">o</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">edges</span></div>
+
+
+<div class="viewcode-block" id="export_cropobject_list"><a class="viewcode-back" href="../../muscima.io.html#muscima.io.export_cropobject_list">[docs]</a><span class="k">def</span> <span class="nf">export_cropobject_list</span><span class="p">(</span><span class="n">cropobjects</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Writes the CropObject data as a XML string. Does not write</span>
+<span class="sd">    to a file -- use ``with open(output_file) as out_stream:`` etc.</span>
+
+<span class="sd">    :param cropobjects: A list of CropObject instances.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># This is the data string, the rest is formalities</span>
+    <span class="n">cropobj_string</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobjects</span><span class="p">])</span>
+
+    <span class="n">lines</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;CropObjectList&#39;</span>
+                 <span class="s1">&#39; xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;&#39;</span>
+                 <span class="s1">&#39; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot;&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;CropObjects&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cropobj_string</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;/CropObjects&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;/CropObjectList&gt;&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+<span class="c1">##############################################################################</span>
+<span class="c1"># Parsing CropObjectClass lists, mostly for grammars.</span>
+
+<div class="viewcode-block" id="parse_cropobject_class_list"><a class="viewcode-back" href="../../muscima.io.html#muscima.io.parse_cropobject_class_list">[docs]</a><span class="k">def</span> <span class="nf">parse_cropobject_class_list</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;From a xml file with a MLClassList as the top element,</span>
+<span class="sd">    extract the list of :class:`CropObjectClass` objects. Use</span>
+<span class="sd">    this</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tree</span> <span class="o">=</span> <span class="n">etree</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tree</span><span class="o">.</span><span class="n">getroot</span><span class="p">()</span>
+    <span class="n">cropobject_class_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">mlclass</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">iter</span><span class="p">(</span><span class="s1">&#39;CropObjectClass&#39;</span><span class="p">):</span>
+        <span class="n">cls</span> <span class="o">=</span> <span class="n">CropObjectClass</span><span class="p">(</span><span class="n">clsid</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">mlclass</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Id&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">),</span>
+                              <span class="n">name</span><span class="o">=</span><span class="n">mlclass</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Name&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">,</span>
+                              <span class="n">group_name</span><span class="o">=</span><span class="n">mlclass</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;GroupName&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">,</span>
+                              <span class="n">color</span><span class="o">=</span><span class="n">mlclass</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;Color&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+        <span class="n">cropobject_class_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cropobject_class_list</span></div>
+
+
+<div class="viewcode-block" id="export_cropobject_class_list"><a class="viewcode-back" href="../../muscima.io.html#muscima.io.export_cropobject_class_list">[docs]</a><span class="k">def</span> <span class="nf">export_cropobject_class_list</span><span class="p">(</span><span class="n">cropobject_classes</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Writes the CropObject data as a XML string. Does not write</span>
+<span class="sd">    to a file -- use ``with open(output_file) as out_stream:`` etc.</span>
+
+<span class="sd">    :param cropobjects: A list of CropObject instances.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># This is the data string, the rest is formalities</span>
+    <span class="n">cropobject_classes_string</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cropobject_classes</span><span class="p">])</span>
+
+    <span class="n">lines</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;CropObjectClassList&#39;</span>
+                 <span class="s1">&#39; noNamespaceSchema=&quot;mff-muscima-cropobject-classes.xsd&quot;&#39;</span>
+                 <span class="s1">&#39; xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;&#39;</span>
+                 <span class="s1">&#39; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot;&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;CropObjectClasses&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cropobject_classes_string</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;/CropObjectClasses&gt;&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;/CropObjectClassList&gt;&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

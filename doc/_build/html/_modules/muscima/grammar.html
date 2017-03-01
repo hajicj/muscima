@@ -1,0 +1,765 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>muscima.grammar &#8212; muscima  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="muscima  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for muscima.grammar</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;This module implements a Grammar.</span>
+
+<span class="sd">A Grammar is a set of rules about how objects from a certain set</span>
+<span class="sd">of classes are allowed to form relationships. In a dependency grammar,</span>
+<span class="sd">the relationships are formed directly between the objects. (In</span>
+<span class="sd">constituency grammars, we&#39;d have a &quot;merge result&quot; object instead.)</span>
+
+<span class="sd">In the ``muscima`` package, you can use grammars to validate</span>
+<span class="sd">whether the relationships between the annotated objects conform</span>
+<span class="sd">to the specification.</span>
+
+<span class="sd">.. warning::</span>
+
+<span class="sd">    The grammar is not a formal specification. Music notation sometimes</span>
+<span class="sd">    breaks its own rules. More importantly, people who write music</span>
+<span class="sd">    notation by hand make mistakes. This means that not all annotation</span>
+<span class="sd">    files will pass grammar validation without errors, and that is fine.</span>
+<span class="sd">    If this bothers you, use the MUSCIMarker tool to visualize the errors.</span>
+
+
+<span class="sd">.. TODO::</span>
+<span class="sd">    create image:: ../doc/_static/grammar_explainer.png</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">codecs</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pprint</span>
+
+<span class="kn">import</span> <span class="nn">collections</span>
+
+<span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.1&quot;</span>
+<span class="n">__author__</span> <span class="o">=</span> <span class="s2">&quot;Jan Hajic jr.&quot;</span>
+
+
+<div class="viewcode-block" id="DependencyGrammarParseError"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammarParseError">[docs]</a><span class="k">class</span> <span class="nc">DependencyGrammarParseError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="DependencyGrammar"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar">[docs]</a><span class="k">class</span> <span class="nc">DependencyGrammar</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The DependencyGrammar class implements rules about valid graphs above</span>
+<span class="sd">    objects from a set of recognized classes.</span>
+
+<span class="sd">    The Grammar complements a Parser. It defines rules, and the Parser</span>
+<span class="sd">    implements algorithms to apply these rules to some input.</span>
+
+<span class="sd">    A grammar has an **Alphabet** and **Rules**. The alphabet is a list</span>
+<span class="sd">    of symbols that the grammar recognizes. Rules are constraints on</span>
+<span class="sd">    the structures that can be induced among these symbols.</span>
+
+<span class="sd">    There are two kinds of grammars according to what kinds of rules</span>
+<span class="sd">    they use: **dependency** rules, and **constituency** rules. We use</span>
+<span class="sd">    dependency grammars. Dependency grammar rules specify which symbols</span>
+<span class="sd">    are governing, and which symbols are governed::</span>
+
+<span class="sd">      notehead_full | stem</span>
+
+<span class="sd">    There can be multiple left-hand side and right-hand side symbols,</span>
+<span class="sd">    as a shortcut for a list of rules::</span>
+
+<span class="sd">        notehead_full | stem beam</span>
+<span class="sd">        notehead_full notehead_empty | ledger_line duration-dot tie grace_note</span>
+
+<span class="sd">    The asterisk works as a wildcard. Currently, only one wildcard per symbol</span>
+<span class="sd">    is allowed::</span>
+
+<span class="sd">      time_signature | numeral_*</span>
+
+<span class="sd">    Lines starting with a ``#`` are regarded as comments and ignored.</span>
+<span class="sd">    Empty lines are also ignored.</span>
+
+<span class="sd">    **Cardinality rules**</span>
+
+<span class="sd">    We can also specify in the grammar the minimum and/or maximum number</span>
+<span class="sd">    of relationships, both inlinks and outlinks, that an object can form</span>
+<span class="sd">    with other objects of given types. For example:</span>
+
+<span class="sd">    * One notehead may have up to two stems attached.</span>
+<span class="sd">    * We also allow for stemless full noteheads.</span>
+<span class="sd">    * One stem can be attached to multiple noteheads, but at least one.</span>
+
+<span class="sd">    This would be expressed as::</span>
+
+<span class="sd">      notehead-*{,2} | stem{1,}</span>
+
+<span class="sd">    The relationship of noteheads to ledger lines is generally ``m:n``::</span>
+
+<span class="sd">      notehead-full | ledger_line</span>
+
+<span class="sd">    A time signature may consist of multiple numerals, but only one</span>
+<span class="sd">    other symbol::</span>
+
+<span class="sd">      time_signature{1,} | numeral_*{1}</span>
+<span class="sd">      time_signature{1} | whole-time_mark alla_breve other_time_signature</span>
+
+<span class="sd">    A key signature may have any number of sharps and flats.</span>
+<span class="sd">    A sharp or flat can only belong to one key signature. However,</span>
+<span class="sd">    not every sharp belongs to a key signature::</span>
+
+<span class="sd">      key_signature | sharp{,1} flat{,1} natural{,1} double_sharp{,1} double_flat{,1}</span>
+
+<span class="sd">    For the left-hand side of the rule, the cardinality restrictions apply to</span>
+<span class="sd">    outlinks towards symbols of classes on the right-hand side of the rule.</span>
+<span class="sd">    For the right-hand side, the cardinality restrictions apply to inlinks</span>
+<span class="sd">    from symbols of left-hand side classes.</span>
+
+<span class="sd">    It is also possible to specify that regardless of where outlinks</span>
+<span class="sd">    lead, a symbol should always have at least some::</span>
+
+<span class="sd">      time_signature{1,} |</span>
+<span class="sd">      repeat{2,} |</span>
+
+<span class="sd">    And analogously for inlinks::</span>
+
+<span class="sd">      | letter_*{1,}</span>
+<span class="sd">      | numeral_*{1,}</span>
+<span class="sd">      | ledger_line{1,}</span>
+<span class="sd">      | grace-notehead-*{1,}</span>
+
+<span class="sd">    **Interface**</span>
+
+<span class="sd">    The basic role of the dependency grammar is to provide the list of rules:</span>
+
+<span class="sd">    &gt;&gt;&gt; from muscima.io import parse_cropobject_class_list</span>
+<span class="sd">    &gt;&gt;&gt; fpath = os.path.dirname(os.path.dirname(__file__)) + u&#39;/test/test_data/mff-muscima-classes-annot.deprules&#39;</span>
+<span class="sd">    &gt;&gt;&gt; mlpath = os.path.dirname(os.path.dirname(__file__)) + u&#39;/test/test_data/mff-muscima-classes-annot.xml&#39;</span>
+<span class="sd">    &gt;&gt;&gt; mlclass_dict = {m.name for m in parse_cropobject_class_list(mlpath)}</span>
+<span class="sd">    &gt;&gt;&gt; g = DependencyGrammar(grammar_filename=fpath, alphabet=mlclass_dict)</span>
+<span class="sd">    &gt;&gt;&gt; len(g.rules)</span>
+<span class="sd">    578</span>
+
+<span class="sd">    The grammar can validate against these rules. The workhorse of this</span>
+<span class="sd">    functionality is the ``find_invalid_in_graph()`` method, which finds</span>
+<span class="sd">    objects that have inlinks/outlinks which do not comply with the grammar,</span>
+<span class="sd">    and the non-compliant inlinks/outlinks as well.</span>
+
+<span class="sd">    If we have the following notation objects ``0``, ``1``, ``2``, and ``3``,</span>
+<span class="sd">    with the following symbol classes:</span>
+
+<span class="sd">    &gt;&gt;&gt; vertices = {0: &#39;notehead-full&#39;, 1: &#39;stem&#39;, 2: &#39;8th_flag&#39;, 3: &#39;notehead_empty&#39;}</span>
+
+<span class="sd">    And the following relationships were recorded:</span>
+
+<span class="sd">    &gt;&gt;&gt; edges = [(0, 1), (0, 2), (0, 3)]</span>
+
+<span class="sd">    We can check for errors against our music notation symbols dependency</span>
+<span class="sd">    grammar:</span>
+
+<span class="sd">    &gt;&gt;&gt; wrong_vertices, wrong_inlinks, wrong_outlinks = \</span>
+<span class="sd">            g.find_invalid_in_graph(vertices=vertices, edges=edges)</span>
+
+<span class="sd">    Because the edge ``(0, 3)`` connects a full notehead to an empty notehead,</span>
+<span class="sd">    the method should report the objects ``0`` and ``3`` as wrong, as well</span>
+<span class="sd">    as the corresponding inlink of ``3`` and outlink of ``0``:</span>
+
+<span class="sd">    &gt;&gt;&gt; wrong_vertices</span>
+<span class="sd">    [3, 0]</span>
+<span class="sd">    &gt;&gt;&gt; wrong_inlinks</span>
+<span class="sd">    [(0, 3)]</span>
+<span class="sd">    &gt;&gt;&gt; wrong_outlinks</span>
+<span class="sd">    [(0, 3)]</span>
+
+<span class="sd">    (Note that both the inlinks and outlinks are recorded in a ``(from, to)``</span>
+<span class="sd">    format.)</span>
+
+<span class="sd">    .. caution::</span>
+
+<span class="sd">        Aside from checking against illegal relationships (such as we</span>
+<span class="sd">        saw in the example), errors can also come from too many or too</span>
+<span class="sd">        few inlinks/outlinks of a given type. However,</span>
+<span class="sd">        the validation currently implements checks only for aggregate</span>
+<span class="sd">        cardinalities, not for pair cardinalities (so, there can be</span>
+<span class="sd">        e.g. multiple sharps attached to a notehead, even though the cardinality</span>
+<span class="sd">        in the ``notehead | sharp`` rule is set to max. 1).</span>
+
+<span class="sd">    **Grammar file formats**</span>
+
+<span class="sd">    The alphabet is stored by means of a ``CropObjectClassList`` XML file with</span>
+<span class="sd">    :class:`CropObjectClass` elements, as described in the :mod:`muscima.io` module.</span>
+
+<span class="sd">    The rules are stored in *rule files*, with the suffix ``.deprules``.</span>
+
+<span class="sd">    A rule file line can be empty, start with a ``#`` (comment), or contain</span>
+<span class="sd">    a rule symbol ``|``. Empty lines and comments are ignored during parsing.</span>
+<span class="sd">    Rules are split into left- and right-hand side tokens, according to</span>
+<span class="sd">    the position of the ``|`` symbol.</span>
+
+<span class="sd">    Parsing a token returns the token string (unexpanded wildcards), its</span>
+<span class="sd">    minimum and maximum cardinality in the rule (defaults are ``(0, 10000)``</span>
+<span class="sd">    if no cardinality is provided).</span>
+
+<span class="sd">    &gt;&gt;&gt; g.parse_token(&#39;notehead-*&#39;)</span>
+<span class="sd">    (&#39;notehead-*&#39;, 0, 10000)</span>
+<span class="sd">    &gt;&gt;&gt; g.parse_token(&#39;notehead-*{1,5}&#39;)</span>
+<span class="sd">    (&#39;notehead-*&#39;, 1, 5)</span>
+<span class="sd">    &gt;&gt;&gt; g.parse_token(&#39;notehead-*{1,}&#39;)</span>
+<span class="sd">    (&#39;notehead-*&#39;, 1, 10000)</span>
+<span class="sd">    &gt;&gt;&gt; g.parse_token(&#39;notehead-*{,5}&#39;)</span>
+<span class="sd">    (&#39;notehead-*&#39;, 0, 5)</span>
+<span class="sd">    &gt;&gt;&gt; g.parse_token(&#39;notehead-*{1}&#39;)</span>
+<span class="sd">    (&#39;notehead-*&#39;, 1, 1)</span>
+
+<span class="sd">    The wildcards are expanded at the level of a line.</span>
+
+<span class="sd">    &gt;&gt;&gt; l = &#39;notehead-*{,2} | stem&#39;</span>
+<span class="sd">    &gt;&gt;&gt; rules, inlink_cards, outlink_cards, _, _ = g.parse_dependency_grammar_line(l)</span>
+<span class="sd">    &gt;&gt;&gt; rules</span>
+<span class="sd">    [(&#39;notehead-empty&#39;, &#39;stem&#39;), (&#39;notehead-full&#39;, &#39;stem&#39;)]</span>
+<span class="sd">    &gt;&gt;&gt; outlink_cards[&#39;notehead-empty&#39;]</span>
+<span class="sd">    {&#39;stem&#39;: (0, 2)}</span>
+<span class="sd">    &gt;&gt;&gt; inlink_cards[&#39;stem&#39;]</span>
+<span class="sd">    {&#39;notehead-empty&#39;: (0, 10000), &#39;notehead-full&#39;: (0, 10000)}</span>
+
+<span class="sd">    A key signature can have any number of sharps, flats, or naturals,</span>
+<span class="sd">    but if a given symbol is part of a key signature, it can only be part of one.</span>
+
+<span class="sd">    &gt;&gt;&gt; l = &#39;key-signature | sharp{1} flat{1} natural{1}&#39;</span>
+<span class="sd">    &gt;&gt;&gt; rules, inlink_cards, _, _, _ = g.parse_dependency_grammar_line(l)</span>
+<span class="sd">    &gt;&gt;&gt; rules</span>
+<span class="sd">    [(&#39;key-signature&#39;, &#39;sharp&#39;), (&#39;key-signature&#39;, &#39;flat&#39;), (&#39;key-signature&#39;, &#39;natural&#39;)]</span>
+<span class="sd">    &gt;&gt;&gt; inlink_cards</span>
+<span class="sd">    {&#39;natural&#39;: {&#39;key-signature&#39;: (1, 1)}, &#39;sharp&#39;: {&#39;key-signature&#39;: (1, 1)}, &#39;flat&#39;: {&#39;key-signature&#39;: (1, 1)}}</span>
+
+<span class="sd">    You can also give *aggregate* cardinality rules, of the style &quot;whatever rule</span>
+<span class="sd">    applies, there should be at least X/at most Y edges for this type of object&quot;.</span>
+<span class="sd">    (If no maximum is specified, the value of ``DependencyGrammar._MAX_CARD``</span>
+<span class="sd">    is used, which is by default 10000).</span>
+
+<span class="sd">    &gt;&gt;&gt; l = &#39;key-signature{1,} |&#39;</span>
+<span class="sd">    &gt;&gt;&gt; _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)</span>
+<span class="sd">    &gt;&gt;&gt; out_aggregate_cards</span>
+<span class="sd">    {&#39;key-signature&#39;: (1, 10000)}</span>
+<span class="sd">    &gt;&gt;&gt; l = &#39;grace-notehead*{1,} |&#39;</span>
+<span class="sd">    &gt;&gt;&gt; _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)</span>
+<span class="sd">    &gt;&gt;&gt; out_aggregate_cards</span>
+<span class="sd">    {&#39;grace-notehead-empty&#39;: (1, 10000), &#39;grace-notehead-full&#39;: (1, 10000)}</span>
+<span class="sd">    &gt;&gt;&gt; l = &#39;| beam{1,} stem{1,} flat{1,}&#39;</span>
+<span class="sd">    &gt;&gt;&gt; _, _, _, in_aggregate_cards, _ = g.parse_dependency_grammar_line(l)</span>
+<span class="sd">    &gt;&gt;&gt; in_aggregate_cards</span>
+<span class="sd">    {&#39;stem&#39;: (1, 10000), &#39;beam&#39;: (1, 10000), &#39;flat&#39;: (1, 10000)}</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">WILDCARD</span> <span class="o">=</span> <span class="s1">&#39;*&#39;</span>
+
+    <span class="n">_MAX_CARD</span> <span class="o">=</span> <span class="mi">10000</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grammar_filename</span><span class="p">,</span> <span class="n">alphabet</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize the Grammar: fill in alphabet and parse rules.</span>
+
+<span class="sd">        :param grammar_filename: Path to a file that contains deprules</span>
+<span class="sd">            (see class documentation for ``*.deprules`` file format).</span>
+
+<span class="sd">        :param alphabet: A set or list of symbol class names, which</span>
+<span class="sd">            are used in the *.deprules file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">alphabet</span><span class="p">)</span>
+        <span class="c1"># logging.info(&#39;DependencyGrammar: got alphabet:\n{0}&#39;</span>
+        <span class="c1">#              &#39;&#39;.format(pprint.pformat(self.alphabet)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rules</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inlink_cardinalities</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="sd">&#39;&#39;&#39;Keys: classes, values: dict of {from: (min, max)}&#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">outlink_cardinalities</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="sd">&#39;&#39;&#39;Keys: classes, values: dict of {to: (min, max)}&#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">inlink_aggregated_cardinalities</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="sd">&#39;&#39;&#39;Keys: classes, values: (min, max)&#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">outlink_aggregated_cardinalities</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="sd">&#39;&#39;&#39;Keys: classes, values: (min, max)&#39;&#39;&#39;</span>
+
+        <span class="n">rules</span><span class="p">,</span> <span class="n">ic</span><span class="p">,</span> <span class="n">oc</span><span class="p">,</span> <span class="n">iac</span><span class="p">,</span> <span class="n">oac</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_dependency_grammar_rules</span><span class="p">(</span><span class="n">grammar_filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_rules</span><span class="p">(</span><span class="n">rules</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rules</span> <span class="o">=</span> <span class="n">rules</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: Imported </span><span class="si">{0}</span><span class="s1"> rules&#39;</span>
+                         <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">)))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inlink_cardinalities</span> <span class="o">=</span> <span class="n">ic</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">outlink_cardinalities</span> <span class="o">=</span> <span class="n">oc</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inlink_aggregated_cardinalities</span> <span class="o">=</span> <span class="n">iac</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">outlink_aggregated_cardinalities</span> <span class="o">=</span> <span class="n">oac</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: Inlink aggregated cardinalities: </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                          <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">iac</span><span class="p">)))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: Outlink aggregated cardinalities: </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                          <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">oac</span><span class="p">)))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Not able to parse dependency grammar file </span><span class="si">{0}</span><span class="s1">.&#39;</span>
+                             <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">grammar_filename</span><span class="p">))</span>
+
+<div class="viewcode-block" id="DependencyGrammar.validate_edge"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.validate_edge">[docs]</a>    <span class="k">def</span> <span class="nf">validate_edge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head_name</span><span class="p">,</span> <span class="n">child_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check whether a given ``head --&gt; child`` edge conforms</span>
+<span class="sd">        with this grammar.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">head_name</span><span class="p">,</span> <span class="n">child_name</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules</span></div>
+
+<div class="viewcode-block" id="DependencyGrammar.validate_graph"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.validate_graph">[docs]</a>    <span class="k">def</span> <span class="nf">validate_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vertices</span><span class="p">,</span> <span class="n">edges</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Checks whether the given graph complies with the grammar.</span>
+
+<span class="sd">        :param vertices: A dict with any keys and values corresponding</span>
+<span class="sd">            to the alphabet of the grammar.</span>
+
+<span class="sd">        :param edges: A list of ``(from, to)`` pairs, where both</span>
+<span class="sd">            ``from`` and ``to`` are valid keys into the ``vertices`` dict.</span>
+
+<span class="sd">        :returns: ``True`` if the graph is valid, ``False`` otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">v</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_invalid_in_graph</span><span class="p">(</span><span class="n">vertices</span><span class="o">=</span><span class="n">vertices</span><span class="p">,</span> <span class="n">edges</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span></div>
+
+<div class="viewcode-block" id="DependencyGrammar.find_invalid_in_graph"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.find_invalid_in_graph">[docs]</a>    <span class="k">def</span> <span class="nf">find_invalid_in_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vertices</span><span class="p">,</span> <span class="n">edges</span><span class="p">,</span> <span class="n">provide_reasons</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Finds vertices and edges where the given object graph does</span>
+<span class="sd">        not comply with the grammar.</span>
+
+<span class="sd">        Wrong vertices are any that:</span>
+
+<span class="sd">        * are not in the alphabet;</span>
+<span class="sd">        * have a wrong inlink or outlink;</span>
+<span class="sd">        * have missing outlinks or inlinks.</span>
+
+<span class="sd">        Discovering missing edges is difficult, because the grammar</span>
+<span class="sd">        defines cardinalities on a per-rule basis and there is currently</span>
+<span class="sd">        no way to make a rule compulsory, or to require at least one rule</span>
+<span class="sd">        from a group to apply. It is currently not implemented.</span>
+
+<span class="sd">        Wrong outlinks are such that:</span>
+
+<span class="sd">        * connect symbol pairs that should not be connected based on their</span>
+<span class="sd">          classes;</span>
+<span class="sd">        * connect so that they exceed the allowed number of outlinks to</span>
+<span class="sd">          the given symbol type</span>
+
+<span class="sd">        Wrong inlinks are such that:</span>
+
+<span class="sd">        * connect symbol pairs that should not be connected based on their</span>
+<span class="sd">          classes;</span>
+<span class="sd">        * connect so that they exceed the allowed number of inlinks</span>
+<span class="sd">          to the given symbol based on the originating symbols&#39; classes.</span>
+
+<span class="sd">        :param vertices: A dict with any keys, and values corresponding</span>
+<span class="sd">            to the alphabet of the grammar.</span>
+
+<span class="sd">        :param edges: A list of ``(from, to)`` pairs, where both</span>
+<span class="sd">            ``from`` and ``to`` are valid keys into the ``vertices`` dict.</span>
+
+<span class="sd">        :param provide_reasons: If set, will generate string descriptions</span>
+<span class="sd">            of each error and return them.</span>
+
+<span class="sd">        :returns: A list of vertices, a list of inlinks and a list of outlinks</span>
+<span class="sd">            that do not comply with the grammar. If ``provide_reasons`` is set,</span>
+<span class="sd">            also returns three more: dicts of written reasons for each error</span>
+<span class="sd">            (vertex, inlink, outlink).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: looking for errors.&#39;</span><span class="p">)</span>
+
+        <span class="n">wrong_vertices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">wrong_inlinks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">wrong_outlinks</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">reasons_v</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">reasons_i</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">reasons_o</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Check that vertices have labels that are in the alphabet</span>
+        <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">clsname</span> <span class="ow">in</span> <span class="n">vertices</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">clsname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span><span class="p">:</span>
+                <span class="n">wrong_vertices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">reasons_v</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Symbol </span><span class="si">{0}</span><span class="s1"> not in alphabet: class </span><span class="si">{1}</span><span class="s1">.&#39;</span> \
+                               <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">clsname</span><span class="p">)</span>
+
+        <span class="c1"># Check that all edges are allowed</span>
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
+            <span class="n">nf</span><span class="p">,</span> <span class="n">nt</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">vertices</span><span class="p">[</span><span class="n">f</span><span class="p">]),</span> <span class="nb">str</span><span class="p">(</span><span class="n">vertices</span><span class="p">[</span><span class="n">t</span><span class="p">])</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">nf</span><span class="p">,</span> <span class="n">nt</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Wrong edge: </span><span class="si">{0}</span><span class="s1"> --&gt; </span><span class="si">{1}</span><span class="s1">, rules:</span><span class="se">\n</span><span class="si">{2}</span><span class="s1">&#39;</span>
+                                <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nf</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">)))</span>
+
+                <span class="n">wrong_inlinks</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+                <span class="n">reasons_i</span><span class="p">[(</span><span class="n">f</span><span class="p">,</span> <span class="n">t</span><span class="p">)]</span> <span class="o">=</span> <span class="s1">&#39;Outlink </span><span class="si">{0}</span><span class="s1"> (</span><span class="si">{1}</span><span class="s1">) -&gt; </span><span class="si">{2}</span><span class="s1"> (</span><span class="si">{3}</span><span class="s1">) not in &#39;</span> \
+                                    <span class="s1">&#39;alphabet.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nf</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+                <span class="n">wrong_outlinks</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+                <span class="n">reasons_o</span><span class="p">[(</span><span class="n">f</span><span class="p">,</span> <span class="n">t</span><span class="p">)]</span> <span class="o">=</span> <span class="s1">&#39;Outlink </span><span class="si">{0}</span><span class="s1"> (</span><span class="si">{1}</span><span class="s1">) -&gt; </span><span class="si">{2}</span><span class="s1"> (</span><span class="si">{3}</span><span class="s1">) not in &#39;</span> \
+                                    <span class="s1">&#39;alphabet.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nf</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">f</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">wrong_vertices</span><span class="p">:</span>
+                    <span class="n">wrong_vertices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                    <span class="n">reasons_v</span><span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Symbol </span><span class="si">{0}</span><span class="s1"> (class: </span><span class="si">{1}</span><span class="s1">) participates &#39;</span> \
+                                   <span class="s1">&#39;in wrong outlink: </span><span class="si">{2}</span><span class="s1"> (</span><span class="si">{3}</span><span class="s1">) --&gt; </span><span class="si">{4}</span><span class="s1"> (</span><span class="si">{5}</span><span class="s1">)&#39;</span> \
+                                   <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">vertices</span><span class="p">[</span><span class="n">f</span><span class="p">],</span> <span class="n">nf</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">wrong_vertices</span><span class="p">:</span>
+                    <span class="n">wrong_vertices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+                    <span class="n">reasons_v</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Symbol </span><span class="si">{0}</span><span class="s1"> (class: </span><span class="si">{1}</span><span class="s1">) participates &#39;</span> \
+                                   <span class="s1">&#39;in wrong inlink: </span><span class="si">{2}</span><span class="s1"> (</span><span class="si">{3}</span><span class="s1">) --&gt; </span><span class="si">{4}</span><span class="s1"> (</span><span class="si">{5}</span><span class="s1">)&#39;</span> \
+                                   <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">vertices</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">nf</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+        <span class="c1"># Check aggregate cardinality rules</span>
+        <span class="c1">#  - build inlink and outlink dicts</span>
+        <span class="n">inlinks</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">outlinks</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vertices</span><span class="p">:</span>
+            <span class="n">outlinks</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="n">inlinks</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
+            <span class="n">outlinks</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="n">inlinks</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+        <span class="c1"># If there are not enough edges, the vertex itself is wrong</span>
+        <span class="c1"># (and none of the existing edges are wrong).</span>
+        <span class="c1"># Currently, if there are too many edges, the vertex itself</span>
+        <span class="c1"># is wrong and none of the existing edges are marked.</span>
+        <span class="c1">#</span>
+        <span class="c1"># Future:</span>
+        <span class="c1"># If there are too many edges, the vertex itself and *all*</span>
+        <span class="c1"># the edges are marked as wrong (because any of them is the extra</span>
+        <span class="c1"># edge, and it&#39;s easiest to just delete them and start parsing</span>
+        <span class="c1"># again).</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: checking outlink aggregate cardinalities&#39;</span>
+                     <span class="s1">&#39;</span><span class="se">\n</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">outlinks</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">outlinks</span><span class="p">:</span>
+            <span class="n">f_clsname</span> <span class="o">=</span> <span class="n">vertices</span><span class="p">[</span><span class="n">f</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">f_clsname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outlink_aggregated_cardinalities</span><span class="p">:</span>
+                <span class="c1"># Given vertex has no aggregate cardinality restrictions</span>
+                <span class="k">continue</span>
+            <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">outlink_aggregated_cardinalities</span><span class="p">[</span><span class="n">f_clsname</span><span class="p">]</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: checking outlink cardinality&#39;</span>
+                         <span class="s1">&#39; rule fulfilled for vertex </span><span class="si">{0}</span><span class="s1"> (</span><span class="si">{1}</span><span class="s1">): should be&#39;</span>
+                         <span class="s1">&#39; within </span><span class="si">{2}</span><span class="s1"> -- </span><span class="si">{3}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">vertices</span><span class="p">[</span><span class="n">f</span><span class="p">],</span> <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">cmin</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">outlinks</span><span class="p">[</span><span class="n">f</span><span class="p">])</span> <span class="o">&lt;=</span> <span class="n">cmax</span><span class="p">):</span>
+                <span class="n">wrong_vertices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="n">reasons_v</span><span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Symbol </span><span class="si">{0}</span><span class="s1"> (class: </span><span class="si">{1}</span><span class="s1">) has </span><span class="si">{2}</span><span class="s1"> outlinks,&#39;</span> \
+                               <span class="s1">&#39; but grammar specifies </span><span class="si">{3}</span><span class="s1"> -- </span><span class="si">{4}</span><span class="s1">.&#39;</span> \
+                               <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">vertices</span><span class="p">[</span><span class="n">f</span><span class="p">],</span> <span class="nb">len</span><span class="p">(</span><span class="n">outlinks</span><span class="p">[</span><span class="n">f</span><span class="p">]),</span>
+                                         <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">inlinks</span><span class="p">:</span>
+            <span class="n">t_clsname</span> <span class="o">=</span> <span class="n">vertices</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">t_clsname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inlink_aggregated_cardinalities</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inlink_aggregated_cardinalities</span><span class="p">[</span><span class="n">t_clsname</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">cmin</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">inlinks</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="o">&lt;=</span> <span class="n">cmax</span><span class="p">):</span>
+                <span class="n">wrong_vertices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+                <span class="n">reasons_v</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Symbol </span><span class="si">{0}</span><span class="s1"> (class: </span><span class="si">{1}</span><span class="s1">) has </span><span class="si">{2}</span><span class="s1"> inlinks,&#39;</span> \
+                               <span class="s1">&#39; but grammar specifies </span><span class="si">{3}</span><span class="s1"> -- </span><span class="si">{4}</span><span class="s1">.&#39;</span> \
+                               <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">vertices</span><span class="p">[</span><span class="n">f</span><span class="p">],</span> <span class="nb">len</span><span class="p">(</span><span class="n">inlinks</span><span class="p">[</span><span class="n">f</span><span class="p">]),</span>
+                                         <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span><span class="p">)</span>
+
+        <span class="c1"># Now check for rule-based inlinks and outlinks.</span>
+        <span class="c1">#for f in outlinks:</span>
+        <span class="c1">#    oc = self.outlink_cardinalities[f]</span>
+        <span class="k">if</span> <span class="n">provide_reasons</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">wrong_vertices</span><span class="p">,</span> <span class="n">wrong_inlinks</span><span class="p">,</span> <span class="n">wrong_outlinks</span><span class="p">,</span> \
+                   <span class="n">reasons_v</span><span class="p">,</span> <span class="n">reasons_i</span><span class="p">,</span> <span class="n">reasons_o</span>
+
+        <span class="k">return</span> <span class="n">wrong_vertices</span><span class="p">,</span> <span class="n">wrong_inlinks</span><span class="p">,</span> <span class="n">wrong_outlinks</span></div>
+
+<div class="viewcode-block" id="DependencyGrammar.parse_dependency_grammar_rules"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.parse_dependency_grammar_rules">[docs]</a>    <span class="k">def</span> <span class="nf">parse_dependency_grammar_rules</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the Rules stored in the given rule file.&quot;&quot;&quot;</span>
+        <span class="n">rules</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">inlink_cardinalities</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">outlink_cardinalities</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+
+        <span class="n">inlink_aggregated_cardinalities</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">outlink_aggregated_cardinalities</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+
+        <span class="n">_invalid_lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="n">codecs</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">hdl</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line_no</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">hdl</span><span class="p">):</span>
+                <span class="n">l_rules</span><span class="p">,</span> <span class="n">in_card</span><span class="p">,</span> <span class="n">out_card</span><span class="p">,</span> <span class="n">in_agg_card</span><span class="p">,</span> <span class="n">out_agg_card</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_dependency_grammar_line</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_rules</span><span class="p">(</span><span class="n">l_rules</span><span class="p">):</span>
+                    <span class="n">_invalid_lines</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">line_no</span><span class="p">,</span> <span class="n">line</span><span class="p">))</span>
+
+                <span class="n">rules</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">l_rules</span><span class="p">)</span>
+
+                <span class="c1"># Update cardinalities</span>
+                <span class="k">for</span> <span class="n">lhs</span> <span class="ow">in</span> <span class="n">out_card</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">lhs</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">outlink_cardinalities</span><span class="p">:</span>
+                        <span class="n">outlink_cardinalities</span><span class="p">[</span><span class="n">lhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+                    <span class="n">outlink_cardinalities</span><span class="p">[</span><span class="n">lhs</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">out_card</span><span class="p">[</span><span class="n">lhs</span><span class="p">])</span>
+
+                <span class="k">for</span> <span class="n">rhs</span> <span class="ow">in</span> <span class="n">in_card</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">rhs</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">inlink_cardinalities</span><span class="p">:</span>
+                        <span class="n">inlink_cardinalities</span><span class="p">[</span><span class="n">rhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+                    <span class="n">inlink_cardinalities</span><span class="p">[</span><span class="n">rhs</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">in_card</span><span class="p">[</span><span class="n">rhs</span><span class="p">])</span>
+
+                <span class="n">inlink_aggregated_cardinalities</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">in_agg_card</span><span class="p">)</span>
+                <span class="n">outlink_aggregated_cardinalities</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">out_agg_card</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">_invalid_lines</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar.parse_rules(): Invalid lines&#39;</span>
+                            <span class="s1">&#39; </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">_invalid_lines</span><span class="p">)))</span>
+
+        <span class="k">return</span> <span class="n">rules</span><span class="p">,</span> <span class="n">inlink_cardinalities</span><span class="p">,</span> <span class="n">outlink_cardinalities</span><span class="p">,</span> \
+               <span class="n">inlink_aggregated_cardinalities</span><span class="p">,</span> <span class="n">outlink_aggregated_cardinalities</span></div>
+
+<div class="viewcode-block" id="DependencyGrammar.parse_dependency_grammar_line"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.parse_dependency_grammar_line">[docs]</a>    <span class="k">def</span> <span class="nf">parse_dependency_grammar_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Parse one dependency grammar line. See DependencyGrammar</span>
+<span class="sd">        I/O documentation for the format.&quot;&quot;&quot;</span>
+        <span class="n">rules</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">out_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">in_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">out_agg_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">in_agg_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+
+        <span class="n">_no_rule_line_output</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">(),</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">(),</span>\
+                   <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">(),</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">_no_rule_line_output</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_no_rule_line_output</span>
+        <span class="k">if</span> <span class="s1">&#39;|&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">line</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_no_rule_line_output</span>
+
+        <span class="c1"># logging.info(&#39;DependencyGrammar: parsing rule line:\n\t\t{0}&#39;</span>
+        <span class="c1">#              &#39;&#39;.format(line.rstrip(&#39;\n&#39;)))</span>
+        <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">lhs_tokens</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="n">rhs_tokens</span> <span class="o">=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+
+        <span class="c1">#logging.info(&#39;DependencyGrammar: tokens lhs={0}, rhs={1}&#39;</span>
+        <span class="c1">#             &#39;&#39;.format(lhs_tokens, rhs_tokens))</span>
+
+        <span class="c1"># Normal rule line? Aggregate cardinality line?</span>
+        <span class="n">_line_type</span> <span class="o">=</span> <span class="s1">&#39;normal&#39;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">_line_type</span> <span class="o">=</span> <span class="s1">&#39;aggregate_inlinks&#39;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">_line_type</span> <span class="o">=</span> <span class="s1">&#39;aggregate_outlinks&#39;</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Line </span><span class="si">{0}</span><span class="s1">: type </span><span class="si">{1}</span><span class="s1">, lhs=</span><span class="si">{2}</span><span class="s1">, rhs=</span><span class="si">{3}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">_line_type</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">_line_type</span> <span class="o">==</span> <span class="s1">&#39;aggregate_inlinks&#39;</span><span class="p">:</span>
+            <span class="n">rhs_tokens</span> <span class="o">=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">rt</span> <span class="ow">in</span> <span class="n">rhs_tokens</span><span class="p">:</span>
+                <span class="n">token</span><span class="p">,</span> <span class="n">rhs_cmin</span><span class="p">,</span> <span class="n">rhs_cmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_token</span><span class="p">(</span><span class="n">rt</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_matching_names</span><span class="p">(</span><span class="n">token</span><span class="p">):</span>
+                    <span class="n">in_agg_cards</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">rhs_cmin</span><span class="p">,</span> <span class="n">rhs_cmax</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: found inlinks: </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                          <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">in_agg_cards</span><span class="p">)))</span>
+            <span class="k">return</span> <span class="n">rules</span><span class="p">,</span> <span class="n">out_cards</span><span class="p">,</span> <span class="n">in_cards</span><span class="p">,</span> <span class="n">in_agg_cards</span><span class="p">,</span> <span class="n">out_agg_cards</span>
+
+        <span class="k">if</span> <span class="n">_line_type</span> <span class="o">==</span> <span class="s1">&#39;aggregate_outlinks&#39;</span><span class="p">:</span>
+            <span class="n">lhs_tokens</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">lt</span> <span class="ow">in</span> <span class="n">lhs_tokens</span><span class="p">:</span>
+                <span class="n">token</span><span class="p">,</span> <span class="n">lhs_cmin</span><span class="p">,</span> <span class="n">lhs_cmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_token</span><span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+                <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_matching_names</span><span class="p">(</span><span class="n">token</span><span class="p">):</span>
+                    <span class="n">out_agg_cards</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">lhs_cmin</span><span class="p">,</span> <span class="n">lhs_cmax</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar: found outlinks: </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                          <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">out_agg_cards</span><span class="p">)))</span>
+            <span class="k">return</span> <span class="n">rules</span><span class="p">,</span> <span class="n">out_cards</span><span class="p">,</span> <span class="n">in_cards</span><span class="p">,</span> <span class="n">in_agg_cards</span><span class="p">,</span> <span class="n">out_agg_cards</span>
+
+        <span class="c1"># Normal line that defines a left-hand side and a right-hand side</span>
+
+        <span class="n">lhs_symbols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># These cardinalities apply to all left-hand side tokens,</span>
+        <span class="c1"># for edges leading to any of the right-hand side tokens.</span>
+        <span class="n">lhs_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">lhs_tokens</span><span class="p">:</span>
+            <span class="n">token</span><span class="p">,</span> <span class="n">lhs_cmin</span><span class="p">,</span> <span class="n">lhs_cmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_token</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+            <span class="n">all_tokens</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_matching_names</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+            <span class="n">lhs_symbols</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">all_tokens</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">all_tokens</span><span class="p">:</span>
+                <span class="n">lhs_cards</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">lhs_cmin</span><span class="p">,</span> <span class="n">lhs_cmax</span><span class="p">)</span>
+
+        <span class="n">rhs_symbols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">rhs_cards</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rhs_tokens</span><span class="p">:</span>
+            <span class="n">token</span><span class="p">,</span> <span class="n">rhs_cmin</span><span class="p">,</span> <span class="n">rhs_cmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_token</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+            <span class="n">all_tokens</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_matching_names</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+            <span class="n">rhs_symbols</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">all_tokens</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">all_tokens</span><span class="p">:</span>
+                <span class="n">rhs_cards</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">rhs_cmin</span><span class="p">,</span> <span class="n">rhs_cmax</span><span class="p">)</span>
+
+        <span class="c1"># logging.info(&#39;DependencyGrammar: symbols lhs={0}, rhs={1}&#39;</span>
+        <span class="c1">#              &#39;&#39;.format(lhs_symbols, rhs_symbols))</span>
+
+        <span class="c1"># Build the outputs from the cartesian product</span>
+        <span class="c1"># of left-hand and right-hand tokens.</span>
+        <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">lhs_symbols</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">l</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">out_cards</span><span class="p">:</span>
+                <span class="n">out_cards</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rhs_symbols</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">r</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">in_cards</span><span class="p">:</span>
+                    <span class="n">in_cards</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+
+                <span class="n">rules</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">l</span><span class="p">,</span> <span class="n">r</span><span class="p">))</span>
+                <span class="n">out_cards</span><span class="p">[</span><span class="n">l</span><span class="p">][</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="n">lhs_cards</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>
+                <span class="n">in_cards</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">l</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhs_cards</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+
+        <span class="c1"># logging.info(&#39;DependencyGramamr: got rules:\n{0}&#39;</span>
+        <span class="c1">#              &#39;&#39;.format(pprint.pformat(rules)))</span>
+        <span class="c1"># logging.info(&#39;DependencyGrammar: got inlink cardinalities:\n{0}&#39;</span>
+        <span class="c1">#              &#39;&#39;.format(pprint.pformat(in_cards)))</span>
+        <span class="c1"># logging.info(&#39;DependencyGrammar: got outlink cardinalities:\n{0}&#39;</span>
+        <span class="c1">#              &#39;&#39;.format(pprint.pformat(out_cards)))</span>
+        <span class="k">return</span> <span class="n">rules</span><span class="p">,</span> <span class="n">in_cards</span><span class="p">,</span> <span class="n">out_cards</span><span class="p">,</span> <span class="n">in_agg_cards</span><span class="p">,</span> <span class="n">out_agg_cards</span></div>
+
+<div class="viewcode-block" id="DependencyGrammar.parse_token"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.parse_token">[docs]</a>    <span class="k">def</span> <span class="nf">parse_token</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">l</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Parse one ``*.deprules`` file token. See class documentation for</span>
+<span class="sd">        examples.</span>
+
+<span class="sd">        :param l: One token of a ``*.deprules`` file.</span>
+
+<span class="sd">        :return: token, cmin, cmax</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">l</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+        <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_MAX_CARD</span>
+        <span class="k">if</span> <span class="s1">&#39;{&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+            <span class="n">token</span> <span class="o">=</span> <span class="n">l</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">token</span><span class="p">,</span> <span class="n">cardinality</span> <span class="o">=</span> <span class="n">l</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;{&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s1">&#39;,&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cardinality</span><span class="p">:</span>
+                <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cardinality</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">cardinality</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cmin_string</span><span class="p">,</span> <span class="n">cmax_string</span> <span class="o">=</span> <span class="n">cardinality</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cmin_string</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">cmin</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cmin_string</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cmax_string</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">cmax</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cmax_string</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">token</span><span class="p">,</span> <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span></div>
+
+    <span class="k">def</span> <span class="nf">_matching_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the list of alphabet symbols that match the given</span>
+<span class="sd">        name (regex, currently can process one &#39;*&#39; wildcard).</span>
+
+<span class="sd">        :type token: str</span>
+<span class="sd">        :param token: The symbol name (pattern) to expand.</span>
+
+<span class="sd">        :rtype: list</span>
+<span class="sd">        :returns: A list of matching names. Empty list if no name matches.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_wildcard</span><span class="p">(</span><span class="n">token</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">token</span><span class="p">]</span>
+
+        <span class="n">wildcard_idx</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">WILDCARD</span><span class="p">)</span>
+        <span class="n">prefix</span> <span class="o">=</span> <span class="n">token</span><span class="p">[:</span><span class="n">wildcard_idx</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">wildcard_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">token</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">suffix</span> <span class="o">=</span> <span class="n">token</span><span class="p">[</span><span class="n">wildcard_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">suffix</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="c1"># logging.info(&#39;DependencyGrammar._matching_names: token {0}, pref={1}, suff={2}&#39;</span>
+        <span class="c1">#              &#39;&#39;.format(token, prefix, suffix))</span>
+
+        <span class="n">matching_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">matching_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">matching_names</span> <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">prefix</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">matching_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">matching_names</span> <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)]</span>
+
+        <span class="k">return</span> <span class="n">matching_names</span>
+
+    <span class="k">def</span> <span class="nf">_validate_rules</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check that all the rules are valid under the current alphabet.&quot;&quot;&quot;</span>
+        <span class="n">missing_heads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">missing_children</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">h</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">rules</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">h</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span><span class="p">:</span>
+                <span class="n">missing_heads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ch</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span><span class="p">:</span>
+                <span class="n">missing_children</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">missing_heads</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_children</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;DependencyGrammar.validate_rules: missing heads &#39;</span>
+                            <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">, children </span><span class="si">{1}</span><span class="s1">&#39;</span>
+                            <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">missing_heads</span><span class="p">,</span> <span class="n">missing_children</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_has_wildcard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">WILDCARD</span> <span class="ow">in</span> <span class="n">name</span>
+
+<div class="viewcode-block" id="DependencyGrammar.is_head"><a class="viewcode-back" href="../../muscima.grammar.html#muscima.grammar.DependencyGrammar.is_head">[docs]</a>    <span class="k">def</span> <span class="nf">is_head</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head</span><span class="p">,</span> <span class="n">child</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">child</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules</span></div></div>
+
+
+<span class="c1">##############################################################################</span>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,434 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>muscima.io module &#8212; muscima  documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="muscima  documentation" href="index.html" />
+    <link rel="up" title="muscima package" href="muscima.html" />
+    <link rel="prev" title="muscima.grammar module" href="muscima.grammar.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-muscima.io">
+<span id="muscima-io-module"></span><h1>muscima.io module<a class="headerlink" href="#module-muscima.io" title="Permalink to this headline">¶</a></h1>
+<p>This module implements functions for reading and writing
+the data formats used by MUSCIMA++.</p>
+<div class="section" id="data-formats">
+<h2>Data formats<a class="headerlink" href="#data-formats" title="Permalink to this headline">¶</a></h2>
+<p>All MUSCIMA++ data is stored as XML, in <code class="docutils literal"><span class="pre">&lt;CropObject&gt;</span></code> elements.
+These are grouped into <code class="docutils literal"><span class="pre">&lt;CropObjectList&gt;</span></code> elements, which are
+the top-level elements in the <code class="docutils literal"><span class="pre">*.xml</span></code> dataset files.</p>
+<p>The list of object classes used in the dataset is also stored as XML,
+in <code class="docutils literal"><span class="pre">&lt;CropObjectClass&gt;</span></code> elements (within a <code class="docutils literal"><span class="pre">&lt;CropObjectClassList&gt;</span></code>
+element).</p>
+<div class="section" id="cropobject">
+<h3>CropObject<a class="headerlink" href="#cropobject" title="Permalink to this headline">¶</a></h3>
+<p>To read a CropObject list file (in this case, a test data file):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">muscima.io</span> <span class="k">import</span> <span class="n">parse_cropobject_list</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">os</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">__file__</span><span class="p">),</span> <span class="s1">&#39;../test/test_data/01_basic.xml&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cropobjects</span> <span class="o">=</span> <span class="n">parse_cropobject_list</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal"><span class="pre">CropObject</span></code> string representation is a XML object:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">CropObject</span> <span class="n">xml</span><span class="p">:</span><span class="nb">id</span><span class="o">=</span><span class="s2">&quot;MUSCIMA-pp_1.0___CVC-MUSCIMA_W-01_N-10_D-ideal___25&quot;</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Id</span><span class="o">&gt;</span><span class="mi">25</span><span class="o">&lt;/</span><span class="n">Id</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">MLClassName</span><span class="o">&gt;</span><span class="n">grace</span><span class="o">-</span><span class="n">notehead</span><span class="o">-</span><span class="n">full</span><span class="o">&lt;/</span><span class="n">MLClassName</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Top</span><span class="o">&gt;</span><span class="mi">119</span><span class="o">&lt;/</span><span class="n">Top</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Left</span><span class="o">&gt;</span><span class="mi">413</span><span class="o">&lt;/</span><span class="n">Left</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Width</span><span class="o">&gt;</span><span class="mi">16</span><span class="o">&lt;/</span><span class="n">Width</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Height</span><span class="o">&gt;</span><span class="mi">6</span><span class="o">&lt;/</span><span class="n">Height</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Selected</span><span class="o">&gt;</span><span class="n">false</span><span class="o">&lt;/</span><span class="n">Selected</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Mask</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span><span class="mi">5</span> <span class="mi">0</span><span class="p">:</span><span class="mi">11</span> <span class="p">(</span><span class="o">...</span><span class="p">)</span> <span class="mi">1</span><span class="p">:</span><span class="mi">4</span> <span class="mi">0</span><span class="p">:</span><span class="mi">6</span> <span class="mi">1</span><span class="p">:</span><span class="mi">5</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="o">&lt;/</span><span class="n">Mask</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Outlinks</span><span class="o">&gt;</span><span class="mi">12</span> <span class="mi">24</span> <span class="mi">26</span><span class="o">&lt;/</span><span class="n">Outlinks</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">Inlinks</span><span class="o">&gt;</span><span class="mi">13</span><span class="o">&lt;/</span><span class="n">Inlinks</span><span class="o">&gt;</span>
+<span class="o">&lt;/</span><span class="n">CropObject</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>The CropObjects are themselves kept as a list:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">CropObjectList</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="n">CropObjects</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">CropObject</span><span class="o">&gt;</span> <span class="o">...</span> <span class="o">&lt;/</span><span class="n">CropObject</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">CropObject</span><span class="o">&gt;</span> <span class="o">...</span> <span class="o">&lt;/</span><span class="n">CropObject</span><span class="o">&gt;</span>
+  <span class="o">&lt;/</span><span class="n">CropObjects</span><span class="o">&gt;</span>
+<span class="o">&lt;/</span><span class="n">CropObjectList</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Parsing is only implemented for files that consist of a single
+<code class="docutils literal"><span class="pre">&lt;CropObjectList&gt;</span></code>.</p>
+<div class="section" id="unique-identification-of-a-cropobject">
+<h4>Unique identification of a CropObject<a class="headerlink" href="#unique-identification-of-a-cropobject" title="Permalink to this headline">¶</a></h4>
+<p><code class="docutils literal"><span class="pre">xml:id</span></code> is a string that uniquely identifies the CropObject
+in the entire dataset. It is derived from a global dataset name and version
+identifier (in this case, <code class="docutils literal"><span class="pre">MUSCIMA++_1.0</span></code>), a CropObjectList identifier
+which is unique within the dataset (derived from the filename:
+usually in the format <code class="docutils literal"><span class="pre">CVC-MUSCIMA_W-{:02}_N-{:02}_D-ideal</span></code>),
+and the number of the CropObject within the given CropObjectList
+(which matches the <code class="docutils literal"><span class="pre">&lt;Id&gt;</span></code> value). The delimiter is three underscores
+(<code class="docutils literal"><span class="pre">___</span></code>), in order to comply with XML rules for the <code class="docutils literal"><span class="pre">xml:id</span></code> attribute.</p>
+</div>
+<div class="section" id="individual-elements-of-a-cropobject">
+<h4>Individual elements of a <code class="docutils literal"><span class="pre">&lt;CropObject&gt;</span></code><a class="headerlink" href="#individual-elements-of-a-cropobject" title="Permalink to this headline">¶</a></h4>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">&lt;Id&gt;</span></code> is the integer ID of the CropObject inside a given
+<code class="docutils literal"><span class="pre">&lt;CropObjectList&gt;</span></code> (which generally corresponds to one XML file
+of CropObjects &#8211; one document namespace).</li>
+<li><code class="docutils literal"><span class="pre">&lt;MLClassName&gt;</span></code> is the name of the object&#8217;s class (such as
+<code class="docutils literal"><span class="pre">notehead-full</span></code>, <code class="docutils literal"><span class="pre">beam</span></code>, <code class="docutils literal"><span class="pre">numeral_3</span></code>, etc.).</li>
+<li><code class="docutils literal"><span class="pre">&lt;Top&gt;</span></code> is the vertical coordinate of the upper left corner of the object&#8217;s
+bounding box.</li>
+<li><code class="docutils literal"><span class="pre">&lt;Left&gt;</span></code> is the horizontal coordinate of the upper left corner of
+the object&#8217;s bounding box.</li>
+<li><code class="docutils literal"><span class="pre">&lt;Width&gt;</span></code>: the amount of rows that the CropObject spans.</li>
+<li><code class="docutils literal"><span class="pre">&lt;Height&gt;</span></code>: the amount of columns that the CropObject spans.</li>
+<li><code class="docutils literal"><span class="pre">&lt;Mask&gt;</span></code>: a run-length-encoded binary (0/1) array that denotes the area
+within the CropObject&#8217;s bounding box (specified by <code class="docutils literal"><span class="pre">top</span></code>, <code class="docutils literal"><span class="pre">left</span></code>,
+<code class="docutils literal"><span class="pre">height</span></code> and <code class="docutils literal"><span class="pre">width</span></code>) that the CropObject actually occupies. If
+the mask is not given, the object is understood to occupy the entire
+bounding box. For the representation, see Implementation notes
+below.</li>
+<li><code class="docutils literal"><span class="pre">&lt;Inlinks&gt;</span></code>: whitespace-separate <code class="docutils literal"><span class="pre">objid</span></code> list, representing CropObjects
+<strong>from</strong> which a relationship leads to this CropObject. (Relationships are
+directed edges, forming a directed graph of CropObjects.) The objids are
+valid in the same scope as the CropObject&#8217;s <code class="docutils literal"><span class="pre">objid</span></code>: don&#8217;t mix
+CropObjects from multiple scopes (e.g., multiple CropObjectLists)!
+If you are using CropObjects from multiple CropObjectLists at the same
+time, make sure to check against the <a href="#id1"><span class="problematic" id="id2">``</span></a>uid``s.</li>
+<li><code class="docutils literal"><span class="pre">&lt;Outlinks&gt;</span></code>: whitespace-separate <code class="docutils literal"><span class="pre">objid</span></code> list, representing CropObjects
+<strong>to</strong> which a relationship leads to this CropObject. (Relationships are
+directed edges, forming a directed graph of CropObjects.) The objids are
+valid in the same scope as the CropObject&#8217;s <code class="docutils literal"><span class="pre">objid</span></code>: don&#8217;t mix
+CropObjects from multiple scopes (e.g., multiple CropObjectLists)!
+If you are using CropObjects from multiple CropObjectLists at the same
+time, make sure to check against the <a href="#id3"><span class="problematic" id="id4">``</span></a>uid``s.</li>
+</ul>
+<p>The parser function provided for CropObjects does <em>not</em> check against
+the presence of other elements. You can extend CropObjects for your
+own purposes &#8211; but you will have to implement parsing.</p>
+</div>
+<div class="section" id="legacy-issues-with-x-y-and-positions">
+<h4>Legacy issues with X, Y, and positions<a class="headerlink" href="#legacy-issues-with-x-y-and-positions" title="Permalink to this headline">¶</a></h4>
+<p>Formerly, instead of <code class="docutils literal"><span class="pre">&lt;Top&gt;</span></code> and <code class="docutils literal"><span class="pre">&lt;Left&gt;</span></code>, there was a different way
+of marking CropObject position:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">&lt;X&gt;</span></code> was the HORIZONTAL coordinate of the object&#8217;s upper left corner.</li>
+<li><code class="docutils literal"><span class="pre">&lt;Y&gt;</span></code> was the VERTICAL coordinate of the object&#8217;s upper left corner.</li>
+</ul>
+<p>Due to legacy issues, the <code class="docutils literal"><span class="pre">&lt;X&gt;</span></code> in the XML file recorded the horizontal
+position (column) and <code class="docutils literal"><span class="pre">&lt;Y&gt;</span></code> recorded the vertical position (row). However,
+a <code class="docutils literal"><span class="pre">CropObject</span></code> instance uses these attributes in the more natural sense:
+<code class="docutils literal"><span class="pre">cropobject.x</span></code> is the <strong>top</strong> coordinate, <code class="docutils literal"><span class="pre">cropobject.y</span></code> is the <strong>bottom</strong>
+coordinate.</p>
+<p>This was unfortunate, and mostly caused by ambiguity of what X and Y mean.
+So, the definition of the XML changed: instead of storing nondescript letters,
+we will use tags <code class="docutils literal"><span class="pre">&lt;Top&gt;</span></code> and <code class="docutils literal"><span class="pre">&lt;Left&gt;</span></code>. Note that we also swapped the order:
+where previously the ordering was <code class="docutils literal"><span class="pre">&lt;X&gt;</span></code> (left) first and <code class="docutils literal"><span class="pre">&lt;Y&gt;</span></code> (top)
+second, we make <code class="docutils literal"><span class="pre">&lt;Top&gt;</span></code> first and <code class="docutils literal"><span class="pre">&lt;Left&gt;</span></code> second. This corresponds
+to how 2-D numpy arrays are indexed: row first, column second.</p>
+<p>You may still run into CropObjectList files that use <code class="docutils literal"><span class="pre">&lt;X&gt;</span></code> and <code class="docutils literal"><span class="pre">&lt;Y&gt;</span></code>.
+The function for reading CropObjectList files, <code class="docutils literal"><span class="pre">parse_cropobject_list()</span></code>,
+can deal with it and correctly assign the coordinates, but the CropObjects
+will be exported with <code class="docutils literal"><span class="pre">&lt;Top&gt;</span></code> and <code class="docutils literal"><span class="pre">&lt;Left&gt;</span></code>. (This may break some
+there-and-back reencoding tests.)</p>
+</div>
+<div class="section" id="implementation-notes-on-the-mask">
+<h4>Implementation notes on the mask<a class="headerlink" href="#implementation-notes-on-the-mask" title="Permalink to this headline">¶</a></h4>
+<p>The mask is a numpy array that will be saved using run-length encoding.
+The numpy array is first flattened, then runs of successive 0&#8217;s and 1&#8217;s
+are encoded as e.g. <a href="#id5"><span class="problematic" id="id6">``</span></a>0:10 `` for a run of 10 zeros.</p>
+<p>How much space does this take?</p>
+<p>Objects tend to be relatively convex, so after flattening, we can expect
+more or less two runs per row (flattening is done in <code class="docutils literal"><span class="pre">C</span></code> order). Because
+each run takes (approximately) 5 characters, each mask takes roughly <code class="docutils literal"><span class="pre">5</span> <span class="pre">*</span> <span class="pre">n_rows</span></code>
+bytes to encode. This makes it efficient for objects wider than 5 pixels, with
+a compression ratio approximately <code class="docutils literal"><span class="pre">n_cols</span> <span class="pre">/</span> <span class="pre">5</span></code>.
+(Also, the numpy array needs to be made C-contiguous for that, which
+explains the <cite>CROPOBJECT_MASK_ORDER=&#8217;C&#8217;</cite> hack in <cite>set_mask()</cite>.)</p>
+</div>
+</div>
+<div class="section" id="cropobjectclass">
+<h3>CropObjectClass<a class="headerlink" href="#cropobjectclass" title="Permalink to this headline">¶</a></h3>
+<p>This is what a single CropObjectClass element might look like:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">CropObjectClass</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">Id</span><span class="o">&gt;</span><span class="mi">1</span><span class="o">&lt;/</span><span class="n">Id</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">Name</span><span class="o">&gt;</span><span class="n">notehead</span><span class="o">-</span><span class="n">empty</span><span class="o">&lt;/</span><span class="n">Name</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">GroupName</span><span class="o">&gt;</span><span class="n">note</span><span class="o">-</span><span class="n">primitive</span><span class="o">/</span><span class="n">notehead</span><span class="o">-</span><span class="n">empty</span><span class="o">&lt;/</span><span class="n">GroupName</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">Color</span><span class="o">&gt;</span><span class="c1">#FF7566&lt;/Color&gt;</span>
+    <span class="o">&lt;/</span><span class="n">CropObjectClass</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>See e.g. <code class="docutils literal"><span class="pre">test/test_data/mff-muscima-classes-annot.xml</span></code>,
+which is incidentally the real CropObjectClass list used
+for annotating MUSCIMA++.</p>
+<p>The <code class="xref py py-class docutils literal"><span class="pre">CropObjectClass</span></code> represents one possible <code class="xref py py-class docutils literal"><span class="pre">CropObject</span></code>
+symbol class, such as a notehead or a time signature. Aside from defining
+the &#8220;vocabulary&#8221; of available object classes for annotation, it also contains
+some information about how objects of the given class should
+be displayed in the MUSCIMarker annotation software (ordering
+related object classes together in menus, implementing a sensible
+color scheme, etc.). There is nothing interesting about this class,
+we pulled it into the <code class="docutils literal"><span class="pre">muscima</span></code> package because the object
+grammar (i.e. which relationships are allowed and which are not)
+depends on having CropObjectClass object as its &#8220;vocabulary&#8221;,
+and you will probably want to manipulate the data somehow based
+on the objects&#8217; relationships (like reassembling notes from notation
+primitives: notehead plus stem plus flags...), and the grammar
+file is a reference for doing that.</p>
+<dl class="function">
+<dt id="muscima.io.export_cropobject_class_list">
+<code class="descclassname">muscima.io.</code><code class="descname">export_cropobject_class_list</code><span class="sig-paren">(</span><em>cropobject_classes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/io.html#export_cropobject_class_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.io.export_cropobject_class_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Writes the CropObject data as a XML string. Does not write
+to a file &#8211; use <code class="docutils literal"><span class="pre">with</span> <span class="pre">open(output_file)</span> <span class="pre">as</span> <span class="pre">out_stream:</span></code> etc.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>cropobjects</strong> &#8211; A list of CropObject instances.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.io.export_cropobject_graph">
+<code class="descclassname">muscima.io.</code><code class="descname">export_cropobject_graph</code><span class="sig-paren">(</span><em>cropobjects</em>, <em>validate=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/io.html#export_cropobject_graph"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.io.export_cropobject_graph" title="Permalink to this definition">¶</a></dt>
+<dd><p>Collects the inlink/outlink CropObject graph
+and returns it as a list of <code class="docutils literal"><span class="pre">(from,</span> <span class="pre">to)</span></code> edges.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>cropobjects</strong> &#8211; A list of CropObject instances.
+All are expected to be within one document.</li>
+<li><strong>validate</strong> &#8211; If set, will raise a ValueError
+if the graph defined by the CropObjects is
+invalid.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">A list of <code class="docutils literal"><span class="pre">(from,</span> <span class="pre">to)</span></code> objid pairs
+that represent edges in the CropObject graph.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.io.export_cropobject_list">
+<code class="descclassname">muscima.io.</code><code class="descname">export_cropobject_list</code><span class="sig-paren">(</span><em>cropobjects</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/io.html#export_cropobject_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.io.export_cropobject_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Writes the CropObject data as a XML string. Does not write
+to a file &#8211; use <code class="docutils literal"><span class="pre">with</span> <span class="pre">open(output_file)</span> <span class="pre">as</span> <span class="pre">out_stream:</span></code> etc.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>cropobjects</strong> &#8211; A list of CropObject instances.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.io.parse_cropobject_class_list">
+<code class="descclassname">muscima.io.</code><code class="descname">parse_cropobject_class_list</code><span class="sig-paren">(</span><em>filename</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/io.html#parse_cropobject_class_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.io.parse_cropobject_class_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>From a xml file with a MLClassList as the top element,
+extract the list of <code class="xref py py-class docutils literal"><span class="pre">CropObjectClass</span></code> objects. Use
+this</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.io.parse_cropobject_list">
+<code class="descclassname">muscima.io.</code><code class="descname">parse_cropobject_list</code><span class="sig-paren">(</span><em>filename</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/io.html#parse_cropobject_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.io.parse_cropobject_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>From a xml file with a CropObjectList as the top element, parse
+a list of CropObjects. (See <code class="docutils literal"><span class="pre">CropObject</span></code> class documentation
+for a description of the XMl format.)</p>
+<p>Let&#8217;s test whether the parsing function works:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">test_data_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">__file__</span><span class="p">)),</span>
+<span class="gp">... </span>                             <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="s1">&#39;test_data&#39;</span><span class="p">,</span>
+<span class="gp">... </span>                             <span class="s1">&#39;cropobjects_xy_vs_topleft&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">clfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">test_data_dir</span><span class="p">,</span> <span class="s1">&#39;01_basic_topleft.xml&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cropobjects</span> <span class="o">=</span> <span class="n">parse_cropobject_list</span><span class="p">(</span><span class="n">clfile</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">cropobjects</span><span class="p">)</span>
+<span class="go">48</span>
+</pre></div>
+</div>
+<p>This parsing function can deal with the old-style CropObject XML
+that uses <code class="docutils literal"><span class="pre">&lt;Y&gt;</span></code> and <code class="docutils literal"><span class="pre">&lt;X&gt;</span></code> to index the top left corner:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">clfile_xy</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">test_data_dir</span><span class="p">,</span> <span class="s1">&#39;01_basic_xy.xml&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cropobjects_xy</span> <span class="o">=</span> <span class="n">parse_cropobject_list</span><span class="p">(</span><span class="n">clfile_xy</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">cropobjects_xy</span><span class="p">)</span>
+<span class="go">48</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">cropobjects</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">cropobjects_xy</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<p>However, the CropObjects export themselves back only with <code class="docutils literal"><span class="pre">&lt;Top&gt;</span></code>
+and <code class="docutils literal"><span class="pre">&lt;Left&gt;</span></code>.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">export_xy</span> <span class="o">=</span> <span class="n">export_cropobject_list</span><span class="p">(</span><span class="n">cropobjects_xy</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raw_data_topleft</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">l</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">open</span><span class="p">(</span><span class="n">clfile</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raw_data_topleft</span> <span class="o">==</span> <span class="n">export_xy</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<p>Note that what is Y in the data gets translated to cropobj.x (vertical),
+what is X gets translated to cropobj.y (horizontal).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">A list of <a href="#id7"><span class="problematic" id="id8">``</span></a>CropObject``s.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.io.validate_cropobjects_graph_structure">
+<code class="descclassname">muscima.io.</code><code class="descname">validate_cropobjects_graph_structure</code><span class="sig-paren">(</span><em>cropobjects</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/io.html#validate_cropobjects_graph_structure"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.io.validate_cropobjects_graph_structure" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check that the graph defined by the <code class="docutils literal"><span class="pre">inlinks</span></code> and <code class="docutils literal"><span class="pre">outlinks</span></code>
+in the given list of CropObjects is valid: no relationships
+leading from or to objects with non-existent <a href="#id9"><span class="problematic" id="id10">``</span></a>objid``s.</p>
+<p>Can deal with <code class="docutils literal"><span class="pre">cropobjects</span></code> coming from a combination
+of documents, through the CropObject <code class="docutils literal"><span class="pre">doc</span></code> property.
+Warns about documents which are found inconsistent.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>cropobjects</strong> &#8211; A list of <code class="xref py py-class docutils literal"><span class="pre">CropObject</span></code> instances.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="docutils literal"><span class="pre">True</span></code> if graph is valid, <code class="docutils literal"><span class="pre">False</span></code> otherwise.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="muscima.io.validate_document_graph_structure">
+<code class="descclassname">muscima.io.</code><code class="descname">validate_document_graph_structure</code><span class="sig-paren">(</span><em>cropobjects</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/io.html#validate_document_graph_structure"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.io.validate_document_graph_structure" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check that the graph defined by the <code class="docutils literal"><span class="pre">inlinks</span></code> and <code class="docutils literal"><span class="pre">outlinks</span></code>
+in the given list of CropObjects is valid: no relationships
+leading from or to objects with non-existent <a href="#id11"><span class="problematic" id="id12">``</span></a>objid``s.</p>
+<p>Checks that all the CropObjects come from one document. (Raises
+a <code class="docutils literal"><span class="pre">ValueError</span></code> otherwise.)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>cropobjects</strong> &#8211; A list of <code class="xref py py-class docutils literal"><span class="pre">CropObject</span></code> instances.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="docutils literal"><span class="pre">True</span></code> if graph is valid, <code class="docutils literal"><span class="pre">False</span></code> otherwise.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">muscima.io module</a><ul>
+<li><a class="reference internal" href="#data-formats">Data formats</a><ul>
+<li><a class="reference internal" href="#cropobject">CropObject</a><ul>
+<li><a class="reference internal" href="#unique-identification-of-a-cropobject">Unique identification of a CropObject</a></li>
+<li><a class="reference internal" href="#individual-elements-of-a-cropobject">Individual elements of a <code class="docutils literal"><span class="pre">&lt;CropObject&gt;</span></code></a></li>
+<li><a class="reference internal" href="#legacy-issues-with-x-y-and-positions">Legacy issues with X, Y, and positions</a></li>
+<li><a class="reference internal" href="#implementation-notes-on-the-mask">Implementation notes on the mask</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#cropobjectclass">CropObjectClass</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="muscima.html">muscima package</a><ul>
+      <li>Previous: <a href="muscima.grammar.html" title="previous chapter">muscima.grammar module</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/muscima.io.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+      |
+      <a href="_sources/muscima.io.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

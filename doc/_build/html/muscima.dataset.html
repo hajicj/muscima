@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>muscima.dataset module &#8212; muscima  documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="muscima  documentation" href="index.html" />
+    <link rel="up" title="muscima package" href="muscima.html" />
+    <link rel="next" title="muscima.grammar module" href="muscima.grammar.html" />
+    <link rel="prev" title="muscima.cropobject_class module" href="muscima.cropobject_class.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-muscima.dataset">
+<span id="muscima-dataset-module"></span><h1>muscima.dataset module<a class="headerlink" href="#module-muscima.dataset" title="Permalink to this headline">¶</a></h1>
+<p>This module acts as an abstraction over the dataset.</p>
+<p>It mostly implements utility functions, like getting the absolute
+path to a specific image in the CVC-MUSCIMA dataset, specified
+by the writer, number, distortion, and mode.</p>
+<div class="section" id="environmental-variables">
+<h2>Environmental variables<a class="headerlink" href="#environmental-variables" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">CVC_MUSCIMA_ROOT</span></code></li>
+<li><code class="docutils literal"><span class="pre">MFF_MUSCIMA_ROOT</span></code></li>
+</ul>
+<p>The dataset root environmental variables are used as defaults
+for retrieving the dataset files. If they are not set, you will
+have to supply the roots to the respective functions that manipulate
+these layers of MUSCIMA++.</p>
+<dl class="class">
+<dt id="muscima.dataset.CVC_MUSCIMA">
+<em class="property">class </em><code class="descclassname">muscima.dataset.</code><code class="descname">CVC_MUSCIMA</code><span class="sig-paren">(</span><em>root=None</em>, <em>validate=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/dataset.html#CVC_MUSCIMA"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.dataset.CVC_MUSCIMA" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="attribute">
+<dt id="muscima.dataset.CVC_MUSCIMA.DISTORTIONS">
+<code class="descname">DISTORTIONS</code><em class="property"> = ['curvature', 'ideal', 'interrupted', 'kanungo', 'rotated', 'staffline-thickness-variation-v1', 'staffline-thickness-variation-v2', 'staffline-y-variation-v1', 'staffline-y-variation-v2', 'thickness-ratio', 'typeset-emulation', 'whitespeckles']</em><a class="headerlink" href="#muscima.dataset.CVC_MUSCIMA.DISTORTIONS" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="muscima.dataset.CVC_MUSCIMA.MODES">
+<code class="descname">MODES</code><em class="property"> = ['full', 'symbol', 'staff_only']</em><a class="headerlink" href="#muscima.dataset.CVC_MUSCIMA.MODES" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="muscima.dataset.CVC_MUSCIMA.imfile">
+<code class="descname">imfile</code><span class="sig-paren">(</span><em>page</em>, <em>writer</em>, <em>distortion='ideal'</em>, <em>mode='full'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/dataset.html#CVC_MUSCIMA.imfile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.dataset.CVC_MUSCIMA.imfile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Construct the path leading to the file of the CVC-MUSCIMA image
+with the specified page (1 - 20), writer (1 - 50), distortion
+(see <code class="docutils literal"><span class="pre">CVC_MUSCIMA_DISTORTIONS</span></code>), and mode (<code class="docutils literal"><span class="pre">full</span></code>, <code class="docutils literal"><span class="pre">symbol</span></code>,
+<code class="docutils literal"><span class="pre">staff_only</span></code>).</p>
+<p>This is the primary interface that the CVC_MUSCIMA class provides.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="muscima.dataset.CVC_MUSCIMA.validate">
+<code class="descname">validate</code><span class="sig-paren">(</span><em>fail_early=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/muscima/dataset.html#CVC_MUSCIMA.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#muscima.dataset.CVC_MUSCIMA.validate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks whether the instantiated CVC_MUSCIMA instance really
+corresponds to the CVC-MUSCIMA dataset: all the 12 x 1000 expected
+CVC-MUSCIMA files should be present.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fail_early</strong> &#8211; If <code class="docutils literal"><span class="pre">True</span></code>, will return as soon as it encounters
+a missing file, if <code class="docutils literal"><span class="pre">False</span></code>, will keep going through all the files
+and find out which ones are missing. (Default: <code class="docutils literal"><span class="pre">True</span></code>)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="docutils literal"><span class="pre">True</span></code> if the dataset is OK, <code class="docutils literal"><span class="pre">False</span></code> if any file
+is missing.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">muscima.dataset module</a><ul>
+<li><a class="reference internal" href="#environmental-variables">Environmental variables</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="muscima.html">muscima package</a><ul>
+      <li>Previous: <a href="muscima.cropobject_class.html" title="previous chapter">muscima.cropobject_class module</a></li>
+      <li>Next: <a href="muscima.grammar.html" title="next chapter">muscima.grammar module</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/muscima.dataset.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+      |
+      <a href="_sources/muscima.dataset.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
