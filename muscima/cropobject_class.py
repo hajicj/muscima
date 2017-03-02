@@ -24,8 +24,7 @@ as a triplet of floats between 0 (``00``) and 255 (``ff``).
 The ``___str__()`` method of the class will output the correct
 XML representation.
 
-XML example
------------
+**XML example**
 
 This is what a single CropObjectClass element might look like::
 
