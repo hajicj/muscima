@@ -371,6 +371,12 @@ class CropObject(object):
         self._dataset_namespace, self._document_namespace, self._instance = \
             self.parse_uid()
 
+    def set_doc(self, docname):
+        new_uid = self.UID_DELIMITER.join([self._dataset_namespace,
+                                           docname,
+                                           self._instance])
+        self.set_uid(new_uid)
+
     def set_mask(self, mask):
         """Sets the CropObject's mask to the given array. Performs
         some compatibilty checks: size, dtype (converts to ``uint8``)."""
@@ -732,7 +738,7 @@ class CropObject(object):
         lines.append('<CropObject xml:id="{0}">'.format(self.uid))
         lines.append('\t<Id>{0}</Id>'.format(self.objid))
         # lines.append('\t<UniqueId>{0}</UniqueId>'.format(self.uid))
-        lines.append('\t<MLClassName>{0}</MLClassName>'.format(self.clsname))
+        lines.append('\t<ClassName>{0}</ClassName>'.format(self.clsname))
         lines.append('\t<Top>{0}</Top>'.format(self.top))
         lines.append('\t<Left>{0}</Left>'.format(self.left))
         lines.append('\t<Width>{0}</Width>'.format(self.width))

@@ -191,6 +191,7 @@ file is a reference for doing that.
 """
 from __future__ import print_function, unicode_literals, division
 
+import copy
 import logging
 import os
 
@@ -282,6 +283,8 @@ def parse_cropobject_list(filename):
         # _has_clsname = False
         if len(cropobject.findall('MLClassName')) > 0:
             clsname = cropobject.findall('MLClassName')[0].text
+        elif len(cropobject.findall('ClassName')) > 0:
+            clsname = cropobject.findall('ClassName')[0].text
         else:
             raise ValueError('CropObject {0}: no clsname provided.'.format(objid))
 
@@ -461,12 +464,29 @@ def export_cropobject_graph(cropobjects, validate=True):
     return edges
 
 
-def export_cropobject_list(cropobjects):
+def export_cropobject_list(cropobjects, docname=None):
     """Writes the CropObject data as a XML string. Does not write
     to a file -- use ``with open(output_file) as out_stream:`` etc.
 
     :param cropobjects: A list of CropObject instances.
+
+    :param docname: Set the document name for all the CropObject
+        unique IDs to this. If not given, no docname is applied.
+        This means that either the old document identification
+        stays (in case the CropObjects are loaded from a file
+        with document IDs set), or the default is used (if the
+        CropObjects have been newly created). If given,
+        the CropObjects are first deep-copied, so that the existing
+        objects' UID is not affected by the export.
     """
+    if docname is not None:
+        new_cropobjects = []
+        for c in cropobjects:
+            new_c = copy.deepcopy(c)
+            new_c.set_doc(docname)
+            new_cropobjects.append(new_c)
+        cropobjects = new_cropobjects
+
     # This is the data string, the rest is formalities
     cropobj_string = '\n'.join([str(c) for c in cropobjects])
 
