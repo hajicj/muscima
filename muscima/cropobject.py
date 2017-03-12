@@ -356,6 +356,12 @@ class CropObject(object):
             numid = int(numid_str)
         return global_name, document_name, numid
 
+    @staticmethod
+    def build_uid(global_name, document_name, numid):
+        return CropObject.UID_DELIMITER.join([str(global_name),
+                                              str(document_name),
+                                              str(numid)])
+
     def set_uid(self, uid):
         """Assigns the given ``uid`` to the CropObject. This is the way
         to do it, do not assign directly to ``cropobject.uid``! You need
@@ -374,7 +380,7 @@ class CropObject(object):
     def set_doc(self, docname):
         new_uid = self.UID_DELIMITER.join([self._dataset_namespace,
                                            docname,
-                                           self._instance])
+                                           str(self._instance)])
         self.set_uid(new_uid)
 
     def set_mask(self, mask):
