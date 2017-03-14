@@ -970,7 +970,6 @@ class CropObject(object):
                 break
         return output
 
-
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
 
@@ -1102,3 +1101,31 @@ def merge_cropobject_lists(*cropobject_lists):
     output = list(itertools.chain(*new_lists))
 
     return output
+
+
+def link_cropobjects(fr, to, check_docname=True):
+    """Add a relationship from the ``fr`` CropObject
+    to the ``to`` CropObject. Modifies the CropObjects
+    in-place.
+
+    If the objects are already linked, does nothing.
+
+    :param check_docname: If set, checks for ``docname``
+        match and raises a ValueError if the CropObjects
+        come from different documents.
+    """
+    if fr.doc != to.doc:
+        if check_docname:
+            raise ValueError('Cannot link two CropObjects that are')
+        else:
+            logging.warning('Attempting to link CropObjects from two different'
+                            ' docments. From: {0}, to: {1}'
+                            ''.format(fr.doc, to.doc))
+
+    if (to.objid not in fr.outlinks) and (fr.objid in to.inlinks):
+            logging.warning('Malformed object graph in document {0}:'
+                            ' Relationship {1} --> {2} already exists as inlink,'
+                            ' but not as outlink!.'
+                            ''.format(fr.doc, fr.objid, to.objid))
+    fr.outlinks.append(to.objid)
+    to.inlinks.append(fr.objid)
