@@ -237,7 +237,8 @@ def parse_cropobject_list(filename):
     and ``<Left>``.
 
     >>> export_xy = export_cropobject_list(cropobjects_xy)
-    >>> raw_data_topleft = '\\n'.join([l.rstrip() for l in open(clfile)])
+    >>> with open(clfile) as hdl:
+    ...     raw_data_topleft = '\\n'.join([l.rstrip() for l in hdl])
     >>> raw_data_topleft == export_xy
     True
 

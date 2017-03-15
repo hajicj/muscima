@@ -54,6 +54,14 @@ MFF_MUSCIMA_ROOT = _get_mff_muscima_root()
 
 
 class CVC_MUSCIMA:
+    """The :class:`CVC_MUSCIMA` class implements a wrapper around
+    the CVC-MUSCIMA dataset file structure that allows easy retrieval
+    of filenames based on the page number (1 - 20), writer number
+    (1 - 50), distortion, and mode (full image, staffline pixels only, or
+    non-staffline pixels only).
+
+    This functionality is defined in :meth:`imfile`.
+    """
 
     DISTORTIONS = [
         'curvature',
