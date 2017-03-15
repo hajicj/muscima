@@ -24,3 +24,4 @@ Getting started
 1. Install this package: ``pip install muscima``
 2. Download the [MUSCIMA++ dataset](https://ufal.mff.cuni.cz/jan-hajic-jr/MUSCIMA++_v0.9.zip).
 3. Run through the tutorial.
+
