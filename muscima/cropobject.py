@@ -293,7 +293,7 @@ class CropObject(object):
         """Constructs the default ``uid`` that the CropObject would
         have, unless one was supplied at initialization.
 
-        >>> c.default_uid
+        >>> c.default_uid   # doctest: +SKIP
         'MUSCIMA_DEFAULT_DATASET_PLACEHOLDER___default-document___0'
         """
         return self.UID_DELIMITER.join([self.UID_DEFAULT_DATASET_NAMESPACE,
@@ -975,7 +975,12 @@ class CropObject(object):
 
 def cropobjects_merge_bbox(cropobjects):
     """Computes the bounding box of a CropObject that would
-    result from merging the given list of CropObjects."""
+    result from merging the given list of CropObjects.
+
+    >>> 1 + 1
+    3
+
+    """
     # Find extremes. This will define the output cropobject.
     t, l, b, r = numpy.inf, numpy.inf, -1, -1
     for c in cropobjects:

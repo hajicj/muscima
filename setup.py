@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*-coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
@@ -36,7 +38,7 @@ class PyTest(TestCommand):
 setup(
     name='muscima',
     version=muscima.__version__,
-    url='TODO',
+    url='https://muscima.readthedocs.io',
     license='MIT Software License',
     author='Jan Hajič jr.',
     tests_require=['pytest'],
@@ -58,7 +60,7 @@ setup(
         'Development Status :: 4 - Beta',
         'Natural Language :: English',
         'Environment :: Web Environment',
-        'Intended Audience :: Optical Music Recognition researchers',
+        'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         'Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator',

@@ -14,6 +14,8 @@ here:
 
 The package is distributed under the MIT license (see LICENSE file).
 
+[The documentation is online, including a tutorial, here.](https://muscima.readthedocs.io)
+
 Getting started
 ---------------
 
