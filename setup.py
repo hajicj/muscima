@@ -21,7 +21,9 @@ def read(*filenames, **kwargs):
             buf.append(f.read())
     return sep.join(buf)
 
-long_description = read('README.md', 'CHANGES.md')
+long_description = read(
+    os.path.join(here, 'README.md'),
+    os.path.join(here, 'CHANGES.md'))
 
 
 setup(
