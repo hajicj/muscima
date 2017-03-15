@@ -24,26 +24,13 @@ def read(*filenames, **kwargs):
 long_description = read('README.md', 'CHANGES.md')
 
 
-class PyTest(TestCommand):
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = []
-        self.test_suite = True
-
-    def run_tests(self):
-        import pytest
-        errcode = pytest.main(self.test_args)
-        sys.exit(errcode)
-
 setup(
     name='muscima',
     version=muscima.__version__,
     url='https://muscima.readthedocs.io',
     license='MIT Software License',
     author='Jan Hajič jr.',
-    tests_require=['pytest'],
     install_requires=[],
-    cmdclass={'test': PyTest},
     author_email='hajicj@ufal.mff.cuni.cz',
     description='Tools for the MUSCIMA++ dataset of music notation.',
     long_description=long_description,
@@ -54,7 +41,7 @@ setup(
              'scripts/analyze_tracking_log.py',
              'scripts/get_images_from_muscima.py'],
     platforms='any',
-    test_suite='muscima.test.test_muscima',
+    test_suite='test.test_muscima',
     classifiers = [
         'Programming Language :: Python',
         'Development Status :: 4 - Beta',
@@ -65,7 +52,4 @@ setup(
         'Operating System :: OS Independent',
         'Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator',
         ],
-    extras_require={
-        'testing': ['pytest'],
-    }
 )
