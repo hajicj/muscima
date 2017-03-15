@@ -970,16 +970,13 @@ class CropObject(object):
                 break
         return output
 
+
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
 
 def cropobjects_merge_bbox(cropobjects):
     """Computes the bounding box of a CropObject that would
     result from merging the given list of CropObjects.
-
-    >>> 1 + 1
-    3
-
     """
     # Find extremes. This will define the output cropobject.
     t, l, b, r = numpy.inf, numpy.inf, -1, -1
