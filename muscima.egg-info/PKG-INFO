@@ -2,8 +2,8 @@ Metadata-Version: 1.1
 Name: muscima
 Version: 0.3.0
 Summary: Tools for the MUSCIMA++ dataset of music notation.
-Home-page: TODO
-Author: Jan Hajic jr.
+Home-page: https://muscima.readthedocs.io
+Author: Jan Hajič jr.
 Author-email: hajicj@ufal.mff.cuni.cz
 License: MIT Software License
 Description: muscima
@@ -22,6 +22,8 @@ Description: muscima
         
         The package is distributed under the MIT license (see LICENSE file).
         
+        [The documentation is online, including a tutorial, here.](https://muscima.readthedocs.io)
+        
         Getting started
         ---------------
         
@@ -30,14 +32,12 @@ Description: muscima
         3. Run through the tutorial.
         
         
-Platform: a
-Platform: n
-Platform: y
+Platform: any
 Classifier: Programming Language :: Python
 Classifier: Development Status :: 4 - Beta
 Classifier: Natural Language :: English
 Classifier: Environment :: Web Environment
-Classifier: Intended Audience :: Optical Music Recognition researchers
+Classifier: Intended Audience :: Science/Research
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Classifier: Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator
