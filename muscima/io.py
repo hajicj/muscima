@@ -465,7 +465,7 @@ def export_cropobject_graph(cropobjects, validate=True):
     return edges
 
 
-def export_cropobject_list(cropobjects, docname=None):
+def export_cropobject_list(cropobjects, docname=None, dataset_name=None):
     """Writes the CropObject data as a XML string. Does not write
     to a file -- use ``with open(output_file) as out_stream:`` etc.
 
@@ -479,12 +479,22 @@ def export_cropobject_list(cropobjects, docname=None):
         CropObjects have been newly created). If given,
         the CropObjects are first deep-copied, so that the existing
         objects' UID is not affected by the export.
+
+    :param dataset_name: Analogous to docname.
     """
     if docname is not None:
         new_cropobjects = []
         for c in cropobjects:
             new_c = copy.deepcopy(c)
             new_c.set_doc(docname)
+            new_cropobjects.append(new_c)
+        cropobjects = new_cropobjects
+
+    if dataset_name is not None:
+        new_cropobjects = []
+        for c in cropobjects:
+            new_c = copy.deepcopy(c)
+            new_c.set_dataset(dataset_name)
             new_cropobjects.append(new_c)
         cropobjects = new_cropobjects
 

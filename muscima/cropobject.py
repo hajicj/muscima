@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """This module implements a Python representation of the CropObject,
 the basic unit of annotation. See the :class:`CropObject` documentation."""
 from __future__ import print_function, unicode_literals, division
@@ -380,6 +381,12 @@ class CropObject(object):
     def set_doc(self, docname):
         new_uid = self.UID_DELIMITER.join([self._dataset_namespace,
                                            docname,
+                                           str(self._instance)])
+        self.set_uid(new_uid)
+
+    def set_dataset(self, dataset_name):
+        new_uid = self.UID_DELIMITER.join([dataset_name,
+                                           self._document_namespace,
                                            str(self._instance)])
         self.set_uid(new_uid)
 
@@ -886,6 +893,9 @@ class CropObject(object):
         The ``clsname`` of the ``other`` is ignored.
         """
         if self.doc != other.doc:
+            logging.warning('Trying to join CropObject from doc {0}'
+                            ' into this CropObject from doc {1}, skipping.'
+                            ''.format(other.doc, self.doc))
             return
 
         # Get combined bounding box
