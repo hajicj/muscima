@@ -1,3 +1,4 @@
+
 muscima
 =======
 
@@ -9,7 +10,7 @@ here:
 
 **Current dataset version: 0.9**
 
-**Current package version: 0.3.1**
+**Current package version: 0.3.2**
 
 The package should work with both Python 2.7 and Python 3.5,
 although the doctest-based test suite only works on Python 3.
@@ -17,6 +18,7 @@ although the doctest-based test suite only works on Python 3.
 The package is distributed under the MIT license (see LICENSE file).
 
 [The documentation is online, including a tutorial, here.](https://muscima.readthedocs.io)
+
 
 Getting started
 ---------------

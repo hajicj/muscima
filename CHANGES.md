@@ -1,8 +1,15 @@
+
+
 Changelog
 =========
 
 (Note that there will be many small releases, as we attempt to always keep
 the package up-to-date through pip.)
+
+0.3.2
+-----
+
+* Added MANIFEST.in for easier distribution.
 
 0.3.1
 -----
