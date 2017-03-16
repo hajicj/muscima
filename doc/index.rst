@@ -9,7 +9,15 @@ muscima -- tools for the MUSCIMA++ dataset
 The ``muscima`` package implements tools for easier manipulation of the MUSCIMA++
 dataset. Download the dataset here:
 
-`<https://ufal.mff.cuni.cz/jan-hajic-jr/MUSCIMA++_0.9.zip>`_
+`<https://ufal.mff.cuni.cz/muscima/download>`_
+
+A description of the dataset is on the project's homepage:
+
+`<https://ufal.mff.cuni.cz/muscima>`_
+
+And more thoroughly in an arXiv.org publication:
+
+`<https://arxiv.org/pdf/1703.04824.pdf>`_
 
 This pacakge is licensed under the MIT license (see ``LICENSE.txt`` file).
 The package author is Jan Hajič jr. You can contact him at::
