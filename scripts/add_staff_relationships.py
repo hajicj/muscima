@@ -110,6 +110,7 @@ def main(args):
     ##########################################################################
     logging.info('Export the combined list.')
     cropobject_string = export_cropobject_list(cropobjects)
+
     if args.export is not None:
         with open(args.export, 'w') as hdl:
             hdl.write(cropobject_string)

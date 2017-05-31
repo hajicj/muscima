@@ -984,6 +984,31 @@ class CropObject(object):
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
 
+def cropobjects_merge(fr, to, clsname, objid):
+    """Merge the given CropObjects with respect to the other.
+    Returns the new CropObject (without modifying any of the inputs)."""
+    if fr.doc != to.doc:
+        raise ValueError('Cannot merge CropObjects from different documents!'
+                         ' fr: {0}, to: {1}'.format(fr.doc, to.doc))
+
+    mt, ml, mb, mr = cropobjects_merge_bbox([fr, to])
+    mh = mb - mt
+    mw = mr - ml
+    mmask = cropobjects_merge_mask([fr, to])
+    m_inlinks, m_outlinks = cropobjects_merge_links([fr, to])
+
+    m_doc = fr.doc
+    m_dataset = fr.dataset
+    m_uid = CropObject.build_uid(m_dataset, m_doc, objid)
+
+    output = CropObject(objid, clsname,
+                        top=mt, left=ml, height=mh, width=mw,
+                        mask=mmask,
+                        inlinks=m_inlinks, outlinks=m_outlinks,
+                        uid=m_uid)
+    return output
+
+
 def cropobjects_merge_bbox(cropobjects):
     """Computes the bounding box of a CropObject that would
     result from merging the given list of CropObjects.
@@ -1141,3 +1166,25 @@ def link_cropobjects(fr, to, check_docname=True):
                             ''.format(fr.doc, fr.objid, to.objid))
     fr.outlinks.append(to.objid)
     to.inlinks.append(fr.objid)
+
+
+def bbox_intersection(bbox_this, bbox_other):
+    """Returns the t, l, b, r coordinates of the sub-bounding box
+    of bbox_this that is also inside bbox_other.
+    If the bounding boxes do not overlap, returns None."""
+    t, l, b, r = bbox_other
+
+    tt, tl, tb, tr = bbox_this
+
+    out_top = max(t, tt)
+    out_bottom = min(b, tb)
+    out_left = max(l, tl)
+    out_right = min(r, tr)
+
+    if (out_top < out_bottom) and (out_left < out_right):
+        return out_top - tt, \
+               out_left - tl, \
+               out_bottom - tt, \
+               out_right - tl
+    else:
+        return None
