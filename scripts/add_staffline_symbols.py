@@ -308,11 +308,11 @@ def main(args):
             # of the top staffline is above the bottom of the bottom
             # staffline. This may not hold in very weird situations,
             # but it's good for now.
-            print(s1.bounding_box, s1.mask.shape)
-            print(s2.bounding_box, s2.mask.shape)
-            print(canvas.shape)
-            print('l={0}, dl1={1}, dl2={2}, r={3}, dr1={4}, dr2={5}'
-                  ''.format(l, dl1, dl2, r, dr1, dr2))
+            logging.debug(s1.bounding_box, s1.mask.shape)
+            logging.debug(s2.bounding_box, s2.mask.shape)
+            logging.debug(canvas.shape)
+            logging.debug('l={0}, dl1={1}, dl2={2}, r={3}, dr1={4}, dr2={5}'
+                          ''.format(l, dl1, dl2, r, dr1, dr2))
             #canvas[:s1.height, :] += s1.mask[:, dl1:s1.width-dr1]
             #canvas[-s2.height:, :] += s2.mask[:, dl2:s2.width-dr2]
 
@@ -334,7 +334,7 @@ def main(args):
                                      canvas.shape[0], s2.width - dr2
             s2_h, s2_w = s2_b - s2_t, s2_r - s2_l
 
-            print(s1_t, s1_l, s1_b, s1_r, (s1_h, s1_w))
+            logging.debug(s1_t, s1_l, s1_b, s1_r, (s1_h, s1_w))
 
             # We now take the intersection of s1_below and s2_above.
             # If there is empty space in the middle, we fill it in.
@@ -379,11 +379,13 @@ def main(args):
         bsl_heights = bsl.mask.sum(axis=0)
 
         # Upper staffspace
-        uss_mask = tss.mask * 1
         uss_top = max(0, tss.top - max(tss_heights) - max(tsl_heights))
         uss_left = tss.left
         uss_width = tss.width
-        uss_height = tss.height
+        uss_height = int(tss.height / 2)
+        # Shift because of height downscaling:
+        uss_top += uss_height
+        uss_mask = tss.mask[:uss_height, :] * 1
 
         uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
         staffspace = CropObject(next_objid, STAFFSPACE_CLSNAME,
@@ -398,11 +400,11 @@ def main(args):
         next_objid += 1
 
         # Lower staffspace
-        lss_mask = bss.mask * 1
-        lss_top = bss.bottom + max(bsl_heights)
+        lss_top = bss.bottom # + max(bsl_heights)
         lss_left = bss.left
         lss_width = bss.width
-        lss_height = bss.height
+        lss_height = int(bss.height / 2)
+        lss_mask = bss.mask[:lss_height, :] * 1
 
         uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
         staffspace = CropObject(next_objid, STAFFSPACE_CLSNAME,

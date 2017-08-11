@@ -13,15 +13,11 @@ The symbols in question are:
 """
 from __future__ import print_function, unicode_literals, division
 import argparse
+import collections
 import logging
 import os
 import pprint
 import time
-
-import collections
-
-import itertools
-import numpy
 
 from muscima.io import parse_cropobject_list, export_cropobject_list
 from muscima.cropobject import link_cropobjects
@@ -175,15 +171,15 @@ def main(args):
             _staff_per_ss_sl[_sl.objid] = _staff
             _ss_sl_idx_wrt_staff[_sl.objid] = i
             _staff_and_idx2sl[_staff.objid][i] = _sl
-            print('Staff {0}: stafflines {1}'.format(_staff.objid, _staff_and_idx2sl[_staff.objid]))
+            logging.debug('Staff {0}: stafflines {1}'.format(_staff.objid, _staff_and_idx2sl[_staff.objid]))
         for i, _ss in enumerate(_s_staffspaces):
             _staff_per_ss_sl[_ss.objid] = _staff
             _ss_sl_idx_wrt_staff[_ss.objid] = i
             _staff_and_idx2ss[_staff.objid][i] = _ss
 
-    #pprint.pprint(_ss_sl_idx_wrt_staff)
-    pprint.pprint(dict(_staff_and_idx2ss))
-    #pprint.pprint(dict(_staff_and_idx2sl))
+    # pprint.pprint(_ss_sl_idx_wrt_staff)
+    logging.debug(pprint.pformat(dict(_staff_and_idx2ss)))
+    # pprint.pprint(dict(_staff_and_idx2sl))
 
     # # Get bounding box of all participating symbols
     # notehead_staff_bbox_coords = [c.bounding_box
@@ -207,6 +203,11 @@ def main(args):
     for clsname, cs in notehead_symbols.items():
         for c in cs:
 
+            ct, cl, cb, cr = c.bounding_box
+
+            ################
+            # Add relationship to given staffline or staffspace.
+
             # If notehead has ledger lines, skip it for now.
             _has_ledger_line = False
             for o in c.outlinks:
@@ -215,7 +216,19 @@ def main(args):
                     break
 
             if _has_ledger_line:
-                continue
+                # Attach to the appropriate staff:
+                # meaning, staff closest to the innermost ledger line.
+                lls = [_cropobjects_dict[o] for o in c.outlinks
+                       if _cropobjects_dict[o].clsname == 'ledger_line']
+                # Furthest from notehead's top is innermost.
+                # (If notehead is below staff and crosses a ll., one
+                #  of these numbers will be negative. But that doesn't matter.)
+                ll_max_dist = max(lls, key=lambda ll: ll.top - c.top)
+                # Find closest staff to max-dist ledger ine
+                staff_min_dist = min(staves,
+                                     key=lambda ss: min((ll_max_dist.bottom - ss.top) ** 2,
+                                                        (ll_max_dist.top - ss.bottom) ** 2))
+                link_cropobjects(c, staff_min_dist)
 
             # - Find the related staffline.
             # - Because of curved stafflines, this has to be done w.r.t.
@@ -227,7 +240,6 @@ def main(args):
             #   (That is a reasonable assumption.)
             #
             # - For now, we only work with more or less straight stafflines.
-            ct, cl, cb, cr = c.bounding_box
 
             overlapped_stafflines = []
             overlapped_staffline_idxs = []
@@ -238,9 +250,9 @@ def main(args):
 
             if c.objid < 10:
                 logging.debug('Notehead {0} ({1}): overlaps {2} stafflines'.format(c.uid,
-                                                                           c.bounding_box,
-                                                                           len(overlapped_stafflines),
-                                                                           ))
+                                                                                   c.bounding_box,
+                                                                                   len(overlapped_stafflines),
+                                                                                   ))
 
             if len(overlapped_stafflines) == 1:
                 s = overlapped_stafflines[0]
@@ -269,20 +281,27 @@ def main(args):
                     # Retrieve the given staffsapce
                     _staff = _staff_per_ss_sl[s.objid]
                     tgt_staffspace = _staff_and_idx2ss[_staff.objid][_staffspace_idx_wrt_staff]
-                    c.outlinks.append(tgt_staffspace.objid)
-                    tgt_staffspace.inlinks.append(c.objid)
+                    # Link to staffspace
+                    link_cropobjects(c, tgt_staffspace)
+                    # And link to staff
+                    _c_staff = _staff_per_ss_sl[tgt_staffspace.objid]
+                    link_cropobjects(c, _c_staff)
 
                 else:
                     # Staffline!
-                    c.outlinks.append(s.objid)
-                    s.inlinks.append(c.objid)
+                    link_cropobjects(c, s)
+                    # And staff:
+                    _c_staff = _staff_per_ss_sl[s.objid]
+                    link_cropobjects(c, _c_staff)
 
             elif len(overlapped_stafflines) == 0:
                 # Staffspace!
                 for s in staffspaces:
                     if s.top <= c.top < c.bottom <= s.bottom:
-                        c.outlinks.append(s.objid)
-                        s.inlinks.append(c.objid)
+                        link_cropobjects(c, s)
+                        # Also link to appropriate staff.
+                        _c_staff = _staff_per_ss_sl[s.objid]
+                        link_cropobjects(c, _c_staff)
 
             elif len(overlapped_stafflines) == 2:
                 # Staffspace between those two lines.
@@ -297,17 +316,18 @@ def main(args):
 
                 _staffspace_idx = _ss_sl_idx_wrt_staff[s2.objid]
                 s = _staff_and_idx2ss[_staff2.objid][_staffspace_idx]
-                c.outlinks.append(s.objid)
-                s.inlinks.append(c.objid)
+                link_cropobjects(c, s)
+                # And link to staff:
+                _c_staff = _staff_per_ss_sl[s.objid]
+                link_cropobjects(c, _c_staff)
 
             elif len(overlapped_stafflines) > 2:
                 raise ValueError('Really weird notehead overlapping more than 2 stafflines:'
                                  ' {0}'.format(c.uid))
 
     ##########################################################################
-    logging.info('Attaching clefs to stafflines.')
+    logging.info('Attaching clefs to stafflines [NOT IMPLEMENTED].')
     clefs = [c for c in cropobjects if c.clsname in ['g-clef', 'c-clef', 'f-clef']]
-
 
     ##########################################################################
     logging.info('Export the combined list.')
