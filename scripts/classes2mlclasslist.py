@@ -34,7 +34,7 @@ If no group is given, the color changes along the matplotlib
 color cycle.
 
 """
-from __future__ import print_function
+from __future__ import print_function, unicode_literals, division
 import argparse
 import codecs
 import collections

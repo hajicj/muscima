@@ -34,6 +34,7 @@ Requirements
 ------------
 
 Python 3.5, otherwise nothing beyond the ``requirements.txt`` file: ``lxml`` and ``numpy``.
+If you want to apply pitch inference, you should also get ``music21``.
 
 Installation
 ------------
