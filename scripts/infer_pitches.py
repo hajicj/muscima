@@ -69,7 +69,26 @@ def main(args):
     _start_time = time.clock()
 
     # Your code goes here
-    raise NotImplementedError()
+    if not os.path.isfile(args.annot):
+        raise ValueError('Annotation file {0} not found!'
+                         ''.format(args.annot))
+    cropobjects = parse_cropobject_list(args.annot)
+
+    _cropobjects_dict = {c.objid: c for c in cropobjects}
+
+    ##########################################################################
+    # Collect noteheads.
+    # Collect clefs and key signatures per staff.
+    # Infer base pitch per staffline and staffspace (ignoring accidentals).
+    # Infer base pitch per ledger line positions.
+    #   - Until resolved by adding extra staffspace for ledger lines,
+    #     on- vs off-ledger line position will be resolved here.
+    #
+    # Collect measure separators.
+    # Assign noteheads to measures.
+    # Collect accidentals. Assume accidentals valid for entire bar.
+
+
 
     _end_time = time.clock()
     logging.info('[XXXX] done in {0:.3f} s'.format(_end_time - _start_time))
