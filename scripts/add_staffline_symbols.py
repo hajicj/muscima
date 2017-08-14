@@ -379,12 +379,14 @@ def main(args):
         bsl_heights = bsl.mask.sum(axis=0)
 
         # Upper staffspace
-        uss_top = max(0, tss.top - max(tss_heights) - max(tsl_heights))
+        uss_top = max(0, tss.top - max(tss_heights))
         uss_left = tss.left
         uss_width = tss.width
-        uss_height = int(tss.height / 2)
+        # We use 1.5, so that large noteheads
+        # do not "hang out" of the staffspace.
+        uss_height = int(tss.height / 1.2)
         # Shift because of height downscaling:
-        uss_top += uss_height
+        uss_top += tss.height - uss_height
         uss_mask = tss.mask[:uss_height, :] * 1
 
         uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
@@ -403,7 +405,7 @@ def main(args):
         lss_top = bss.bottom # + max(bsl_heights)
         lss_left = bss.left
         lss_width = bss.width
-        lss_height = int(bss.height / 2)
+        lss_height = int(bss.height / 1.2)
         lss_mask = bss.mask[:lss_height, :] * 1
 
         uid = CropObject.build_uid(dataset_namespace, docname, next_objid)

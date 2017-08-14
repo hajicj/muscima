@@ -244,7 +244,8 @@ def main(args):
             overlapped_stafflines = []
             overlapped_staffline_idxs = []
             for i, s in enumerate(stafflines):
-                if ct <= s.top <= s.bottom <= cb:  # This is the assumption of straight stafflines!
+                # This is the assumption of straight stafflines!
+                if (ct <= s.top <= cb) or (ct <= s.bottom <= cb):
                     overlapped_stafflines.append(s)
                     overlapped_staffline_idxs.append(i)
 
@@ -259,7 +260,7 @@ def main(args):
                 dtop = s.top - ct
                 dbottom = cb - s.bottom
                 if min(dtop, dbottom) / max(dtop, dbottom) < ON_STAFFLINE_RATIO_TRHESHOLD:
-                    logging.debug('Notehead {0}, staffline {1}: very small ratio {2:.2f}'
+                    logging.info('Notehead {0}, staffline {1}: very small ratio {2:.2f}'
                                   ''.format(c.objid, s.objid, min(dtop, dbottom) / max(dtop, dbottom)))
                     # Staffspace?
                     #
@@ -297,6 +298,8 @@ def main(args):
             elif len(overlapped_stafflines) == 0:
                 # Staffspace!
                 for s in staffspaces:
+                    # Sometimes noteheads "hang out" of the upper/lower
+                    # staffspace, or maybe they go
                     if s.top <= c.top < c.bottom <= s.bottom:
                         link_cropobjects(c, s)
                         # Also link to appropriate staff.
