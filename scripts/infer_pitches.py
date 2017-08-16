@@ -24,6 +24,7 @@ and A-flat.
 """
 from __future__ import print_function, unicode_literals, division
 import argparse
+import copy
 import logging
 import os
 import pprint
@@ -41,79 +42,706 @@ from muscima.cropobject import link_cropobjects
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
+class PitchInferenceEngineConstants(object):
+    """This class stores the constants used for pitch inference."""
+    ON_STAFFLINE_RATIO_TRHESHOLD = 0.2
+    '''Magic number for determining whether a notehead is *on* a ledger
+    line, or *next* to a ledger line: if the ratio between the smaller
+    and larger vertical difference of (top, bottom) vs. l.l. (top, bottom)
+    is smaller than this, it means the notehead is most probably *NOT*
+    on the l.l. and is next to it.'''
 
-ON_STAFFLINE_RATIO_TRHESHOLD = 0.2
-'''Magic number for determining whether a notehead is *on* a ledger
-line, or *next* to a ledger line: if the ratio between the smaller
-and larger vertical difference of (top, bottom) vs. l.l. (top, bottom)
-is smaller than this, it means the notehead is most probably *NOT*
-on the l.l. and is next to it.'''
+    STAFF_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space', 'staff']
 
-STAFF_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space', 'staff']
+    STAFFLINE_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space']
 
-NOTEHEAD_CLSNAMES = {
-    'notehead-full',
-    'notehead-empty',
-    'grace-notehead-full',
-    'grace-notehead-empty',
-}
+    NOTEHEAD_CLSNAMES = {
+        'notehead-full',
+        'notehead-empty',
+        'grace-notehead-full',
+        'grace-notehead-empty',
+    }
 
-CLEF_CLSNAMES = {
-    'g-clef',
-    'c-clef',
-    'f-clef',
-}
+    CLEF_CLSNAMES = {
+        'g-clef',
+        'c-clef',
+        'f-clef',
+    }
 
-ACCIDENTAL_CLSNAMES = {
-    'sharp': 1,
-    'flat': -1,
-    'natural': 0,
-    'double_sharp': 2,
-    'double_flat': -2,
-}
+    KEY_SIGNATURE_CLSNAMES = {
+        'key_signature',
+    }
+
+    MEASURE_SEPARATOR_CLSNAMES = {
+        'measure_separator',
+    }
+
+    FLAGS_CLSNAMES = {
+        '8th_flag',
+        '16th_flag',
+        '32th_flag',
+        '64th_and_higher_flag',
+    }
+
+    BEAM_CLSNAMES = {
+        'beam',
+    }
+
+    ACCIDENTAL_CLSNAMES = {
+        'sharp': 1,
+        'flat': -1,
+        'natural': 0,
+        'double_sharp': 2,
+        'double_flat': -2,
+    }
+
+    MIDI_CODE_RESIDUES_FOR_PITCH_STEPS = {
+        0: 'C',
+        1: 'Db',
+        2: 'D',
+        3: 'Eb',
+        4: 'E',
+        5: 'F',
+        6: 'Gb',
+        7: 'G',
+        8: 'Ab',
+        9: 'A',
+        10: 'Bb',
+        11: 'B',
+    }
+
+    # The individual MIDI codes for for the unmodified steps.
+    _fs = range(5, 114, 12)
+    _cs = range(0, 121, 12)
+    _gs = range(7, 116, 12)
+    _ds = range(2, 110, 12)
+    _as = range(9, 118, 12)
+    _es = range(4, 112, 12)
+    _bs = range(11, 120, 12)
+
+    KEY_TABLE_SHARPS = {
+        0: {},
+        1: {i: 1 for i in _fs},
+        2: {i: 1 for i in _fs + _cs},
+        3: {i: 1 for i in _fs + _cs + _gs},
+        4: {i: 1 for i in _fs + _cs + _gs + _ds},
+        5: {i: 1 for i in _fs + _cs + _gs + _ds + _as},
+        6: {i: 1 for i in _fs + _cs + _gs + _ds + _as + _es},
+        7: {i: 1 for i in _fs + _cs + _gs + _ds + _as + _es + _bs},
+    }
+
+    KEY_TABLE_FLATS = {
+        0: {},
+        1: {i: -1 for i in _bs},
+        2: {i: -1 for i in _bs + _es},
+        3: {i: -1 for i in _bs + _es + _as},
+        4: {i: -1 for i in _bs + _es + _as + _ds},
+        5: {i: -1 for i in _bs + _es + _as + _ds + _gs},
+        6: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs},
+        7: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs + _fs},
+    }
 
 
-# The individual MIDI codes for for the unmodified steps.
-_fs = range(5, 114, 12)
-_cs = range(0, 121, 12)
-_gs = range(7, 116, 12)
-_ds = range(2, 110, 12)
-_as = range(9, 118, 12)
-_es = range(4, 112, 12)
-_bs = range(11, 120, 12)
+class PitchInferenceEngineState(object):
+    """This class represents the state of the MIDI pitch inference
+    engine during inference.
 
-KEY_TABLE_SHARPS = {
-    0: {},
-    1: {i: 1 for i in _fs},
-    2: {i: 1 for i in _fs + _cs},
-    3: {i: 1 for i in _fs + _cs + _gs},
-    4: {i: 1 for i in _fs + _cs + _gs + _ds},
-    5: {i: 1 for i in _fs + _cs + _gs + _ds + _as},
-    6: {i: 1 for i in _fs + _cs + _gs + _ds + _as + _es},
-    7: {i: 1 for i in _fs + _cs + _gs + _ds + _as + _es + _bs},
-}
+    Reading pitch is a stateful operations. One needs to remember
+    how stafflines and staffspaces map to pitch codes. This is governed
+    by two things:
 
-KEY_TABLE_FLATS = {
-    0: {},
-    1: {i: -1 for i in _bs},
-    2: {i: -1 for i in _bs + _es},
-    3: {i: -1 for i in _bs + _es + _as},
-    4: {i: -1 for i in _bs + _es + _as + _ds},
-    5: {i: -1 for i in _bs + _es + _as + _ds + _gs},
-    6: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs},
-    7: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs + _fs},
-}
+    * The clef, which governs
+    * The accidentals: key signatures and inline accidentals.
+
+    Clef and key signature have unlimited scope which only changes when
+    a new key signature is introduced (or the piece ends). The key
+    signature affects all pitches in the given step class (F, C, G, ...)
+    regardless of octave. Inline accidentals have scope until the next
+    measure separator, and they are only valid within their own octave.
+
+    The pitch inference algorithm is run for each staff separately.
+
+    Base pitch representation
+    -------------------------
+
+    The base pitch corresponds to the pitch encoded by a notehead
+    simply sitting on the given staffline/staffspace, without any
+    regard to accidentals (key signature or inline). It is computed
+    by *distance from center staffline* of a staff, with positive
+    distance corresponding to going *up* and negative for going *down*
+    from the center staffline.
+
+    Accidentals representation
+    --------------------------
+
+    The accidentals are associated also with each staffline/staffspace,
+    as counted from the current center. (This means i.a. that
+    the octave periodicity is 7, not 12.)
+
+    There are two kinds of accidentals based on scope: key signature,
+    and inline. Inline accidentals are valid only up to the next
+    measure_separator, while key signature accidentals are valid
+    up until the key signature changes. Key signature accidentals
+    also apply across all octaves, while inline accidentals only apply
+    on the specific staffline.
+
+    Note that inline accidentals may *cancel* key signature
+    accidentals: they override the key signature when given.
+
+    Key accidentals are given **mod 7**.
+
+    Pitch inference procedure
+    -------------------------
+
+    Iterate through the relevant objects on a staff, sorted left-to-right
+    by left edge.
+    """
+    def __init__(self):
+
+        self.base_pitch = None
+        '''The MIDI code corresponding to the middle staffline,
+        without modification by key or inline accidentals.'''
+
+        self._current_clef = None
+        '''Holds the clef CropObject that is currently valid.'''
+
+        self._current_delta_steps = None
+        '''Holds for each staffline delta step (i.e. staffline delta mod 7)
+        the MIDI pitch codes.'''
+
+        self.key_accidentals = {}
+        self.inline_accidentals = {}
+
+    def reset(self):
+        self.base_pitch = None
+        self._current_clef = None
+        self._current_delta_steps = None
+        self.key_accidentals = {}
+        self.inline_accidentals = {}
+
+    def init_base_pitch(self, clef=None):
+        """Based on the clef, initialize the base pitch.
+        By default, initializes as though given a g-clef."""
+        if (clef is None) or (clef.clsname == 'g-clef'):
+            new_base_pitch = 71
+            new_delta_steps = [0, 1, 2, 2, 1, 2, 2, 2]
+        elif clef.clsname == 'c-clef':
+            new_base_pitch = 60
+            new_delta_steps = [0, 2, 2, 1, 2, 2, 2, 1]
+        elif clef.clsname == 'f-clef':
+            new_base_pitch = 50
+            new_delta_steps = [0, 2, 1, 2, 2, 2, 1, 2]
+        else:
+            raise ValueError('Unrecognized clef clsname: {0}'
+                             ''.format(clef.clsname))
+
+        # Shift the key and inline accidental deltas
+        # according to the change.
+        if self._current_clef is not None:
+            if clef.clsname != self._current_clef.clsname:
+                # From G to C clef: everything is now +4
+                new_key_accidentals = {
+                    (d + 4) % 7: v for d, v in self.key_accidentals.items()
+                }
+                new_inline_accidentals = {
+                    d + 4: v for d, v in self.inline_accidentals.items()
+                }
+                self.key_accidentals = new_key_accidentals
+                self.inline_accidentals = new_inline_accidentals
+
+        self.base_pitch = new_base_pitch
+        self._current_clef = clef
+        self._current_delta_steps = new_delta_steps
+
+    def set_key(self, n_sharps=0, n_flats=0):
+        """Initialize the staffline delta --> key accidental map.
+        Currently works only on standard key signatures, where
+        there are no repeating accidentals, no double sharps/flats,
+        and the order of accidentals is the standard major/minor system.
+
+        However, we can deal at least with key signatures that combine
+        sharps and flats (if not more than 7), as seen e.g. in harp music.
+
+        :param n_sharps: How many sharps are there in the key signature?
+
+        :param n_flats: How many flats are there in the key signature?
+        """
+        if n_flats + n_sharps > 7:
+            raise ValueError('Cannot deal with key signature that has'
+                             ' more than 7 sharps + flats!')
+
+        if self.base_pitch is None:
+            raise ValueError('Cannot initialize key if base pitch is not known.')
+
+        new_key_accidentals = {}
+
+        # The pitches (F, C, G, D, ...) have to be re-cast
+        # in terms of deltas, mod 7.
+        if self._current_clef.clsname == 'g-clef':
+            deltas_sharp = [4, 1, 5, 2, 6, 3, 0]
+            deltas_flat = [0, 3, 6, 2, 5, 1, 4]
+        elif self._current_clef.clsname == 'c-clef':
+            deltas_sharp = [3, 0, 4, 1, 5, 2, 6]
+            deltas_flat = [6, 2, 5, 1, 4, 0, 3]
+        elif self._current_clef.clsname == 'f-clef':
+            deltas_sharp = [2, 6, 3, 0, 4, 1, 5]
+            deltas_flat = [5, 1, 4, 0, 3, 6, 2]
+
+        for d in deltas_sharp[:n_sharps]:
+            new_key_accidentals[d] = 'sharp'
+        for d in deltas_flat[:n_flats]:
+            new_key_accidentals[d] = 'flat'
+
+        self.key_accidentals = new_key_accidentals
+
+    def set_inline_accidental(self, delta, accidental):
+        self.inline_accidentals[delta] = accidental.clsname
+
+    def reset_inline_accidentals(self):
+        self.inline_accidentals = {}
+
+    def accidental(self, delta):
+        """Returns the modification, in MIDI code, corresponding
+        to the staffline given by the delta."""
+        pitch_mod = 0
+
+        step_delta = delta % 7
+        if step_delta in self.key_accidentals:
+            if self.key_accidentals[step_delta] == 'sharp':
+                pitch_mod = 1
+            elif self.key_accidentals[step_delta] == 'double_sharp':
+                pitch_mod = 2
+            elif self.key_accidentals[step_delta] == 'flat':
+                pitch_mod = -1
+            elif self.key_accidentals[step_delta] == 'double_flat':
+                pitch_mod = -2
+
+        # Inline accidentals override key accidentals.
+        if delta in self.inline_accidentals:
+            if self.inline_accidentals[delta] == 'natural':
+                logging.info('Natural at delta = {0}'.format(delta))
+                pitch_mod = 0
+            elif self.inline_accidentals[delta] == 'sharp':
+                pitch_mod = 1
+            elif self.inline_accidentals[delta] == 'double_sharp':
+                pitch_mod = 2
+            elif self.inline_accidentals[delta] == 'flat':
+                pitch_mod = -1
+            elif self.inline_accidentals[delta] == 'double_flat':
+                pitch_mod = -2
+        return pitch_mod
+
+    def pitch(self, delta):
+        """Given a staffline delta, returns the current MIDI pitch code.
+
+        (This method is the main interface of the PitchInferenceEngineState.)
+
+        :delta: Distance in stafflines + staffspaces from the middle staffline.
+            Negative delta means distance *below*, positive delta is *above*.
+
+        :returns: The MIDI pitch code for the given delta.
+        """
+
+        # Split this into octave and step components.
+        delta_step = delta % 7
+        delta_octave = delta // 7
+
+        # From the base pitch and clef:
+        step_pitch = self.base_pitch \
+                     + sum(self._current_delta_steps[:delta_step+1]) \
+                     + (delta_octave * 12)
+        accidental_pitch = self.accidental(delta)
+
+        return step_pitch + accidental_pitch
+
+
+class MIDIInferenceEngine(object):
+    """The Pitch Inference Engine extracts MIDI from the notation
+    graph.
+    """
+    def __init__(self):
+
+        self._cdict = {}
+
+        # Static temp data from which the pitches are inferred
+        self.staves = None
+
+        self.clefs = None
+        self.clef_to_staff_map = None
+        self.staff_to_clef_map = None
+
+        self.key_signatures = None
+        self.key_to_staff_map = None
+        self.staff_to_key_map = None
+
+        self.measure_separators = None
+        self.staff_to_msep_map = None
+
+        self.noteheads = None
+        self.staff_to_noteheads_map = None
+
+        # Dynamic temp data: things that change as the pitches are inferred.
+        self.pitch_state = PitchInferenceEngineState()
+
+        self.pitches = None
+        self.pitches_per_staff = None
+
+        self._CONST = PitchInferenceEngineConstants()
+
+    def reset(self):
+        self.__init__()
+
+    def infer_pitches(self, cropobjects):
+        """The main workhorse for pitch inference.
+        Gets a list of CropObjects and for each notehead-type
+        symbol, outputs a MIDI code corresponding to the pitch
+        encoded by that notehead.
+
+        Notehead
+        --------
+
+        * Check for ties; if there is an incoming tie, apply
+          the last pitch. (This is necessary because of ties
+          that go across barlines and maintain inline accidentals.)
+        * Determine its staffline delta from the middle staffline.
+        * Check for inline accidentals, apply them to inference state.
+        * Query pitch state with this staffline delta.
+
+        Ties are problematic, because they may reach across
+        staff breaks. This can only be resolved after all staves
+        are resolved and assigned to systems, because until then,
+        it is not clear which staff corresponds to which in the next
+        system. Theoretically, this is near-impossible to resolve,
+        because staves may not continue on the next system (e.g.,
+        instruments that do not play for some time in orchestral scores),
+        so simple staff counting is not foolproof. Some other matching
+        mechanism has to be found, e.g. matching outgoing and incoming
+        ties on the end and beginning of adjacent systems.
+
+        Measure separator
+        -----------------
+
+        * Reset all inline accidentals to empty.
+
+        Clef change
+        -----------
+
+        * Change base pitch
+        * Recompute the key and inline signature delta indexes
+
+        Key change
+        ----------
+
+        * Recompute key deltas
+
+        :returns: A dict of ``objid`` to MIDI pitch code, with
+            an entry for each (pitched) notehead.
+        """
+        self._cdict = {c.objid: c for c in cropobjects}
+
+        # Initialize pitch temp data.
+        self._collect_symbols_for_pitch_inference(cropobjects)
+
+        # Staff processing: this is where the inference actually
+        # happens.
+        self.pitches_per_staff = {}
+        self.pitches = {}
+
+        for staff in self.staves:
+            self.process_staff(staff)
+            self.pitches.update(self.pitches_per_staff[staff.objid])
+
+        return copy.deepcopy(self.pitches)
+
+    def process_staff(self, staff):
+
+        self.pitches_per_staff[staff.objid] = {}
+        self.pitch_state.reset()
+        self.pitch_state.init_base_pitch()
+
+        queue = sorted(
+                    self.staff_to_clef_map[staff.objid]
+                    + self.staff_to_key_map[staff.objid]
+                    + self.staff_to_msep_map[staff.objid]
+                    + self.staff_to_noteheads_map[staff.objid],
+                    key=lambda x: x.left)
+
+        for q in queue:
+            if q.clsname in self._CONST.CLEF_CLSNAMES:
+                self.process_clef(q)
+            elif q.clsname in self._CONST.KEY_SIGNATURE_CLSNAMES:
+                self.process_key_signature(q)
+            elif q.clsname in self._CONST.MEASURE_SEPARATOR_CLSNAMES:
+                self.process_measure_separator(q)
+            elif q.clsname in self._CONST.NOTEHEAD_CLSNAMES:
+                p = self.process_notehead(q)
+                self.pitches[q.objid] = p
+                self.pitches_per_staff[staff.objid][q.objid] = p
+
+        return self.pitches_per_staff[staff.objid]
+
+    def process_notehead(self, notehead):
+        """This is the main workhorse of the pitch inference engine.
+        """
+        # Processing ties
+        # ---------------
+        ties = self.__children(notehead, 'tie')
+        for t in ties:
+            tied_noteheads = self.__parents(t, self._CONST.NOTEHEAD_CLSNAMES)
+
+            # Corner cases: mistakes and staff breaks
+            if len(tied_noteheads) > 2:
+                raise ValueError('Tie {0}: joining together more than 2'
+                                 ' noteheads!'.format(t.uid))
+            if len(tied_noteheads) < 2:
+                logging.warning('Tie {0}: only one notehead. Staff break?'
+                                ''.format(t.uid))
+                continue
+
+            left_tied_notehead = min(tied_noteheads, key=lambda x: x.left)
+            if left_tied_notehead.objid != notehead.objid:
+                try:
+                    p = self.pitches[left_tied_notehead.objid]
+                    return p
+
+                except KeyError:
+                    raise KeyError('Processing tied notehead {0}:'
+                                   ' preceding notehead {1} has no pitch!'
+                                   ''.format(notehead.uid, left_tied_notehead.uid))
+
+            # If the condition doesn't hold, then this is the leftward
+            # note in the tie, and its pitch needs to be determined.
+
+        # Obtain notehead delta
+        # ---------------------
+        delta = self.staffline_delta(notehead)
+
+        ### DEBUG
+        if notehead.objid == 200:
+            logging.info('Notehead {0}: delta {1}'.format(notehead.uid, delta))
+            logging.info('\tdelta_step: {0}'.format(delta % 7))
+            logging.info('\tdelta_step pitch sum: {0}'
+                         ''.format(sum(self.pitch_state._current_delta_steps[:(delta % 7)+1])))
+
+        # Processing inline accidentals
+        # -----------------------------
+        accidentals = self.__children(notehead, self._CONST.ACCIDENTAL_CLSNAMES)
+        ### DEBUG
+        if notehead.objid == 200:
+            logging.info('{0}: Accidentals: {1}'.format(notehead.uid, accidentals))
+
+        if len(accidentals) > 0:
+
+            # Sanity checks
+            if len(accidentals) > 2:
+                raise ValueError('More than two accidentals attached to notehead'
+                                 ' {0}'.format(notehead.uid))
+            elif len(accidentals) == 2:
+                naturals = [a for a in accidentals if a.clsname == 'natural']
+                non_naturals = [a for a in accidentals if a.clsname != 'natural']
+                if len(naturals) == 0:
+                    raise ValueError('More than one non-natural accidental'
+                                     ' attached to notehead {0}'
+                                     ''.format(notehead.uid))
+                if len(non_naturals) == 0:
+                    raise ValueError('Two naturals attached to one notehead {0}'
+                                     ''.format(notehead.uid))
+
+                self.pitch_state.set_inline_accidental(delta, non_naturals[0])
+
+            elif len(accidentals) == 1:
+                self.pitch_state.set_inline_accidental(delta, accidentals[0])
+                if notehead.objid == 200:
+                    logging.info('{0}: Inline accidental state: {1}'
+                                 ''.format(notehead.uid, self.pitch_state.inline_accidentals))
+
+        # Get the actual pitch
+        # --------------------
+        p = self.pitch_state.pitch(delta)
+
+        return p
+
+    def staffline_delta(self, notehead):
+        """Computes the staffline delta (distance from middle stafflines,
+        measured in stafflines and staffspaces) for the given notehead.
+        Accounts for ledger lines.
+        """
+        current_staff = self.__children(notehead, ['staff'])[0]
+        staffline_objects = self.__children(notehead,
+                                            self._CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+
+        # Ledger lines
+        # ------------
+        if len(staffline_objects) == 0:
+
+            # Processing ledger lines:
+            #  - count ledger lines
+            lls = self.__children(notehead, 'ledger_line')
+            n_lls = len(lls)
+            if n_lls == 0:
+                raise ValueError('Notehead with no staffline or staffspace,'
+                                 ' but also no ledger lines: {0}'
+                                 ''.format(notehead.uid))
+
+            #  Determine: is notehead above or below staff?
+            is_above_staff = (notehead.top < current_staff.top)
+
+            #  Determine: is notehead on/next to (closest) ledger line?
+            #    This needs to be done *after* we know whether the notehead
+            #    is above/below staff: if the notehead is e.g. above,
+            #    then it would be weird to find out it is in the
+            #    mini-staffspace *below* the closest ledger line,
+            #    signalling a mistake in the data.
+            closest_ll = min(lls, key=lambda x: x.top - notehead.top)
+            dtop = notehead.top - closest_ll.top
+            dbottom = closest_ll.bottom - notehead.bottom
+
+            # Determining whether the notehead is on a ledger
+            # line or in the adjacent temp staffspace.
+            # This uses a magic number, ON_STAFFLINE_RATIO_THRESHOLD.
+            _on_ledger_line = True
+            if min(dtop, dbottom) / max(dtop, dbottom) \
+                    < PitchInferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
+                _on_ledger_line = False
+
+                # Check orientation congruent with rel. to staff
+                if (dtop**2 > dbottom**2) and not is_above_staff:
+                    raise ValueError('Notehead in LL space with wrong orientation '
+                                     'w.r.t. staff:'
+                                     ' {0}'.format(notehead.uid))
+                if (dbottom**2 > dtop**2) and is_above_staff:
+                    raise ValueError('Notehead in LL space with wrong orientation '
+                                     'w.r.t. staff:'
+                                     ' {0}'.format(notehead.uid))
+
+            delta = (2 * n_lls - 1) + 5
+            if not _on_ledger_line:
+                delta += 1
+
+            if not is_above_staff:
+                delta *= -1
+
+            return delta
+
+        elif len(staffline_objects) == 1:
+            current_staffline = staffline_objects[0]
+
+            # Count how far from the current staffline we are.
+            #  - Collect staffline objects from the current staff
+            all_staffline_objects = self.__children(current_staff,
+                                                    self._CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+
+            #  - Determine their ordering, top to bottom
+            sorted_staffline_objects = sorted(all_staffline_objects,
+                                              key=lambda x: (x.top + x.bottom) / 2.)
+
+            delta = None
+            for i, s in enumerate(sorted_staffline_objects):
+                if s.objid == current_staffline.objid:
+                    delta = 5 - i
+
+            if delta is None:
+                raise ValueError('Notehead {0} attached to staffline {1},'
+                                 ' which is however not a child of'
+                                 ' the notehead\'s staff {2}!'
+                                 ''.format(notehead.uid, current_staffline.uid,
+                                           current_staff.uid))
+
+            return delta
+
+        else:
+            raise ValueError('Notehead {0} attached to more than one'
+                             ' staffline/staffspace!'.format(notehead.uid))
+
+    def process_measure_separator(self, measure_separator):
+        self.pitch_state.reset_inline_accidentals()
+
+    def process_key_signature(self, key_signature):
+        sharps = self.__children(key_signature, ['sharp'])
+        flats =  self.__children(key_signature, ['flat'])
+        self.pitch_state.set_key(len(sharps), len(flats))
+
+    def process_clef(self, clef):
+        self.pitch_state.init_base_pitch(clef=clef)
+
+    def _collect_symbols_for_pitch_inference(self, cropobjects):
+        """Extract all symbols from the document relevant for pitch
+        inference and index them in the Engine's temp data structures."""
+        # Collect staves.
+        self.staves = [c for c in cropobjects if c.clsname == 'staff']
+        logging.info('We have {0} staves.'.format(len(self.staves)))
+
+        # Collect clefs and key signatures per staff.
+        self.clefs = [c for c in cropobjects
+                      if c.clsname in self._CONST.CLEF_CLSNAMES]
+        self.key_signatures = [c for c in cropobjects
+                          if c.clsname == 'key_signature']
+
+        self.clef_to_staff_map = {}
+        # There may be more than one clef per staff.
+        self.staff_to_clef_map = collections.defaultdict(list)
+        for c in self.clefs:
+            # Assuming one staff per clef
+            s = get_outlink_staff(c, self._cdict)
+            self.clef_to_staff_map[c.objid] = s
+            self.staff_to_clef_map[s.objid].append(c)
+
+        self.key_to_staff_map = {}
+        # There may be more than one key signature per staff.
+        self.staff_to_key_map = collections.defaultdict(list)
+        for k in self.key_signatures:
+            s = get_outlink_staff(k, self._cdict)
+            self.key_to_staff_map[k.objid] = s
+            self.staff_to_key_map[s.objid].append(k)
+
+        # Collect measure separators.
+        self.measure_separators = [c for c in cropobjects
+                              if c.clsname == 'measure_separator']
+        self.staff_to_msep_map = collections.defaultdict(list)
+        for m in self.measure_separators:
+            _m_staves = get_outlink_staff(m, self._cdict,
+                                          allow_multi=True)
+            # (Measure separators might belong to multiple staves.)
+            for s in _m_staves:
+                self.staff_to_msep_map[s.objid].append(m)
+                # Collect accidentals per notehead.
+
+        # Collect noteheads.
+        self.noteheads = [c for c in cropobjects
+                          if c.clsname in self._CONST.NOTEHEAD_CLSNAMES]
+        self.staff_to_noteheads_map = collections.defaultdict(list)
+        for n in self.noteheads:
+            s = get_outlink_staff(n, self._cdict)
+            self.staff_to_noteheads_map[s.objid].append(n)
+
+    def __children(self, c, clsnames):
+        """Retrieve the children of the given CropObject ``c``
+        that have class in ``clsnames``."""
+        return [self._cdict[o] for o in c.outlinks
+                if self._cdict[o].clsname in clsnames]
+
+    def __parents(self, c, clsnames):
+        """Retrieve the parents of the given CropObject ``c``
+        that have class in ``clsnames``."""
+        return [self._cdict[i] for i in c.inlinks
+                if self._cdict[i].clsname in clsnames]
 
 
 ##############################################################################
 
 
-def pitch_delta_from_staffline_delta(base_pitch, delta):
+def midi2pitch_name(midi_code):
+    step = PitchInferenceEngineConstants.MIDI_CODE_RESIDUES_FOR_PITCH_STEPS[midi_code % 12]
+    octave = str((midi_code // 12) - 1)
+    return step + octave
+
+
+def pitch_from_staffline_delta(base_pitch, delta):
     """Given a base staffline MIDI pitch code and a difference (in
     stafflines + staffspaces), computes the MIDI pitch code
     for the staffline shifted by X.
 
-    >>> pitch_delta_from_staffline_delta(62, 4)
+    >>> pitch_from_staffline_delta(62, 4)
     69
 
     :param base_pitch: The MIDI pitch code relative to which the ``delta``
@@ -150,6 +778,48 @@ def pitch_delta_from_staffline_delta(base_pitch, delta):
     current_pitch += (12 * base_octave)
 
     return current_pitch
+
+
+##############################################################################
+
+
+def duration(notehead, cropobjects_dict, ticks_per_beat=64):
+    """Retrieves the duration for the given notehead, in ticks.
+
+    It is possible that the notehead has two stems.
+    In that case, we return all the possible durations:
+    usually at most two, but if there is a duration dot, then
+    there can be up to 4 possibilities.
+
+    Grace notes currently return 1 tick.
+
+    :returns: A list of possible durations for the given notehead.
+        Mostly its length is just 1; for multi-stem noteheads,
+        you might get more.
+    """
+    if notehead.clsname.startswith('grace-notehead'):
+        return 1
+
+    stems = [cropobjects_dict[o] for o in notehead.outlinks
+             if cropobjects_dict[o].clsname == 'stem']
+
+    if len(stems) > 1:
+        logging.warn('Inferring duration for multi-stem notehead: {0}'
+                     ''.format(notehead.uid))
+        raise NotImplementedError()
+
+    if len(stems) == 0:
+        if notehead.clsname == 'notehead-full':
+            raise ValueError('Full notehead {0} has no stem!'.format(notehead.uid))
+
+        return 4 * ticks_per_beat
+
+    flags_and_beams = [cropobjects_dict[o] for o in notehead.outlinks
+                       if cropobjects_dict[o].clsname
+                        in PitchInferenceEngineConstants.FLAGS_AND_BEAMS]
+
+    if notehead.clsname == 'notehead-empty':
+        return 2 * ticks_per_beat
 
 ##############################################################################
 
@@ -200,7 +870,7 @@ def get_clef_state(stafflines, staffspaces, clef=None, clef_type=None):
         midi_codes = [41, 43, 45, 47, 48, 50, 52, 54, 55, 57, 59]
 
     # Sort them bottom-up.
-    sorted_categories = sorted(stafflines+staffspaces, key=lambda s: s.top, reverse=True)
+    sorted_categories = sorted(stafflines+staffspaces, key=lambda s: (s.top + s.bottom) / 2, reverse=True)
 
     state = {}
     for midi_code, s in zip(midi_codes,
@@ -221,7 +891,7 @@ def get_key_state(stafflines, staffspaces, clef_state,
     it is assumed the key signature is empty and the state is all 0's.
     """
     # Sort them bottom-up.
-    sorted_categories = sorted(stafflines+staffspaces, key=lambda s: s.top, reverse=True)
+    sorted_categories = sorted(stafflines+staffspaces, key=lambda _s: (_s.top + _s.bottom) / 2., reverse=True)
 
     if (key_signature is None) and (n_sharps is None) and (n_flats is None):
         state = {s.objid: 0 for s in sorted_categories}
@@ -247,9 +917,9 @@ def get_key_state(stafflines, staffspaces, clef_state,
 
     key_map = {}
     if n_sharps > 0:
-        key_map.update(KEY_TABLE_SHARPS[n_sharps])
+        key_map.update(PitchInferenceEngineConstants.KEY_TABLE_SHARPS[n_sharps])
     if n_flats > 0:
-        key_map.update(KEY_TABLE_FLATS[n_flats])
+        key_map.update(PitchInferenceEngineConstants.KEY_TABLE_FLATS[n_flats])
 
     key_state = {s.objid: 0 for s in sorted_categories}
     for s in sorted_categories:
@@ -294,264 +964,290 @@ def main(args):
                          ''.format(args.annot))
     cropobjects = parse_cropobject_list(args.annot)
 
-    _cropobjects_dict = {c.objid: c for c in cropobjects}
+    inference_engine = MIDIInferenceEngine()
+    pitches = inference_engine.infer_pitches(cropobjects)
 
-    ##########################################################################
+    # Logging
+    pitch_names = {objid: midi2pitch_name(midi_code)
+                   for objid, midi_code in pitches.items()}
 
-    # Collect staves.
-    staves = [c for c in cropobjects if c.clsname == 'staff']
-    print('We have {0} staves.'.format(len(staves)))
 
-    # Collect clefs and key signatures per staff.
-    clefs = [c for c in cropobjects if c.clsname in CLEF_CLSNAMES]
-    key_signatures = [c for c in cropobjects if c.clsname == 'key_signature']
 
-    clef_to_staff_map = {}
-    # There may be more than one clef per staff.
-    staff_to_clef_map = collections.defaultdict(list)
-    for c in clefs:
-        # Assuming one staff per clef
-        s = get_outlink_staff(c, _cropobjects_dict)
-        clef_to_staff_map[c.objid] = s
-        staff_to_clef_map[s.objid].append(c)
+    # _cropobjects_dict = {c.objid: c for c in cropobjects}
+    #
+    # ##########################################################################
+    #
+    # # Collect staves.
+    # staves = [c for c in cropobjects if c.clsname == 'staff']
+    # print('We have {0} staves.'.format(len(staves)))
+    #
+    # # Collect clefs and key signatures per staff.
+    # clefs = [c for c in cropobjects
+    #          if c.clsname in PitchInferenceEngineConstants.CLEF_CLSNAMES]
+    # key_signatures = [c for c in cropobjects if c.clsname == 'key_signature']
+    #
+    # clef_to_staff_map = {}
+    # # There may be more than one clef per staff.
+    # staff_to_clef_map = collections.defaultdict(list)
+    # for c in clefs:
+    #     # Assuming one staff per clef
+    #     s = get_outlink_staff(c, _cropobjects_dict)
+    #     clef_to_staff_map[c.objid] = s
+    #     staff_to_clef_map[s.objid].append(c)
+    #
+    # key_to_staff_map = {}
+    # # There may be more than one key signature per staff.
+    # staff_to_key_map = collections.defaultdict(list)
+    # for k in key_signatures:
+    #     s = get_outlink_staff(k, _cropobjects_dict)
+    #     key_to_staff_map[k.objid] = s
+    #     staff_to_key_map[s.objid].append(k)
+    #
+    # # Collect measure separators.
+    # measure_separators = [c for c in cropobjects if c.clsname == 'measure_separator']
+    #
+    # staff_to_msep_map = collections.defaultdict(list)
+    # for m in measure_separators:
+    #     _m_staves = get_outlink_staff(m, _cropobjects_dict,
+    #                                   allow_multi=True)
+    #     # (Measure separators might belong to multiple staves.)
+    #     for s in _m_staves:
+    #         staff_to_msep_map[s.objid].append(m)
+    #         # Collect accidentals per notehead.
+    #
+    # # Collect noteheads.
+    # noteheads = [c for c in cropobjects
+    #              if c.clsname in PitchInferenceEngineConstants.NOTEHEAD_CLSNAMES]
+    # staff_to_noteheads_map = collections.defaultdict(list)
+    # for n in noteheads:
+    #     s = get_outlink_staff(n, _cropobjects_dict)
+    #     staff_to_noteheads_map[s.objid].append(n)
+    #
+    # # Inference
+    # # ---------
+    #
+    # # For each staff:
+    # #  - read all relevant attached objects left-to-right
+    # #  - notehead events: get pitch
+    # #  - other events: specify interpretation of stafflines
+    #
+    # all_pitches = {}
+    # all_pitch_names = {}
+    #
+    # for s in staves:
+    #
+    #     # Retrieve the stafflines and staffspaces and prepare indexes
+    #     stafflines = [_cropobjects_dict[o] for o in s.outlinks
+    #                   if _cropobjects_dict[o].clsname == 'staff_line']
+    #     stafflines = sorted(stafflines, key=lambda x: x.top)
+    #     staffline2idx = {sl.objid: i for i, sl in enumerate(stafflines)}
+    #     idx2staffline = {i: sl for i, sl in enumerate(stafflines)}
+    #
+    #     staffspaces = [_cropobjects_dict[o] for o in s.outlinks
+    #                    if _cropobjects_dict[o].clsname == 'staff_space']
+    #     staffspaces= sorted(staffspaces, key=lambda x: x.top)
+    #     staffspace2idx = {ss.objid: i for i, ss in enumerate(staffspaces)}
+    #     idx2staffspace = {i: ss for i, ss in enumerate(staffspaces)}
+    #
+    #     # Prepare the inference engine state.
+    #     # -----------------------------------
+    #     #
+    #     # The state has three components:
+    #     #  - clef state,
+    #     #  - key state,
+    #     #  - accidentals state.
+    #     #
+    #     # Each of these three is a map that goes from each
+    #     # staffline and staffspace to a pitch (expressed in MIDI).
+    #     #
+    #     # Clef state gives the actual MIDI number for the given
+    #     # staffline, as though there was no key or accidental.
+    #     #
+    #     # Key state gives modifications in +1, 0, or -1 for each
+    #     # staffline.
+    #     #
+    #     # In the same way, the Accidental state gives these
+    #     # modifications.
+    #     #
+    #     # To obtain the pitch for a staffline/staffspace,
+    #     # you need to add up the Clef, Key, and Accidental
+    #     # state numbers for the given staffline/staffspace.
+    #     #
+    #     # Note that for ledger lines, you may need to look
+    #     # an octave (or two) up/down.
+    #
+    #     # Default: g-clef
+    #     clef_state = get_clef_state(stafflines, staffspaces, clef_type='g-clef')
+    #
+    #     # Default: empty key signature
+    #     key_state = get_key_state(stafflines, staffspaces, clef_state, None)
+    #
+    #     # Default: no accidentals
+    #     accidental_state = {s.objid: 0
+    #                         for s in stafflines + staffspaces}
+    #
+    #     ll_accidental_state = {}
+    #     '''Records the accidentals at ledger lines for the given
+    #     measure. Each space AND line is +1 (or -1). First ledger line
+    #     above is +1, space above it is +2, second l.l. is +3, etc.
+    #     (It starts at 1 because of the outer staffspace.)'''
+    #
+    #     queue = sorted(
+    #                 staff_to_clef_map[s.objid]
+    #                 + staff_to_key_map[s.objid]
+    #                 + staff_to_msep_map[s.objid]
+    #                 + staff_to_noteheads_map[s.objid],
+    #                 key=lambda x: x.left)
+    #
+    #     pitches = {}
+    #     '''MIDI pitch code for each notehead objid.'''
+    #
+    #     for q in queue:
+    #
+    #         if q.clsname in PitchInferenceEngineConstants.CLEF_CLSNAMES:
+    #             clef_state = get_clef_state(stafflines, staffspaces, clef=q)
+    #
+    #         elif q.clsname == 'key_signature':
+    #             key_state = get_key_state(stafflines, staffspaces, clef_state, key_signature=q,
+    #                                       cropobjects_dict=_cropobjects_dict)
+    #
+    #         elif q.clsname == 'measure_separator':
+    #             accidental_state = {_s.objid: 0
+    #                                 for _s in stafflines + staffspaces}
+    #             ll_accidental_state = {}
+    #
+    #         elif q.clsname in PitchInferenceEngineConstants.NOTEHEAD_CLSNAMES:
+    #
+    #             staff_objects = [_cropobjects_dict[o] for o in q.outlinks
+    #                              if _cropobjects_dict[o].clsname in ('staff_line', 'staff_space')]
+    #             if len(staff_objects) > 1:
+    #                 raise ValueError('{0}: Noteheads should not be connected to more than one'
+    #                                  ' staffline or staffspace!'.format(q.uid))
+    #
+    #             ###############################
+    #             # First find accidentals
+    #             accidentals = [_cropobjects_dict[o] for o in q.outlinks
+    #                            if _cropobjects_dict[o].clsname
+    #                             in PitchInferenceEngineConstants.ACCIDENTAL_CLSNAMES]
+    #
+    #             total_modification = 0
+    #             if len(accidentals) > 1:
+    #
+    #                 # Check for consistency
+    #                 if len(accidentals) > 2:
+    #                     raise ValueError('{0}: A notehead should not have more than 2 accidentals!'
+    #                                      ''.format(q.uid))
+    #                 elif len([a for a in accidentals if a.clsname != 'natural']) > 1:
+    #                     raise ValueError('{0}: A notehead should not have more than 1 non-natural accidental!'
+    #                                      ''.format(q.uid))
+    #                 elif len([a for a in accidentals if a.clsname == 'natural']) > 1:
+    #                     raise ValueError('{0}: A notehead should not have more than 1 natural!'
+    #                                      ''.format(q.uid))
+    #
+    #                 total_modification = sum([PitchInferenceEngineConstants.ACCIDENTAL_CLSNAMES[a.clsname]
+    #                                           for a in accidentals])
+    #                 # What about naturals canceling key signature accidentals?
+    #
+    #             if len(staff_objects) == 0:
+    #                 # LEDGER LINES!!!
+    #
+    #                 # Processing ledger lines:
+    #                 #  - count ledger lines
+    #                 lls = [_cropobjects_dict[o] for o in q.outlinks
+    #                        if _cropobjects_dict[o].clsname == 'ledger_line']
+    #                 n_lls = len(lls)
+    #                 if n_lls == 0:
+    #                     raise ValueError('Notehead with no staffline or staffspace,'
+    #                                      ' but also no ledger lines: {0}'.format(q.uid))
+    #
+    #                 #  Determine: is notehead above or below staff?
+    #                 is_above_staff = (q.top < s.top)
+    #
+    #                 #  Determine: is notehead on/next to (closest) ledger line?
+    #                 #    This needs to be done *after* we know whether the notehead
+    #                 #    is above/below staff: if the notehead is e.g. above,
+    #                 #    then it would be weird to find out it is in the
+    #                 #    mini-staffspace *below* the closest ledger line,
+    #                 #    signalling a mistake in the data.
+    #                 closest_ll = min(lls, key=lambda x: x.top - q.top)
+    #                 dtop = q.top - closest_ll.top
+    #                 dbottom = closest_ll.bottom - q.bottom
+    #
+    #                 _on_ledger_line = True
+    #                 if min(dtop, dbottom) / max(dtop, dbottom) < PitchInferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
+    #                     _on_ledger_line = False
+    #
+    #                     # Check orientation congruent with rel. to staff
+    #                     if (dtop**2 > dbottom**2) and not is_above_staff:
+    #                         raise ValueError('Notehead in LL space with wrong orientation w.r.t. staff:'
+    #                                          ' {0}'.format(q.uid))
+    #                     if (dbottom**2 > dtop**2) and is_above_staff:
+    #                         raise ValueError('Notehead in LL space with wrong orientation w.r.t. staff:'
+    #                                          ' {0}'.format(q.uid))
+    #
+    #                 #  Determine base pitch.
+    #                 #
+    #                 #   - Get base pitch of outermost ledger line.
+    #                 if is_above_staff:
+    #                     outer_staffline = min(stafflines, key=lambda x: x.bottom)
+    #                 else:
+    #                     outer_staffline = max(stafflines, key=lambda x: x.top)
+    #                 _delta = 2 * n_lls - 1
+    #                 if not _on_ledger_line:
+    #                     _delta += 1
+    #                 if not is_above_staff:
+    #                     _delta *= -1
+    #
+    #                 ll_base_pitch = pitch_from_staffline_delta(
+    #                     clef_state[outer_staffline.objid],
+    #                     _delta
+    #                 )
+    #
+    #                 #  Check for key signature.
+    #                 #   - mod 12
+    #                 for _s in staff_objects:
+    #                     if (clef_state[_s.objid] % 12) == (ll_base_pitch % 12):
+    #                         ll_base_pitch += key_state[_s.objid]
+    #                         break
+    #                 ll_pitch = ll_base_pitch
+    #
+    #                 #  Check for accidentals.
+    #                 if (_delta not in ll_accidental_state) \
+    #                         or (len(accidentals) > 0):
+    #                     ll_accidental_state[_delta] = total_modification
+    #
+    #                 ll_pitch += ll_accidental_state[_delta]
+    #
+    #                 midi_code = ll_pitch
+    #
+    #             else:
+    #
+    #                 # Update *accidentals* state, not *ll_accidentals*:
+    #                 if len(accidentals) > 0:
+    #                     accidental_state[s.objid] = total_modification
+    #
+    #                 cs = staff_objects[0]
+    #                 # Now read the pitch:
+    #                 midi_code = clef_state[cs.objid] + key_state[cs.objid] + accidental_state[cs.objid]
+    #
+    #             logging.debug('Notehead {0}:\n\tClef: {1}\n\tKey: {2}'
+    #                           '\n\tAccidental: {3}\n\tLL.Acc.: {4}'
+    #                           ''.format(q.uid, clef_state, key_state,
+    #                                     accidental_state, ll_accidental_state))
+    #
+    #             # Set pitch to the given MIDI code
+    #             pitches[q.objid] = midi_code
+    #             all_pitch_names[q.objid] = midi2pitch_name(midi_code)
+    #
+    #     pprint.pprint('Staff: {0}'.format(s.uid))
+    #     all_pitches.update(pitches)
 
-    key_to_staff_map = {}
-    # There may be more than one key signature per staff.
-    staff_to_key_map = collections.defaultdict(list)
-    for k in key_signatures:
-        s = get_outlink_staff(k, _cropobjects_dict)
-        key_to_staff_map[k.objid] = s
-        staff_to_key_map[s.objid].append(k)
-
-    # Collect measure separators.
-    measure_separators = [c for c in cropobjects if c.clsname == 'measure_separator']
-
-    staff_to_msep_map = collections.defaultdict(list)
-    for m in measure_separators:
-        _m_staves = get_outlink_staff(m, _cropobjects_dict,
-                                      allow_multi=True)
-        # (Measure separators might belong to multiple staves.)
-        for s in _m_staves:
-            staff_to_msep_map[s.objid].append(m)
-            # Collect accidentals per notehead.
-
-    # Collect noteheads.
-    noteheads = [c for c in cropobjects if c.clsname in NOTEHEAD_CLSNAMES]
-    staff_to_noteheads_map = collections.defaultdict(list)
-    for n in noteheads:
-        s = get_outlink_staff(n, _cropobjects_dict)
-        staff_to_noteheads_map[s.objid].append(n)
-
-    # Inference
-    # ---------
-
-    # For each staff:
-    #  - read all relevant attached objects left-to-right
-    #  - notehead events: get pitch
-    #  - other events: specify interpretation of stafflines
-
-    relevant_objects_per_staff = {}
-    for s in staves:
-
-        # Retrieve the stafflines and staffspaces and prepare indexes
-        stafflines = [_cropobjects_dict[o] for o in s.outlinks
-                      if _cropobjects_dict[o].clsname == 'staff_line']
-        stafflines = sorted(stafflines, key=lambda x: x.top)
-        staffline2idx = {sl.objid: i for i, sl in enumerate(stafflines)}
-        idx2staffline = {i: sl for i, sl in enumerate(stafflines)}
-
-        staffspaces = [_cropobjects_dict[o] for o in s.outlinks
-                       if _cropobjects_dict[o].clsname == 'staff_space']
-        staffspaces= sorted(staffspaces, key=lambda x: x.top)
-        staffspace2idx = {ss.objid: i for i, ss in enumerate(staffspaces)}
-        idx2staffspace = {i: ss for i, ss in enumerate(staffspaces)}
-
-        # Prepare the inference engine state.
-        # -----------------------------------
-        #
-        # The state has three components:
-        #  - clef state,
-        #  - key state,
-        #  - accidentals state.
-        #
-        # Each of these three is a map that goes from each
-        # staffline and staffspace to a pitch (expressed in MIDI).
-        #
-        # Clef state gives the actual MIDI number for the given
-        # staffline, as though there was no key or accidental.
-        #
-        # Key state gives modifications in +1, 0, or -1 for each
-        # staffline.
-        #
-        # In the same way, the Accidental state gives these
-        # modifications.
-        #
-        # To obtain the pitch for a staffline/staffspace,
-        # you need to add up the Clef, Key, and Accidental
-        # state numbers for the given staffline/staffspace.
-        #
-        # Note that for ledger lines, you may need to look
-        # an octave (or two) up/down.
-
-        # Default: g-clef
-        clef_state = get_clef_state(stafflines, staffspaces, clef_type='g-clef')
-
-        # Default: empty key signature
-        key_state = get_key_state(stafflines, staffspaces, clef_state, None)
-
-        # Default: no accidentals
-        accidental_state = {s.objid: 0
-                            for s in stafflines + staffspaces}
-
-        ll_accidental_state = {}
-        '''Records the accidentals at ledger lines for the given
-        measure. Each space AND line is +1 (or -1). First ledger line
-        above is +1, space above it is +2, second l.l. is +3, etc.
-        (It starts at 1 because of the outer staffspace.)'''
-
-        queue = sorted(
-                    staff_to_clef_map[s.objid]
-                    + staff_to_key_map[s.objid]
-                    + staff_to_msep_map[s.objid]
-                    + staff_to_noteheads_map[s.objid],
-                    key=lambda x: x.left)
-
-        pitches = {}
-        '''MIDI pitch code for each notehead objid.'''
-
-        for q in queue:
-
-            if q.clsname in CLEF_CLSNAMES:
-                clef_state = get_clef_state(stafflines, staffspaces, clef=q)
-
-            elif q.clsname == 'key_signature':
-                key_state = get_key_state(stafflines, staffspaces, clef_state, key_signature=q,
-                                          cropobjects_dict=_cropobjects_dict)
-
-            elif q.clsname == 'measure_separator':
-                accidental_state = {_s.objid: 0
-                                    for _s in stafflines + staffspaces}
-                ll_accidental_state = {}
-
-            elif q.clsname in NOTEHEAD_CLSNAMES:
-
-                staff_objects = [_cropobjects_dict[o] for o in q.outlinks
-                                 if _cropobjects_dict[o].clsname in ('staff_line', 'staff_space')]
-                if len(staff_objects) > 1:
-                    raise ValueError('{0}: Noteheads should not be connected to more than one'
-                                     ' staffline or staffspace!'.format(q.uid))
-
-                ###############################
-                # First find accidentals
-                accidentals = [_cropobjects_dict[o] for o in q.outlinks
-                               if _cropobjects_dict[o].clsname in ACCIDENTAL_CLSNAMES]
-
-                total_modification = 0
-                if len(accidentals) > 1:
-
-                    # Check for consistency
-                    if len(accidentals) > 2:
-                        raise ValueError('{0}: A notehead should not have more than 2 accidentals!'
-                                         ''.format(q.uid))
-                    elif len([a for a in accidentals if a.clsname != 'natural']) > 1:
-                        raise ValueError('{0}: A notehead should not have more than 1 non-natural accidental!'
-                                         ''.format(q.uid))
-                    elif len([a for a in accidentals if a.clsname == 'natural']) > 1:
-                        raise ValueError('{0}: A notehead should not have more than 1 natural!'
-                                         ''.format(q.uid))
-
-                    total_modification = sum([ACCIDENTAL_CLSNAMES[a.clsname] for a in accidentals])
-
-                if len(staff_objects) == 0:
-                    # TODO: LEDGER LINES!!!
-                    #logging.warning('{0}: Currently not doing ledger lines!'.format(q.objid))
-
-                    # Processing ledger lines:
-                    #  - count ledger lines
-                    lls = [_cropobjects_dict[o] for o in q.outlinks
-                           if _cropobjects_dict[o].clsname == 'ledger_line']
-                    n_lls = len(lls)
-                    if n_lls == 0:
-                        raise ValueError('Notehead with no staffline or staffspace,'
-                                         ' but also no ledger lines: {0}'.format(q.uid))
-
-                    #  Determine: is notehead above or below staff?
-                    is_above_staff = (q.top < s.top)
-
-                    #  Determine: is notehead on/next to (closest) ledger line?
-                    #    This needs to be done *after* we know whether the notehead
-                    #    is above/below staff: if the notehead is e.g. above,
-                    #    then it would be weird to find out it is in the
-                    #    mini-staffspace *below* the closest ledger line,
-                    #    signalling a mistake in the data.
-                    closest_ll = min(lls, key=lambda x: x.top - q.top)
-                    dtop = q.top - closest_ll.top
-                    dbottom = closest_ll.bottom - q.bottom
-
-                    _on_ledger_line = True
-                    if min(dtop, dbottom) / max(dtop, dbottom) < ON_STAFFLINE_RATIO_TRHESHOLD:
-                        _on_ledger_line = False
-
-                        # Check orientation congruent with rel. to staff
-                        if (dtop**2 > dbottom**2) and not is_above_staff:
-                            raise ValueError('Notehead in LL space with wrong orientation w.r.t. staff:'
-                                             ' {0}'.format(q.uid))
-                        if (dbottom**2 > dtop**2) and is_above_staff:
-                            raise ValueError('Notehead in LL space with wrong orientation w.r.t. staff:'
-                                             ' {0}'.format(q.uid))
-
-                    #  Determine base pitch.
-                    #
-                    #   - Get base pitch of outermost ledger line.
-                    if is_above_staff:
-                        outer_staffline = min(stafflines, key=lambda x: x.bottom)
-                    else:
-                        outer_staffline = max(stafflines, key=lambda x: x.top)
-                    _delta = 2 * n_lls - 1
-                    if not _on_ledger_line:
-                        _delta += 1
-                    if not is_above_staff:
-                        _delta *= -1
-                    ll_base_pitch = pitch_delta_from_staffline_delta(
-                        clef_state[outer_staffline.objid],
-                        _delta
-                    )
-
-                    #  Check for key signature.
-                    #   - mod 12
-                    for _s in staff_objects:
-                        if (clef_state[_s.objid] % 12) == (ll_base_pitch % 12):
-                            ll_base_pitch += key_state[_s.objid]
-                            break
-                    ll_pitch = ll_base_pitch
-
-                    #  Check for accidentals.
-                    if (_delta not in ll_accidental_state) \
-                            or (len(accidentals) > 0):
-                        ll_accidental_state[_delta] = total_modification
-
-                    ll_pitch += ll_accidental_state[_delta]
-
-                    midi_code = ll_pitch
-
-                else:
-
-                    # Update *accidentals* state, not *ll_accidentals*:
-                    if len(accidentals) > 0:
-                        accidental_state[s.objid] = total_modification
-
-                    cs = staff_objects[0]
-                    # Now read the pitch:
-                    midi_code = clef_state[cs.objid] + key_state[cs.objid] + accidental_state[cs.objid]
-
-                # Set pitch to the given MIDI code
-                pitches[q.objid] = midi_code
-
-        pprint.pprint('Staff: {0}'.format(s.uid))
-        # pprint.pprint(pitches)
+    for objid in [17, 74, 81, 198, 199, 200]:
+        print('{0}: {1} ({2})'
+              ''.format(objid, pitch_names[objid], pitches[objid]))
 
     _end_time = time.clock()
-    logging.info('[XXXX] done in {0:.3f} s'.format(_end_time - _start_time))
+    logging.info('infer_pitches.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 
 ##############################################################################
