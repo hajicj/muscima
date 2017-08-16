@@ -404,7 +404,7 @@ def parse_cropobject_list(filename):
         #################################
         # Decode the data.
         data = cropobject.findall('Data')
-        data_dict=None
+        data_dict = None
         if len(data) > 0:
             data = data[0]
             data_dict = {}

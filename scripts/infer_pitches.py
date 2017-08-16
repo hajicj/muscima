@@ -97,27 +97,28 @@ class PitchInferenceEngineConstants(object):
 
     MIDI_CODE_RESIDUES_FOR_PITCH_STEPS = {
         0: 'C',
-        1: 'Db',
+        1: 'C#',
         2: 'D',
         3: 'Eb',
         4: 'E',
         5: 'F',
-        6: 'Gb',
+        6: 'F#',
         7: 'G',
         8: 'Ab',
         9: 'A',
         10: 'Bb',
         11: 'B',
     }
+    '''Simplified pitch naming.'''
 
     # The individual MIDI codes for for the unmodified steps.
-    _fs = range(5, 114, 12)
-    _cs = range(0, 121, 12)
-    _gs = range(7, 116, 12)
-    _ds = range(2, 110, 12)
-    _as = range(9, 118, 12)
-    _es = range(4, 112, 12)
-    _bs = range(11, 120, 12)
+    _fs = list(range(5, 114, 12))
+    _cs = list(range(0, 121, 12))
+    _gs = list(range(7, 116, 12))
+    _ds = list(range(2, 110, 12))
+    _as = list(range(9, 118, 12))
+    _es = list(range(4, 112, 12))
+    _bs = list(range(11, 120, 12))
 
     KEY_TABLE_SHARPS = {
         0: {},
@@ -761,7 +762,7 @@ class MIDIInferenceEngine(object):
 def midi2pitch_name(midi_code):
     step = PitchInferenceEngineConstants.MIDI_CODE_RESIDUES_FOR_PITCH_STEPS[midi_code % 12]
     octave = str((midi_code // 12) - 1)
-    return step + octave
+    return step, octave
 
 
 def pitch_from_staffline_delta(base_pitch, delta):
@@ -993,11 +994,27 @@ def main(args):
     cropobjects = parse_cropobject_list(args.annot)
 
     inference_engine = MIDIInferenceEngine()
+
+    logging.info('Running pitch inference.')
     pitches = inference_engine.infer_pitches(cropobjects)
 
     # Logging
     pitch_names = {objid: midi2pitch_name(midi_code)
                    for objid, midi_code in pitches.items()}
+
+    # Export
+    logging.info('Adding pitch information to <Data> attributes.')
+    for c in cropobjects:
+        if c.objid in pitches:
+            midi_pitch_code = pitches[c.objid]
+            pitch_step, pitch_octave = pitch_names[c.objid]
+            c.data = {'midi_pitch_code': midi_pitch_code,
+                      'normalized_pitch_step': pitch_step,
+                      'pitch_octave': pitch_octave}
+
+    with open(args.export, 'w') as hdl:
+        hdl.write(export_cropobject_list(cropobjects))
+        hdl.write('\n')
 
     _end_time = time.clock()
     logging.info('infer_pitches.py done in {0:.3f} s'.format(_end_time - _start_time))
