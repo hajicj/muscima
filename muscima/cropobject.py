@@ -45,6 +45,8 @@ class CropObject(object):
       CropObject's bounding box (specified by ``top``, ``left``, ``height``
       and ``width``) that the CropObject actually occupies. If the mask is
       ``None``, the object is understood to occupy the entire bounding box.
+    * ``data``: a dictionary that can be empty, or can contain anything. It is
+      generated from the optional ``<Data>`` element of a CropObject.
 
     Constructing a simple CropObject that consists of the "b"-like flat music
     notation symbol (never mind the ``uid`` for now):
@@ -241,7 +243,8 @@ class CropObject(object):
     def __init__(self, objid, clsname, top, left, width, height,
                  outlinks=None, inlinks=None,
                  mask=None,
-                 uid=None):
+                 uid=None,
+                 data=None):
         logging.debug('Initializing CropObject with objid {0}, uid {5}, x={1},'
                      ' y={2}, h={3}, w={4}'
                       ''.format(objid, top, left, height, width, uid))
@@ -275,6 +278,8 @@ class CropObject(object):
 
         self.is_selected = False
         #logging.debug('...done!')
+
+        self.data = data
 
     ##########################################################################
     # Dealing with unique identification of a CropObject, also across
@@ -767,6 +772,10 @@ class CropObject(object):
             outlinks_string = ' '.join(list(map(str, self.outlinks)))
             lines.append('\t<Outlinks>{0}</Outlinks>'.format(outlinks_string))
 
+        data_string = self.encode_data(self.data)
+        if data_string is not None:
+            lines.append('\t<Data>\n{0}\n\t</Data>'.format(data_string))
+
         lines.append('</CropObject>')
         return '\n'.join(lines)
 
@@ -778,6 +787,21 @@ class CropObject(object):
             return self.encode_mask_rle(mask, compress=compress)
         elif mode == 'bitmap':
             return self.encode_mask_bitmap(mask, compress=compress)
+
+    def encode_data(self, data):
+        if self.data is None:
+            return None
+        lines = []
+        for k, v in self.data.items():
+            vtype = 'str'
+            if isinstance(v, int):
+                vtype = 'int'
+            elif isinstance(v, float):
+                vtype = 'float'
+            line = '\t\t<DataItem key="{0}" type="{1}">{2}</DataItem>' \
+                   ''.format(k, vtype, v)
+            lines.append(line)
+        return '\n'.join(lines)
 
     @staticmethod
     def encode_mask_bitmap(mask, compress=False):
