@@ -229,6 +229,7 @@ def main(args):
                                      key=lambda ss: min((ll_max_dist.bottom - ss.top) ** 2,
                                                         (ll_max_dist.top - ss.bottom) ** 2))
                 link_cropobjects(c, staff_min_dist)
+                continue
 
             # - Find the related staffline.
             # - Because of curved stafflines, this has to be done w.r.t.
@@ -297,14 +298,28 @@ def main(args):
 
             elif len(overlapped_stafflines) == 0:
                 # Staffspace!
-                for s in staffspaces:
-                    # Sometimes noteheads "hang out" of the upper/lower
-                    # staffspace, or maybe they go
-                    if s.top <= c.top < c.bottom <= s.bottom:
-                        link_cropobjects(c, s)
-                        # Also link to appropriate staff.
-                        _c_staff = _staff_per_ss_sl[s.objid]
-                        link_cropobjects(c, _c_staff)
+                # Link to the staffspace with which the notehead has
+                # greatest vertical overlap.
+                #
+                # Interesting corner case:
+                # Sometimes noteheads "hang out" of the upper/lower
+                # staffspace, so they are not entirely covered.
+                overlapped_staffspaces = {}
+                for _ss_i, s in enumerate(staffspaces):
+                    if s.top <= c.top <= s.bottom:
+                        overlapped_staffspaces[_ss_i] = min(s.bottom, c.bottom) - c.top
+                    elif c.top <= s.top <= c.bottom:
+                        overlapped_staffspaces[_ss_i] = s.bottom - max(c.top, s.top)
+
+                if len(overlapped_staffspaces) == 0:
+                    logging.warn('Notehead {0}: no overlapped staffline object, no ledger line!'
+                                 ''.format(c.uid))
+                _ss_i_max = max(overlapped_staffspaces.keys(),
+                                key=lambda x: overlapped_staffspaces[x])
+                max_overlap_staffspace = staffspaces[_ss_i_max]
+                link_cropobjects(c, max_overlap_staffspace)
+                _c_staff = _staff_per_ss_sl[max_overlap_staffspace.objid]
+                link_cropobjects(c, _c_staff)
 
             elif len(overlapped_stafflines) == 2:
                 # Staffspace between those two lines.
