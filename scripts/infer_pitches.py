@@ -42,6 +42,7 @@ from muscima.cropobject import link_cropobjects
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
+
 class PitchInferenceEngineConstants(object):
     """This class stores the constants used for pitch inference."""
     ON_STAFFLINE_RATIO_TRHESHOLD = 0.2
@@ -1012,9 +1013,12 @@ def main(args):
                       'normalized_pitch_step': pitch_step,
                       'pitch_octave': pitch_octave}
 
-    with open(args.export, 'w') as hdl:
-        hdl.write(export_cropobject_list(cropobjects))
-        hdl.write('\n')
+    if args.export is not None:
+        with open(args.export, 'w') as hdl:
+            hdl.write(export_cropobject_list(cropobjects))
+            hdl.write('\n')
+    else:
+        print(export_cropobject_list(cropobjects))
 
     _end_time = time.clock()
     logging.info('infer_pitches.py done in {0:.3f} s'.format(_end_time - _start_time))

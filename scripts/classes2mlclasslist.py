@@ -171,8 +171,10 @@ def build_argument_parser():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('-i', '--input', action='store',
+                        required=True,
                         help='The input CSV file.')
     parser.add_argument('-o', '--output', action='store',
+                        required=True,
                         help='The output MFF-MUSCIMA XML file.')
 
     parser.add_argument('-v', '--verbose', action='store_true',

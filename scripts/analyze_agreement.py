@@ -301,7 +301,8 @@ def build_argument_parser():
                              ' to match before computing pixel-wise overlap'
                              ' metrics.')
     parser.add_argument('--log_alignment', action='store_true',
-                        help='')
+                        help='Print how the true and predicted objects are'
+                             ' paired.')
 
     parser.add_argument('--print_fscore_only', action='store_true',
                         help='If set, only print the total F-score number.'
