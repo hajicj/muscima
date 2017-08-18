@@ -412,6 +412,8 @@ def parse_cropobject_list(filename):
                 key = data_item.get('key')
                 value_type = data_item.get('type')
                 value = data_item.text
+                logging.warn('Creating data entry: key={0}, type={1},'
+                             ' value={2}'.format(key, value_type, value))
                 if value_type == 'int':
                     value = int(value)
                 elif value_type == 'float':

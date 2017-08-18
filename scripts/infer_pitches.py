@@ -88,6 +88,14 @@ class PitchInferenceEngineConstants(object):
         'beam',
     }
 
+    FLAGS_AND_BEAMS ={
+        '8th_flag',
+        '16th_flag',
+        '32th_flag',
+        '64th_and_higher_flag',
+        'beam',
+    }
+
     ACCIDENTAL_CLSNAMES = {
         'sharp': 1,
         'flat': -1,
@@ -142,6 +150,13 @@ class PitchInferenceEngineConstants(object):
         6: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs},
         7: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs + _fs},
     }
+
+    PITCH_STEPS = ['C', 'D', 'E', 'F', 'G', 'A', 'B',
+                   'C', 'D', 'E', 'F', 'G', 'A', 'B']
+    # Wrap around twice for easier indexing.
+
+    ACCIDENTAL_CODES = {'sharp': '#', 'flat': 'b',
+                        'double_sharp': 'x', 'double_flat': 'bb'}
 
 
 class PitchInferenceEngineState(object):
@@ -204,6 +219,12 @@ class PitchInferenceEngineState(object):
         '''The MIDI code corresponding to the middle staffline,
         without modification by key or inline accidentals.'''
 
+        self.base_pitch_step = None
+        '''The name of the base pitch: C, D, E, etc.'''
+
+        self.base_pitch_octave = None
+        '''The octave where the pitch resides. C4 = c', the middle C.'''
+
         self._current_clef = None
         '''Holds the clef CropObject that is currently valid.'''
 
@@ -227,12 +248,18 @@ class PitchInferenceEngineState(object):
         if (clef is None) or (clef.clsname == 'g-clef'):
             new_base_pitch = 71
             new_delta_steps = [0, 1, 2, 2, 1, 2, 2, 2]
+            new_base_pitch_step = 6  # Index into pitch steps.
+            new_base_pitch_octave = 4
         elif clef.clsname == 'c-clef':
             new_base_pitch = 60
             new_delta_steps = [0, 2, 2, 1, 2, 2, 2, 1]
+            new_base_pitch_step = 0
+            new_base_pitch_octave = 4
         elif clef.clsname == 'f-clef':
             new_base_pitch = 50
             new_delta_steps = [0, 2, 1, 2, 2, 2, 1, 2]
+            new_base_pitch_step = 1
+            new_base_pitch_octave = 3
         else:
             raise ValueError('Unrecognized clef clsname: {0}'
                              ''.format(clef.clsname))
@@ -252,6 +279,8 @@ class PitchInferenceEngineState(object):
                 self.inline_accidentals = new_inline_accidentals
 
         self.base_pitch = new_base_pitch
+        self.base_pitch_step = new_base_pitch_step
+        self.base_pitch_octave = new_base_pitch_octave
         self._current_clef = clef
         self._current_delta_steps = new_delta_steps
 
@@ -356,16 +385,36 @@ class PitchInferenceEngineState(object):
 
         return step_pitch + accidental_pitch
 
+    def pitch_name(self, delta):
+        """Given a staffline delta, returns the name of the corrensponding pitch."""
+        output_step = PitchInferenceEngineConstants.PITCH_STEPS[(self.base_pitch_step + delta) % 7]
+        output_octave = self.base_pitch_octave + (delta // 7)
+        output_mod = ''
+
+        accidental = self.accidental(delta)
+        if accidental == 1:
+            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['sharp']
+        elif accidental == 2:
+            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['double_sharp']
+        elif accidental == -1:
+            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['flat']
+        elif accidental == 2:
+            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['double_flat']
+
+        return output_step + output_mod, output_octave
+
 
 class MIDIInferenceEngine(object):
     """The Pitch Inference Engine extracts MIDI from the notation
     graph.
     """
     def __init__(self):
-
-        self._cdict = {}
+        # Inference engine constants
+        self._CONST = PitchInferenceEngineConstants()
 
         # Static temp data from which the pitches are inferred
+        self._cdict = {}
+
         self.staves = None
 
         self.clefs = None
@@ -385,15 +434,20 @@ class MIDIInferenceEngine(object):
         # Dynamic temp data: things that change as the pitches are inferred.
         self.pitch_state = PitchInferenceEngineState()
 
+        # Results
         self.pitches = None
         self.pitches_per_staff = None
 
-        self._CONST = PitchInferenceEngineConstants()
+        self.pitch_names = None
+        self.pitch_names_per_staff = None
+
+        self.durations_beats = None
+        self.durations_beats_per_staff = None
 
     def reset(self):
         self.__init__()
 
-    def infer_pitches(self, cropobjects):
+    def infer_pitches(self, cropobjects, with_names=False):
         """The main workhorse for pitch inference.
         Gets a list of CropObjects and for each notehead-type
         symbol, outputs a MIDI code corresponding to the pitch
@@ -436,8 +490,14 @@ class MIDIInferenceEngine(object):
 
         * Recompute key deltas
 
+        :param with_names: If set, will return also a dict of
+            objid --> pitch names (e.g., {123: 'F#3'}).
+
         :returns: A dict of ``objid`` to MIDI pitch code, with
-            an entry for each (pitched) notehead.
+            an entry for each (pitched) notehead. If ``with_names``
+            is given, returns a tuple with the objid --> MIDI
+            and objid --> pitch name dicts.
+
         """
         self._cdict = {c.objid: c for c in cropobjects}
 
@@ -448,16 +508,27 @@ class MIDIInferenceEngine(object):
         # happens.
         self.pitches_per_staff = {}
         self.pitches = {}
+        self.pitch_names_per_staff = {}
+        self.pitch_names = {}
+        self.durations_beats = {}
+        self.durations_beats_per_staff = {}
 
         for staff in self.staves:
             self.process_staff(staff)
             self.pitches.update(self.pitches_per_staff[staff.objid])
 
-        return copy.deepcopy(self.pitches)
+        if with_names:
+            return copy.deepcopy(self.pitches), copy.deepcopy(self.pitch_names)
+        else:
+            return copy.deepcopy(self.pitches)
 
     def process_staff(self, staff):
 
         self.pitches_per_staff[staff.objid] = {}
+        self.pitch_names_per_staff[staff.objid] = {}
+
+        self.durations_beats_per_staff[staff.objid] = {}
+
         self.pitch_state.reset()
         self.pitch_state.init_base_pitch()
 
@@ -476,14 +547,26 @@ class MIDIInferenceEngine(object):
             elif q.clsname in self._CONST.MEASURE_SEPARATOR_CLSNAMES:
                 self.process_measure_separator(q)
             elif q.clsname in self._CONST.NOTEHEAD_CLSNAMES:
-                p = self.process_notehead(q)
+                p, pn = self.process_notehead(q, with_name=True)
                 self.pitches[q.objid] = p
                 self.pitches_per_staff[staff.objid][q.objid] = p
+                self.pitch_names[q.objid] = pn
+                self.pitch_names_per_staff[staff.objid][q.objid] = pn
+
+                b = self.beats(q)
+                self.durations_beats[q.objid] = b
+                self.durations_beats_per_staff[staff.objid][q.objid] = b
 
         return self.pitches_per_staff[staff.objid]
 
-    def process_notehead(self, notehead):
+    def process_notehead(self, notehead, with_name=False):
         """This is the main workhorse of the pitch inference engine.
+
+        :param notehead: The notehead-class CropObject for which we
+            want to infer pitch.
+
+        :param with_name: If set, will return not only the MIDI pitch
+            code, but the name of the encoded note (e.g., F#3) as well.
         """
         # Processing ties
         # ---------------
@@ -504,7 +587,11 @@ class MIDIInferenceEngine(object):
             if left_tied_notehead.objid != notehead.objid:
                 try:
                     p = self.pitches[left_tied_notehead.objid]
-                    return p
+                    if with_name:
+                        pn = self.pitch_names[left_tied_notehead.objid]
+                        return p, pn
+                    else:
+                        return p
 
                 except KeyError:
                     raise KeyError('Processing tied notehead {0}:'
@@ -518,19 +605,16 @@ class MIDIInferenceEngine(object):
         # ---------------------
         delta = self.staffline_delta(notehead)
 
-        ### DEBUG
-        if notehead.objid == 200:
-            logging.info('Notehead {0}: delta {1}'.format(notehead.uid, delta))
-            logging.info('\tdelta_step: {0}'.format(delta % 7))
-            logging.info('\tdelta_step pitch sum: {0}'
-                         ''.format(sum(self.pitch_state._current_delta_steps[:(delta % 7)+1])))
+        # ### DEBUG
+        # if notehead.objid == 200:
+        #     logging.info('Notehead {0}: delta {1}'.format(notehead.uid, delta))
+        #     logging.info('\tdelta_step: {0}'.format(delta % 7))
+        #     logging.info('\tdelta_step pitch sum: {0}'
+        #                  ''.format(sum(self.pitch_state._current_delta_steps[:(delta % 7)+1])))
 
         # Processing inline accidentals
         # -----------------------------
         accidentals = self.__children(notehead, self._CONST.ACCIDENTAL_CLSNAMES)
-        ### DEBUG
-        if notehead.objid == 200:
-            logging.info('{0}: Accidentals: {1}'.format(notehead.uid, accidentals))
 
         if len(accidentals) > 0:
 
@@ -553,15 +637,16 @@ class MIDIInferenceEngine(object):
 
             elif len(accidentals) == 1:
                 self.pitch_state.set_inline_accidental(delta, accidentals[0])
-                if notehead.objid == 200:
-                    logging.info('{0}: Inline accidental state: {1}'
-                                 ''.format(notehead.uid, self.pitch_state.inline_accidentals))
 
         # Get the actual pitch
         # --------------------
         p = self.pitch_state.pitch(delta)
 
-        return p
+        if with_name is True:
+            pn = self.pitch_state.pitch_name(delta)
+            return p, pn
+        else:
+            return p
 
     def staffline_delta(self, notehead):
         """Computes the staffline delta (distance from middle stafflines,
@@ -712,7 +797,7 @@ class MIDIInferenceEngine(object):
         self.staff_to_clef_map = collections.defaultdict(list)
         for c in self.clefs:
             # Assuming one staff per clef
-            s = get_outlink_staff(c, self._cdict)
+            s = self.__children(c, ['staff'])[0]
             self.clef_to_staff_map[c.objid] = s
             self.staff_to_clef_map[s.objid].append(c)
 
@@ -720,7 +805,7 @@ class MIDIInferenceEngine(object):
         # There may be more than one key signature per staff.
         self.staff_to_key_map = collections.defaultdict(list)
         for k in self.key_signatures:
-            s = get_outlink_staff(k, self._cdict)
+            s = self.__children(k, ['staff'])[0]
             self.key_to_staff_map[k.objid] = s
             self.staff_to_key_map[s.objid].append(k)
 
@@ -729,8 +814,7 @@ class MIDIInferenceEngine(object):
                               if c.clsname == 'measure_separator']
         self.staff_to_msep_map = collections.defaultdict(list)
         for m in self.measure_separators:
-            _m_staves = get_outlink_staff(m, self._cdict,
-                                          allow_multi=True)
+            _m_staves = self.__children(m, ['staff'])
             # (Measure separators might belong to multiple staves.)
             for s in _m_staves:
                 self.staff_to_msep_map[s.objid].append(m)
@@ -741,7 +825,7 @@ class MIDIInferenceEngine(object):
                           if c.clsname in self._CONST.NOTEHEAD_CLSNAMES]
         self.staff_to_noteheads_map = collections.defaultdict(list)
         for n in self.noteheads:
-            s = get_outlink_staff(n, self._cdict)
+            s = self.__children(n, ['staff'])[0]
             self.staff_to_noteheads_map[s.objid].append(n)
 
     def __children(self, c, clsnames):
@@ -756,207 +840,127 @@ class MIDIInferenceEngine(object):
         return [self._cdict[i] for i in c.inlinks
                 if self._cdict[i].clsname in clsnames]
 
+    ##########################################################################
+    # Duration inference
 
-##############################################################################
+    def beats(self, notehead):
+        """Retrieves the duration for the given notehead, in beats.
 
+        It is possible that the notehead has two stems.
+        In that case, we return all the possible durations:
+        usually at most two, but if there is a duration dot, then
+        there can be up to 4 possibilities.
 
-def midi2pitch_name(midi_code):
-    step = PitchInferenceEngineConstants.MIDI_CODE_RESIDUES_FOR_PITCH_STEPS[midi_code % 12]
-    octave = str((midi_code // 12) - 1)
-    return step, octave
+        Grace notes currently return 0 beats.
 
+        :returns: A list of possible durations for the given notehead.
+            Mostly its length is just 1; for multi-stem noteheads,
+            you might get more.
+        """
+        beat = [0]
 
-def pitch_from_staffline_delta(base_pitch, delta):
-    """Given a base staffline MIDI pitch code and a difference (in
-    stafflines + staffspaces), computes the MIDI pitch code
-    for the staffline shifted by X.
+        stems = self.__children(notehead, ['stem'])
+        flags_and_beams = self.__children(
+            notehead,
+            PitchInferenceEngineConstants.FLAGS_AND_BEAMS)
 
-    >>> pitch_from_staffline_delta(62, 4)
-    69
+        if notehead.clsname.startswith('grace-notehead'):
+            logging.warn('Notehead {0}: Grace notes get zero duration!'
+                         ''.format(notehead.uid))
+            beat = [0]
 
-    :param base_pitch: The MIDI pitch code relative to which the ``delta``
-        is given.
+        elif len(stems) > 1:
+            logging.warn('Inferring duration for multi-stem notehead: {0}'
+                         ''.format(notehead.uid))
+            raise NotImplementedError()
 
-    :param delta: How many stafflines away is the staffline we want
-        to recover pitch for? Use positive numbers for going above
-        the base pitch and negative numbers for going below.
+        elif len(stems) == 0:
+            if notehead.clsname == 'notehead-full':
+                raise ValueError('Full notehead {0} has no stem!'.format(notehead.uid))
+            beat = [4]
 
-        Both stafflines and staffspaces count: the adjacent staffspace
-        is +/-1, the next staffline is +/-2, etc.
+        elif notehead.clsname == 'notehead-empty':
+            if len(flags_and_beams) != 0:
+                raise ValueError('Notehead {0} is empty, but has {1} flags and beams!'
+                                 ''.format(notehead.uid))
+            beat = [2]
 
-    :return: The MIDI pitch code of the staffline with the given delta.
-    """
-    MI_CODES = (4, 11, 16, 17)
-    FA_CODES = (0, 5, 12, 17)
+        elif notehead.clsname == 'notehead-full':
+            beat = [0.5**len(flags_and_beams)]
 
-    base_mod = base_pitch % 12
-    base_octave = base_pitch // 12
-
-    # Each octave is 7 stafflines/spaces
-    delta_octaves = delta // 7
-    delta_within_octave = delta % 7
-
-    # Go UP (if delta < 0, then delta_octaves corrects for this)
-    current_mod = base_mod
-    for i in range(delta_within_octave):
-        if current_mod in MI_CODES:
-            current_mod += 1
         else:
-            current_mod += 2
+            raise ValueError('Notehead {0}: unknown clsname {1}'
+                             ''.format(notehead.uid, notehead.clsname))
 
-    current_pitch = current_mod + (12 * delta_octaves)
-    current_pitch += (12 * base_octave)
+        #############
+        # Now that we have the base duration, we need to deal with
+        # modifiers: tuples and duration dots.
+        # Duration dots apply *within* tuples, the modifiers just get
+        # multiplied.
+        duration_modifier = 1
 
-    return current_pitch
+        # Dealing with tuples:
+        tuples = self.__children(notehead, ['tuple'])
 
+        if len(tuples) > 1:
+            raise ValueError('Notehead {0}: Cannot deal with more than one tuple'
+                             ' simultaneously.'.format(notehead.uid))
 
-##############################################################################
+        if len(tuples) == 1:
+            tuple = tuples[0]
 
+            # Find the number in the tuple.
+            numerals = sorted([self._cdict[o] for o in tuple.outlinks
+                               if o.clsname.startswith('numeral')],
+                              key=lambda x: x.left)
+            tuple_number = int(''.join([num[-1] for num in numerals]))
 
-def duration(notehead, cropobjects_dict, ticks_per_beat=64):
-    """Retrieves the duration for the given notehead, in ticks.
+            if tuple_number == 2:
+                # Duola makes notes *longer*
+                duration_modifier = 3 / 2
+            elif tuple_number == 3:
+                duration_modifier = 2 / 3
+            elif tuple_number == 4:
+                # This one also makes notes longer
+                duration_modifier =  4 / 3
+            elif tuple_number == 5:
+                duration_modifier = 4 / 5
+            elif tuple_number == 6:
+                # Most often done for two consecutive triolas,
+                # e.g. 16ths with a 6-tuple filling one beat
+                duration_modifier = 3 / 2
+            elif tuple_number == 7:
+                # Here we get into trouble, because this one
+                # can be both 4 / 7 (7 16th in a beat)
+                # or 8 / 7 (7 32nds in a beat).
+                # In the same vein, we cannot resolve higher
+                # tuples unless we establish precedence/simultaneity.
+                logging.warn('Cannot really deal with higher tuples than 6.')
+                # For MUSCIMA++ specifically, we can cheat: there is only one
+                # septuple, which consists of 7 x 32rd in 1 beat, so they
+                # get 8 / 7.
+                logging.warn('MUSCIMA++ cheat: we know there is only 7 x 32rd in 1 beat'
+                             ' in page 14.')
+                duration_modifier = 8 / 7
+            elif tuple_number == 10:
+                logging.warn('MUSCIMA++ cheat: we know there is only 10 x 32rd in 1 beat'
+                             ' in page 04.')
+                duration_modifier = 4 / 5
+            else:
+                raise NotImplementedError('Notehead {0}: Cannot deal with tuple '
+                                          'number {1}'.format(notehead.uid,
+                                                              tuple_number))
 
-    It is possible that the notehead has two stems.
-    In that case, we return all the possible durations:
-    usually at most two, but if there is a duration dot, then
-    there can be up to 4 possibilities.
+        # Duration dots
+        ddots = self.__children(notehead, ['duration-dot'])
+        dot_duration_modifier = 1
+        for i, d in enumerate(ddots):
+            dot_duration_modifier += 1 / (2 ** (i + 1))
+        duration_modifier *= dot_duration_modifier
 
-    Grace notes currently return 1 tick.
+        beat = [b * duration_modifier for b in beat]
 
-    :returns: A list of possible durations for the given notehead.
-        Mostly its length is just 1; for multi-stem noteheads,
-        you might get more.
-    """
-    if notehead.clsname.startswith('grace-notehead'):
-        return 1
-
-    stems = [cropobjects_dict[o] for o in notehead.outlinks
-             if cropobjects_dict[o].clsname == 'stem']
-
-    if len(stems) > 1:
-        logging.warn('Inferring duration for multi-stem notehead: {0}'
-                     ''.format(notehead.uid))
-        raise NotImplementedError()
-
-    if len(stems) == 0:
-        if notehead.clsname == 'notehead-full':
-            raise ValueError('Full notehead {0} has no stem!'.format(notehead.uid))
-
-        return 4 * ticks_per_beat
-
-    flags_and_beams = [cropobjects_dict[o] for o in notehead.outlinks
-                       if cropobjects_dict[o].clsname
-                        in PitchInferenceEngineConstants.FLAGS_AND_BEAMS]
-
-    if notehead.clsname == 'notehead-empty':
-        return 2 * ticks_per_beat
-
-##############################################################################
-
-
-def get_outlink_staff(c, cropobjects_dict, allow_multi=False):
-    # Assuming one staff per clef
-    s_objids = [o for o in c.outlinks
-                if cropobjects_dict[o].clsname == 'staff']
-
-    if len(s_objids) == 0:
-        raise ValueError('All noteheads should be connected to staff!'
-                         ' Notehead: {0}'.format(c.uid))
-        #return None
-
-    if allow_multi:
-        return [cropobjects_dict[objid] for objid in s_objids]
-
-    s = cropobjects_dict[s_objids[0]]
-    return s
-
-
-def get_clef_state(stafflines, staffspaces, clef=None, clef_type=None):
-    """Gives a MIDI pitch number to each staffline and staffspace.
-
-    Either ``clef`` or ``clef_type`` must be supplied. If both
-    are supplied, ``clef_type`` has priority, allowing overrides
-    on weird clefs.
-
-    For now, we assume all staves are 5-line, 6-space, and
-    that all clefs are used in their standard positions.
-
-    :returns: The clef state is a map from staffline/staffspace
-        objid to the MIDI code to which it would correspond
-        without any modifications from key signatures and/or
-        accidentals.
-    """
-    if clef_type is None:
-        if clef is not None:
-            clef_type = clef.clsname
-        else:
-            raise ValueError('Must supply at least one of clef, clef_type!')
-
-    if clef_type == 'g-clef':
-        midi_codes = [62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79]
-    elif clef_type == 'c-clef':
-        midi_codes = [52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69]
-    elif clef_type == 'f-clef':
-        midi_codes = [41, 43, 45, 47, 48, 50, 52, 54, 55, 57, 59]
-
-    # Sort them bottom-up.
-    sorted_categories = sorted(stafflines+staffspaces, key=lambda s: (s.top + s.bottom) / 2, reverse=True)
-
-    state = {}
-    for midi_code, s in zip(midi_codes,
-                            sorted_categories):
-        state[s.objid] = midi_code
-
-    return state
-
-
-def get_key_state(stafflines, staffspaces, clef_state,
-                  key_signature=None, n_sharps=None, n_flats=None,
-                  cropobjects_dict=None):
-    """Gives a +1, 0, or -1 to each staffline/staffspace
-    in the current clef state, according to the key signature
-    (or, alternately, according to the given number of sharps/flats).
-
-    If no key signature, n_sharps and n_flats is provided,
-    it is assumed the key signature is empty and the state is all 0's.
-    """
-    # Sort them bottom-up.
-    sorted_categories = sorted(stafflines+staffspaces, key=lambda _s: (_s.top + _s.bottom) / 2., reverse=True)
-
-    if (key_signature is None) and (n_sharps is None) and (n_flats is None):
-        state = {s.objid: 0 for s in sorted_categories}
-        return state
-
-    if n_sharps is None:
-        if key_signature is None:
-            raise ValueError('Cannot derive number of sharps without key signature CropObject!')
-        if cropobjects_dict is None:
-            raise ValueError('Cannot derive number of sharps without CropObject dict!')
-        n_sharps = len([o for o in key_signature.outlinks if cropobjects_dict[o].clsname == 'sharp'])
-
-    if n_flats is None:
-        if key_signature is None:
-            raise ValueError('Cannot derive number of flats without key signature CropObject!')
-        if cropobjects_dict is None:
-            raise ValueError('Cannot derive number of flats without CropObject dict!')
-        n_flats = len([o for o in key_signature.outlinks if cropobjects_dict[o].clsname == 'flat'])
-
-    # Key signature combining both is quite good e.g. for contemporary harp pieces.
-    if n_sharps + n_flats > 7:
-        raise ValueError('Too many sharps and flats together in one key signature!')
-
-    key_map = {}
-    if n_sharps > 0:
-        key_map.update(PitchInferenceEngineConstants.KEY_TABLE_SHARPS[n_sharps])
-    if n_flats > 0:
-        key_map.update(PitchInferenceEngineConstants.KEY_TABLE_FLATS[n_flats])
-
-    key_state = {s.objid: 0 for s in sorted_categories}
-    for s in sorted_categories:
-        if clef_state[s.objid] in key_map:
-            key_state[s.objid] = key_map[clef_state[s.objid]]
-
-    return key_state
+        return beat
 
 
 ##############################################################################
@@ -997,11 +1001,13 @@ def main(args):
     inference_engine = MIDIInferenceEngine()
 
     logging.info('Running pitch inference.')
-    pitches = inference_engine.infer_pitches(cropobjects)
+    pitches, pitch_names = inference_engine.infer_pitches(cropobjects,
+                                                          with_names=True)
+    durations = inference_engine.durations_beats
 
     # Logging
-    pitch_names = {objid: midi2pitch_name(midi_code)
-                   for objid, midi_code in pitches.items()}
+    #pitch_names = {objid: midi2pitch_name(midi_code)
+    #               for objid, midi_code in pitches.items()}
 
     # Export
     logging.info('Adding pitch information to <Data> attributes.')
@@ -1009,9 +1015,17 @@ def main(args):
         if c.objid in pitches:
             midi_pitch_code = pitches[c.objid]
             pitch_step, pitch_octave = pitch_names[c.objid]
+            beats = durations[c.objid]
+            if len(beats) > 1:
+                logging.warn('Notehead {0}: multiple possible beats: {1}'
+                             ''.format(c.uid, beats))
+                b = beats[0]
+            else:
+                b = beats[0]
             c.data = {'midi_pitch_code': midi_pitch_code,
                       'normalized_pitch_step': pitch_step,
-                      'pitch_octave': pitch_octave}
+                      'pitch_octave': pitch_octave,
+                      'duration_beats': b}
 
     if args.export is not None:
         with open(args.export, 'w') as hdl:
