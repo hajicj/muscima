@@ -6,9 +6,9 @@ The ``muscima`` package implements a data model for the MUSCIMA++
 dataset of music notation. The dataset itself is available for download
 here:
 
-[MUSCIMA++ v0.9](https://ufal.mff.cuni.cz/jan-hajic-jr/MUSCIMA++_v0.9.zip)
+[MUSCIMA++ v0.9.1](https://ufal.mff.cuni.cz/muscima)
 
-**Current dataset version: 0.9**
+**Current dataset version: 0.9.1**
 
 **Current package version: 0.3.2**
 
