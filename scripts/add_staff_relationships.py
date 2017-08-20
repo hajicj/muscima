@@ -49,6 +49,17 @@ NOTEHEAD_CLSNAMES = {
     'grace-notehead-empty',
 }
 
+REST_CLSNAMES = {
+    'whole_rest',
+    'half_rest',
+    'quarter_rest',
+    '8th_rest',
+    '16th_rest',
+    '32th_rest',
+    '64th_and_higher_rest',
+    'multi-measure_rest',
+}
+
 
 # Notes will get added separately.
 
@@ -102,11 +113,14 @@ def main(args):
 
     staff_related_symbols = collections.defaultdict(list)
     notehead_symbols = collections.defaultdict(list)
+    rest_symbols = collections.defaultdict(list)
     for c in cropobjects:
         if c.clsname in STAFF_RELATED_CLSNAMES:
             staff_related_symbols[c.clsname].append(c)
         if c.clsname in NOTEHEAD_CLSNAMES:
             notehead_symbols[c.clsname].append(c)
+        if c.clsname in REST_CLSNAMES:
+            rest_symbols[c.clsname].append(c)
 
     ##########################################################################
     logging.info('Adding staff relationships')
@@ -129,6 +143,14 @@ def main(args):
                 sr = max(sr, c.right)
                 if c.overlaps((st, sl, sb, sr)):
                     link_cropobjects(c, s)
+
+    ##########################################################################
+    logging.info('Adding rest --> staff relationships.')
+    for clsname, cs in rest_symbols.items():
+        for c in cs:
+            closest_staff = min([s for s in staffs],
+                                key=lambda x: ((x.bottom + x.top) / 2. - (c.bottom + c.top) / 2.) ** 2)
+            link_cropobjects(c, closest_staff)
 
     ##########################################################################
     logging.info('Adding notehead relationships.')

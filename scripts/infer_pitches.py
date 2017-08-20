@@ -45,6 +45,7 @@ __author__ = "Jan Hajic jr."
 
 class PitchInferenceEngineConstants(object):
     """This class stores the constants used for pitch inference."""
+
     ON_STAFFLINE_RATIO_TRHESHOLD = 0.2
     '''Magic number for determining whether a notehead is *on* a ledger
     line, or *next* to a ledger line: if the ratio between the smaller
@@ -157,6 +158,34 @@ class PitchInferenceEngineConstants(object):
 
     ACCIDENTAL_CODES = {'sharp': '#', 'flat': 'b',
                         'double_sharp': 'x', 'double_flat': 'bb'}
+
+    REST_CLSNAMES = {
+        'whole_rest',
+        'half_rest',
+        'quarter_rest',
+        '8th_rest',
+        '16th_rest',
+        '32th_rest',
+        '64th_and_higher_rest',
+        'multi-measure_rest',
+    }
+
+    TIME_SIGNATURES = {
+        'time_signature',
+    }
+
+    @property
+    def clsnames_affecting_onsets(self):
+        """Returns a list of CropObject class names for objects
+        that affect onsets. Assumes notehead and rest durations
+        have already been given."""
+        output = set()
+        output.update(self.NOTEHEAD_CLSNAMES)
+        output.update(self.REST_CLSNAMES)
+        output.update(self.MEASURE_SEPARATOR_CLSNAMES)
+        output.update(self.TIME_SIGNATURES)
+        output.add('repeat_measure')
+        return output
 
 
 class PitchInferenceEngineState(object):
@@ -406,7 +435,52 @@ class PitchInferenceEngineState(object):
 
 class MIDIInferenceEngine(object):
     """The Pitch Inference Engine extracts MIDI from the notation
-    graph.
+    graph. To get the MIDI, there are two streams of information
+    that need to be combined: pitches and onsets, where the onsets
+    are necessary both for ON and OFF events.
+
+    Pitch inference is done through the ``infer_pitches()`` method.
+
+    Onsets inference is done in two stages. First, the durations
+    of individual notes (and rests) are computed, then precedence
+    relationships are found and based on the precedence graph
+    and durations, onset times are computed.
+
+    Onset inference
+    ---------------
+
+    Onsets are computed separately by measure, which enables time
+    signature constraint checking.
+
+    (This can be implemented in the precedence graph structure,
+    by (a) not allowing precedence edges to cross measure separators,
+    (b) chaining measure separators, or it can be implemented
+    directly in code. The first option is way more elegant.)
+
+    Creating the precedence graph
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    * Get measure separators.
+    * Chain measure separators in precedence relationships.
+    * Group cropobjects by bins between measure separators.
+    * For each staff participating in the current measure
+      (as defined by the relevant measure separator outlinks):
+
+        * Infer precedence between the participating notes & rests,
+        * Attach the sources of the resulting DAG to the leftward
+          measure_separator (if there is none, just leave them
+          as sources).
+
+    Invariants
+    ^^^^^^^^^^
+
+    * There is exactly one measure separator starting each measure,
+      except for the first measure, which has none. That implies:
+      when there are multiple disconnected barlines marking the interface
+      of the same two measures within a system, they are joined under
+      a single measure_separator anyway.
+    * Staff groupings are correct, and systems are read top-down.
+
     """
     def __init__(self):
         # Inference engine constants
@@ -841,7 +915,7 @@ class MIDIInferenceEngine(object):
                 if self._cdict[i].clsname in clsnames]
 
     ##########################################################################
-    # Duration inference
+    # Durations inference
 
     def beats(self, notehead):
         """Retrieves the duration for the given notehead, in beats.
@@ -962,6 +1036,127 @@ class MIDIInferenceEngine(object):
 
         return beat
 
+    def rest_beats(self, rest):
+        rest_beats_dict = {'whole_rest': 4,   # !!! We should find the TS.
+                           'half_rest': 2,
+                           'quarter_rest': 1,
+                           '8th_rest': 0.5,
+                           '16th_rest': 0.25,
+                           '32th_rest': 0.125,
+                           '64th_and_higher_rest': 0.0625,
+                           'multi-measure_rest': 4,
+                           'repeat-measure': 4,
+                           }
+
+        try:
+            base_rest_duration = rest_beats_dict[rest.clsname]
+        except KeyError:
+            raise KeyError('Symbol {0}: Unknown rest type {1}!'
+                           ''.format(rest.uid, rest.clsname))
+
+    ##########################################################################
+    # Onsets inference
+
+    def infer_precedence(self, cropobjects):
+
+        if not self.measure_separators:
+            self._collect_symbols_for_pitch_inference(cropobjects)
+
+        # Create precedence nodes for measure separators.
+        # Add the relationships between the measure separator nodes.
+        #  - Get staves to which the mseps are connected
+        #  - Sort first by bottom-most staff to which the msep is connected
+        #    to get systems
+        #  - Sort left-to-right within systems to get final ordering of mseps
+        # Compute measure separator onsets from time signatures.
+        #  - This is slightly non-trivial. Normally, a time signature is
+        #    (a) at the start of the staff, (b) right before the msep starting
+        #    the measure to which it should apply. However, sometimes the msep
+        #    comes up (c) at the *start* of the measure to which it should
+        #    apply. We IGNORE option (c) for now.
+        # Assign onset-carrying objects to measures (their left msep).
+        #  - This is done by iterating over staves.
+        #  - Noteheads are all connected to staves, but rests are not.
+        #    Rests should therefore also get connected to staves. (TODO!)
+
+        raise NotImplementedError()
+
+    def onsets(self, cropobjects):
+        """Infers the onsets of notes in the given cropobjects.
+
+        The onsets are measured in beats.
+
+        :returns: A objid --> onset dict for all notehead-type
+            CropObjects.
+        """
+        # Technicality, shortcut, to fill up all the internal dicts.
+        # This does not take long.
+        self.infer_pitches(cropobjects, with_names=True)
+
+        # We first find the precedence graph. (This is the hard
+        # part.)
+        # The precedence graph is a dict of CropObjects
+        # that have additional prec_inlinks and prec_outlinks
+        # attributes.
+        #
+        # Note that measure separators should participate in the precedence
+        # graph...
+        precedence_graph = self.infer_precedence(cropobjects)
+
+        # Once we have the precedence graph, we need to walk it.
+        # It is a DAG, so we simply do a BFS from each source.
+        # Whenever a node has more incoming predecessors,
+        # we need to wait until they are *all* resolved,
+        # and check whether they agree.
+        queue = []
+        for node in precedence_graph:
+            if len(node.inlinks) == 0:
+                queue.append(node)
+
+        onsets = {}
+
+        # We will only be appending to the queue, so the
+        # start of the queue is defined simply by the index.
+        __qstart = 0
+        while len(queue) > 0:
+            q = queue[__qstart]
+            __qstart += 1
+            prec_qs = q.inlinks
+            prec_onsets = [onsets[pq.obj.objid] for pq in prec_qs]
+            prec_durations = [self.durations_beats[pq.obj.objid] for pq in prec_qs]
+
+            onset_proposals = [o + d for o, d in zip(prec_onsets, prec_durations)]
+            if min(onset_proposals) != max(onset_proposals):
+                raise ValueError('Object {0}: onsets not synchronized from'
+                                 ' predecessors: {1}'.format(q.obj.uid,
+                                                             onset_proposals))
+            onset = onset_proposals[0]
+            onsets[q.obj.objid] = onset
+
+            for post_q in q.outlinks:
+                queue.append(post_q)
+
+            __qstart += 1
+
+        return onsets
+
+    def infer_precedence(self, cropobjects):
+        raise NotImplementedError()
+
+
+class PrecedenceGraphNode:
+    """A helper plain-old-data class for onset extraction.
+    The ``inlinks`` and ``outlinks`` attributes are lists
+    of other ``PrecedenceGraphNode`` instances.
+    """
+    def __init__(self, cropobject, inlinks=None, outlinks=None):
+        self.obj = cropobject
+        self.inlinks = []
+        if inlinks:
+            self.inlinks = inlinks
+        self.outlinks = []
+        if outlinks:
+            self.outlinks = outlinks
 
 ##############################################################################
 
