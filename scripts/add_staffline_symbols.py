@@ -87,11 +87,15 @@ def build_argument_parser():
     parser = argparse.ArgumentParser(description=__doc__, add_help=True,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
+    parser.add_argument('-i', '--staff_imfile', action='store',
+                        help='The image file with the staff-only image.'
+                             ' If not given, will use -n, -w and -r'
+                             ' to load it from the CVC-MUSCIMA staff removal'
+                             ' ground truth.')
+
     parser.add_argument('-n', '--number', action='store', type=int,
-                        required=True,
                         help='Number of the CVC-MUSCIMA page (1 - 20)')
     parser.add_argument('-w', '--writer', action='store', type=int,
-                        required=True,
                         help='Writer of the CVC-MUSCIMA page (1 - 50)')
 
     parser.add_argument('-r', '--root', action='store',
@@ -124,12 +128,17 @@ def main(args):
     # Load gt image.
     logging.warning('Loading staffline image.')
     #  - Initialize Dataset. This checks for the root.
-    cvc_dataset = CVC_MUSCIMA(root=args.root)
+
+    if args.staff_imfile is None:
+        cvc_dataset = CVC_MUSCIMA(root=args.root)
+        args.staff_imfile = cvc_dataset.imfile(page=args.number,
+                                               writer=args.writer,
+                                               distortion='ideal',
+                                               mode='staff_only')
 
     # - Load the image.
-    imfile = cvc_dataset.imfile(page=args.number, writer=args.writer, distortion='ideal',
-                                mode='staff_only')
-    gt = (imread(imfile, as_grey=True) * 255).astype('uint8')
+    gt = (imread(args.staff_imfile, as_grey=True) * 255).astype('uint8')
+
     # - Cast as binary mask.
     gt[gt > 0] = 1
 
@@ -147,28 +156,38 @@ def main(args):
     for label, (t, l, b, r) in bboxes.items():
         if label == 0:
             continue
-        for r in range(t, b):
-            intervals[r].append(label)
+        # Ignore very short staffline segments that can easily be artifacts
+        # and should not affect the vertical range of the staffline anyway.
+        if (r - l) < 8:
+            continue
+        for row in range(t, b):
+            intervals[row].append(label)
 
     logging.warning('Grouping staffline connected components into stafflines.')
     staffline_components = []   # For each staffline, we collect the CCs that it is made of
     _in_staffline = False
     _current_staffline_components = []
-    for r in intervals:
+    for r_labels in intervals:
         if not _in_staffline:
-            if len(r) == 0:
+            # Last row did not contain staffline components.
+            if len(r_labels) == 0:
+                # No staffline component on current row
                 continue
             else:
                 _in_staffline = True
-                _current_staffline_components += r
+                _current_staffline_components += r_labels
         else:
-            if len(r) == 0:
+            # Last row contained staffline components.
+            if len(r_labels) == 0:
+                # Current staffline has no more rows.
                 staffline_components.append(set(_current_staffline_components))
                 _current_staffline_components = []
                 _in_staffline = False
                 continue
             else:
-                _current_staffline_components += r
+                # Current row contains staffline components: the current
+                # staffline continues.
+                _current_staffline_components += r_labels
 
     logging.warning('No. of stafflines, with component groups: {0}'
                     ''.format(len(staffline_components)))
@@ -188,11 +207,17 @@ def main(args):
         staffline_bboxes.append((st, sl, sb, sr))
         staffline_masks.append(_sm)
 
-
     # Check if n. of stafflines is divisible by 5
     n_stafflines = len(staffline_bboxes)
     logging.warning('\tTotal stafflines: {0}'.format(n_stafflines))
     if n_stafflines % 5 != 0:
+        import matplotlib.pyplot as plt
+        stafllines_mask_image = numpy.zeros(gt.shape)
+        for i, (_sb, _sm) in enumerate(zip(staffline_bboxes, staffline_masks)):
+            t, l, b, r = _sb
+            stafllines_mask_image[t:b, l:r] = min(255, (i * 333) % 255 + 40)
+        plt.imshow(stafllines_mask_image, cmap='jet', interpolation='nearest')
+        plt.show()
         raise ValueError('No. of stafflines is not divisible by 5!')
 
     logging.warning('Creating staff bboxes and masks.')

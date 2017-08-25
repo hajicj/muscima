@@ -187,6 +187,16 @@ class PitchInferenceEngineConstants(object):
         output.add('repeat_measure')
         return output
 
+    @property
+    def clsnames_bearing_duration(self):
+        """Returns the list of classes that actually bear duration,
+        i.e. contribute to onsets of their descendants in the precedence
+        graph."""
+        output = set()
+        output.update(self.NOTEHEAD_CLSNAMES)
+        output.update(self.REST_CLSNAMES)
+        return output
+
 
 class PitchInferenceEngineState(object):
     """This class represents the state of the MIDI pitch inference
@@ -917,7 +927,17 @@ class MIDIInferenceEngine(object):
     ##########################################################################
     # Durations inference
 
-    def beats(self, notehead):
+    def beats(self, cropobject):
+        if cropobject.clsname in self._CONST.NOTEHEAD_CLSNAMES:
+            return self.notehead_beats(cropobject)
+        elif cropobject.clsname in self._CONST.REST_CLSNAMES:
+            return self.rest_beats(cropobject)
+        else:
+            raise ValueError('Cannot compute beats for object {0} of class {1};'
+                             ' beats only available for notes and rests.'
+                             ''.format(cropobject.uid, cropobject.clsname))
+
+    def notehead_beats(self, notehead):
         """Retrieves the duration for the given notehead, in beats.
 
         It is possible that the notehead has two stems.
@@ -966,20 +986,24 @@ class MIDIInferenceEngine(object):
             raise ValueError('Notehead {0}: unknown clsname {1}'
                              ''.format(notehead.uid, notehead.clsname))
 
-        #############
-        # Now that we have the base duration, we need to deal with
-        # modifiers: tuples and duration dots.
-        # Duration dots apply *within* tuples, the modifiers just get
-        # multiplied.
-        duration_modifier = 1
+        duration_modifier = self.compute_duration_modifier(notehead)
 
+        beat = [b * duration_modifier for b in beat]
+
+        return beat
+
+    def compute_duration_modifier(self, notehead):
+        """Computes the duration modifier (multiplicative, in beats)
+        for the given notehead (or rest) from the tuples and duration dots.
+
+        Can handle duration dots within tuples.
+        """
+        duration_modifier = 1
         # Dealing with tuples:
         tuples = self.__children(notehead, ['tuple'])
-
         if len(tuples) > 1:
             raise ValueError('Notehead {0}: Cannot deal with more than one tuple'
                              ' simultaneously.'.format(notehead.uid))
-
         if len(tuples) == 1:
             tuple = tuples[0]
 
@@ -996,7 +1020,7 @@ class MIDIInferenceEngine(object):
                 duration_modifier = 2 / 3
             elif tuple_number == 4:
                 # This one also makes notes longer
-                duration_modifier =  4 / 3
+                duration_modifier = 4 / 3
             elif tuple_number == 5:
                 duration_modifier = 4 / 5
             elif tuple_number == 6:
@@ -1032,9 +1056,7 @@ class MIDIInferenceEngine(object):
             dot_duration_modifier += 1 / (2 ** (i + 1))
         duration_modifier *= dot_duration_modifier
 
-        beat = [b * duration_modifier for b in beat]
-
-        return beat
+        return duration_modifier
 
     def rest_beats(self, rest):
         rest_beats_dict = {'whole_rest': 4,   # !!! We should find the TS.
@@ -1044,6 +1066,9 @@ class MIDIInferenceEngine(object):
                            '16th_rest': 0.25,
                            '32th_rest': 0.125,
                            '64th_and_higher_rest': 0.0625,
+                           # Technically, these two should just apply time sig.,
+                           # but the measure-factorized precedence graph
+                           # means these durations never have descendants anyway.
                            'multi-measure_rest': 4,
                            'repeat-measure': 4,
                            }
@@ -1054,6 +1079,10 @@ class MIDIInferenceEngine(object):
             raise KeyError('Symbol {0}: Unknown rest type {1}!'
                            ''.format(rest.uid, rest.clsname))
 
+        duration_modifier = self.compute_duration_modifier(rest)
+
+        return [base_rest_duration * duration_modifier]
+
     ##########################################################################
     # Onsets inference
 
@@ -1062,23 +1091,395 @@ class MIDIInferenceEngine(object):
         if not self.measure_separators:
             self._collect_symbols_for_pitch_inference(cropobjects)
 
-        # Create precedence nodes for measure separators.
+        ######################################################################
+        # An important feature of measure-factorized onset inference
+        # instead of going left-to-right per part throughout is resistance
+        # to staves appearing & disappearing on line breaks (e.g. orchestral
+        # scores). Measures are (very, very often) points of synchronization
+        #  -- after all, that is their purpose.
+
+        # We currently DO NOT aim to process renaissance & medieval scores:
+        # especially motets may often have de-synchronized measure separators.
+
         # Add the relationships between the measure separator nodes.
         #  - Get staves to which the mseps are connected
+        msep_staffs = {m.objid: self.__children(m, ['staff'])
+                       for m in self.measure_separators}
         #  - Sort first by bottom-most staff to which the msep is connected
         #    to get systems
         #  - Sort left-to-right within systems to get final ordering of mseps
-        # Compute measure separator onsets from time signatures.
-        #  - This is slightly non-trivial. Normally, a time signature is
-        #    (a) at the start of the staff, (b) right before the msep starting
-        #    the measure to which it should apply. However, sometimes the msep
-        #    comes up (c) at the *start* of the measure to which it should
-        #    apply. We IGNORE option (c) for now.
-        # Assign onset-carrying objects to measures (their left msep).
-        #  - This is done by iterating over staves.
-        #  - Noteheads are all connected to staves, but rests are not.
-        #    Rests should therefore also get connected to staves. (TODO!)
+        ordered_mseps = sorted(self.measure_separators,
+                               key=lambda m: (max([s.bottom
+                                                   for s in msep_staffs[m.objid]]),
+                                              m.left))
+        ordered_msep_nodes = [PrecedenceGraphNode(cropobject=m,
+                                                  inlinks=[],
+                                                  outlinks=[],
+                                                  onset=None,
+                                                  duration=0)
+                              for m in ordered_mseps]
 
+        # Add root node: like measure separator, but for the first measure.
+        # This one is the only one which is initialized with onset,
+        # with the value onset=0.
+        root_msep = PrecedenceGraphNode(objid=-1,
+                                        cropobject=None,
+                                        inlinks=[], outlinks=[],
+                                        duration=0,
+                                        onset=0)
+
+        # Create measure bins. i-th measure ENDS at i-th ordered msep.
+        # We assume that every measure has a rightward separator.
+        measures = [(None, ordered_mseps[0])] + [(ordered_mseps[i], ordered_mseps[i+1])
+                                                 for i in range(len(ordered_mseps) - 1)]
+        measure_nodes = [PrecedenceGraphNode(objid=None,
+                                             cropobject=None,
+                                             inlinks=[root_msep],
+                                             outlinks=[ordered_msep_nodes[0]],
+                                             duration=0,  # Durations will be filled in
+                                             onset=None)] + \
+                        [PrecedenceGraphNode(objid=None,
+                                             cropobject=None,
+                                             inlinks=[ordered_msep_nodes[i+1]],
+                                             outlinks=[ordered_msep_nodes[i+2]],
+                                             duration=0,  # Durations will be filled in
+                                             onset=None)
+                         for i in range(len(ordered_msep_nodes) - 2)]
+        '''A list of PrecedenceGraph nodes. These don't really need any CropObject
+        or objid, they are just introducing through their duration the offsets
+        between measure separators (mseps have legit 0 duration, so that they
+        do not move the notes in their note descendants).
+        The list is already ordered.'''
+
+        # Add measure separator inlinks and outlinks.
+        for m_node in measure_nodes:
+            r_sep = m_node.outlinks[0]
+            r_sep.inliks.append(m_node)
+            if len(m_node.inlinks) > 0:
+                l_sep = m_node.inlinks[0]
+                l_sep.outlinks.append(m_node)
+
+        # Finally, hang the first measure on the root msep node.
+        root_msep.outlinks.append(measure_nodes[0])
+
+        ######################################################################
+        # Now, compute measure node durations from time signatures.
+        #  This is slightly non-trivial. Normally, a time signature is
+        #  (a) at the start of the staff, (b) right before the msep starting
+        #  the measure to which it should apply. However, sometimes the msep
+        #  comes up (c) at the *start* of the measure to which it should
+        #  apply. We IGNORE option (c) for now.
+        #
+        #  - Collect all time signatures
+        time_signatures = [c for c in cropobjects
+                           if c.clsname in self._CONST.TIME_SIGNATURES]
+
+        #  - Assign time signatures to measure separators that *end*
+        #    the bars. (Because as opposed to the starting mseps,
+        #    the end mseps are (a) always there, (b) usually on the
+        #    same staff, (c) if not on the same staff, then they are
+        #    an anticipation at the end of a system, and will be repeated
+        #    at the beginning of the next one anyway.)
+        time_signatures_to_first_measure = {}
+        for t in time_signatures:
+            s = self.__children(t, ['staff'])[0]
+            # - Find the measure pairs
+            for i, (left_msep, right_msep) in enumerate(measures):
+                if s not in msep_staffs[right_msep.objid]:
+                    continue
+                if (left_msep is None) or (s not in msep_staffs[left_msep.objid]):
+                    # Beginning of system, valid already for the current bar.
+                    time_signatures_to_first_measure[t.objid] = i
+                else:
+                    # Use i + 1, because the time signature is valid
+                    # for the *next* measure.
+                    time_signatures_to_first_measure[t.objid] = i + 1
+
+        # - Interpret time signatures.
+        time_signature_durations = {t.objid: self.interpret_time_signature(t)
+                                    for t in time_signatures}
+
+        # - Reverse map: for each measure, the time signature valid
+        #   for the measure.
+        measure_to_time_signature = [None for _ in measures]
+        time_signatures_sorted = sorted(time_signatures,
+                                        key=lambda x: time_signatures_to_first_measure[x.objid])
+        for t1, t2 in zip(time_signatures_sorted[:-1], time_signatures_sorted[1:]):
+            affected_measures = range(time_signatures_to_first_measure[t1.objid],
+                                      time_signatures_to_first_measure[t2.objid])
+            for i in affected_measures:
+                # Check for conflicting time signatures previously
+                # assigned to this measure.
+                if measure_to_time_signature[i] is not None:
+                    _competing_time_sig = measure_to_time_signature[i]
+                    if (time_signature_durations[t1.objid] !=
+                            time_signature_durations[_competing_time_sig.objid]):
+                        raise ValueError('Trying to overwrite time signature to measure'
+                                         ' assignment at measure {0}: new time sig'
+                                         ' {1} with value {2}, previous time sig {3}'
+                                         ' with value {4}'
+                                         ''.format(i, t1.uid,
+                                                   time_signature_durations[t1.objid],
+                                                   _competing_time_sig.uid,
+                                                   time_signature_durations[_competing_time_sig.objid]))
+
+                measure_to_time_signature[i] = t1
+
+        logging.debug('Checking that every measure has a time signature assigned.')
+        for i, (msep1, msep2) in enumerate(measures):
+            if measure_to_time_signature[i] is None:
+                raise ValueError('Measure without time signature: {0}, between'
+                                 'separators {1} and {2}'
+                                 ''.format(i, msep1.uid, msep2.uid))
+
+        # - Apply to each measure node the duration corresponding
+        #   to its time signature.
+        for i, m in enumerate(measure_nodes):
+            _tsig = measure_to_time_signature[i]
+            m.duration = time_signature_durations[_tsig.objid]
+
+        # ...
+        # Now, the "skeleton" of the precedence graph consisting
+        # pf measure separator and measure nodes is complete.
+        ######################################################################
+
+        ######################################################################
+        # Collecting onset-carrying objects (at this point, noteheads
+        # and rests; the repeat-measure object that would normally
+        # affect duration is handled through measure node durations.
+        onset_objs = [c for c in cropobjects
+                      if c.clsname in self._CONST.clsnames_bearing_duration]
+
+        # Assign onset-carrying objects to measures (their left msep).
+        # (This is *not* done by assigning outlinks to measure nodes,
+        # we are now just factorizing the space of possible precedence
+        # graphs.)
+        #  - This is done by iterating over staves.
+        staff_to_objs_map = collections.defaultdict(list)
+        for c in onset_objs:
+            ss = self.__children(c, ['staff'])
+            for s in ss:
+                staff_to_objs_map[s.objid].append(c)
+
+        #  - Noteheads and rests are all connected to staves,
+        #    which immediately gives us for each staff the subset
+        #    of eligible symbols for each measure.
+        #  - We can just take the vertical projection of each onset
+        #    object and find out which measures it overlaps with.
+        #    To speed this up, we can just check whether the middles
+        #    of objects fall to the region delimited by the measure
+        #    separators. Note that sometimes the barlines making up
+        #    the measure separator are heavily bent, so it would
+        #    be prudent to perhaps use just the intersection of
+        #    the given barline and the current staff.
+
+        # Preparation: we need for each valid (staff, msep) combination
+        # the bounding box of their intersection, in order to deal with
+        # more curved measure separators.
+
+        msep_to_staff_projections = {}
+        '''For each measure separator, for each staff it connects to,
+        the bounding box of the measure separator's intersection with
+        that staff.'''
+        for msep in self.measure_separators:
+            msep_to_staff_projections[msep.objid] = {}
+            for s in msep_staffs[msep.objid]:
+                intersection_bbox = self.msep_staff_overlap_bbox(msep, s)
+                msep_to_staff_projections[msep.objid][s.objid] = intersection_bbox
+
+        staff_and_measure_to_objs_map = collections.defaultdict(
+                                            collections.defaultdict(list))
+        '''Per staff (indexed by objid) and measure (by order no.), keeps a list of
+        CropObjects from that staff that fall within that measure.'''
+
+        # Iterate over objects left to right, shift measure if next object
+        # over bound of current measure.
+        ordered_objs_per_staff = {s_objid: sorted(s_objs, key=lambda x: x.left)
+                                  for s_objid, s_objs in staff_to_objs_map.items()}
+        for s_objid, objs in ordered_objs_per_staff.items():
+            # Vertically, we don't care -- the attachment to staff takes
+            # care of that, we only need horizontal placement.
+            _c_m_idx = 0   # Index of current measure
+            _c_msep_right = measure_nodes[_c_m_idx].outlinks[0]
+            # Left bound of current measure's right measure separator
+            _c_m_right = msep_to_staff_projections[_c_msep_right.objid][s_objid][1]
+            for _c_o_idx, o in objs:
+                # If we are out of bounds, move to next measure
+                while o.left > _c_m_right:
+                    _c_m_idx += 1
+                    if _c_m_idx >= len(measure_nodes):
+                        raise ValueError('Object {0}: could not assign to any measure,'
+                                         ' ran out of measures!'.format(o.objid))
+                    _c_msep_right = measure_nodes[_c_m_idx].outlinks[0]
+                    _c_m_right = msep_to_staff_projections[_c_msep_right.objid][s_objid][1]
+                    staff_and_measure_to_objs_map[s_objid][_c_m_right] = []
+
+                staff_and_measure_to_objs_map[s_objid][_c_m_right].append(o)
+
+        # Infer precedence within the measure.
+        #  - This is the difficult part.
+        #  - First: check the *sum* of durations assigned to the measure
+        #    against the time signature. If it fits only once, then it is
+        #    a monophonic measure and we can happily read it left to right.
+        #  - If the measure is polyphonic, the fun starts!
+        #    With K graph nodes, how many prec. graphs are there?
+        for s_objid in staff_and_measure_to_objs_map:
+            for measure_idx in staff_and_measure_to_objs_map[s_objid]:
+                _c_objs = staff_and_measure_to_objs_map[s_objid][measure_idx]
+                measure_graph = self.measure_precedence_graph(_c_objs)
+
+                # Connect the measure graph source nodes to their preceding
+                # measure separator.
+                l_msep_node = measure_nodes[measure_idx].inlinks[0]
+                for source_node in measure_graph:
+                    l_msep_node.outlinks.append(source_node)
+                    source_node.inlinks.append(l_msep_node)
+
+        return root_msep
+
+    def measure_precedence_graph(self, cropobjects):
+        """Indexed by staff objid and measure number, holds the precedence graph
+        for the given measure in the given staff as a list of PrecedenceGraphNode
+        objects that correspond to the source nodes of the precedence subgraph.
+        These nodes then get connected to their leftwards measure separator node.
+
+        :param cropobjects: List of CropObjects, assumed to be all from one
+            measure.
+
+        :returns: A list of PrecedenceGraphNode objects that correspond
+            to the source nodes in the precedence graph for the (implied)
+            measure. (In monophonic music, the list will have one element.)
+            The rest of the measure precedence graph nodes is accessible
+            through the sources' outlinks.
+
+        """
+        _is_monody = self.is_measure_monody(cropobjects)
+        if _is_monody:
+            source_nodes = self.monody_measure_precedence_graph(cropobjects)
+            return source_nodes
+
+        else:
+            raise ValueError('Cannot deal with onsets in polyphonic music yet.')
+
+    def monody_measure_precedence_graph(self, cropobjects):
+        """Infers the precedence graph for a plain monodic measure.
+        The resulting structure is very simple: it's just a chain
+        of the onset-carrying objects from left to right."""
+        nodes = []
+        for c in sorted(cropobjects, key=lambda x: x.left):
+            potential_durations = self.beats(c)
+
+            # In monody, there should only be one duration
+            if len(potential_durations) > 1:
+                raise ValueError('Object {0}: More than one potential'
+                                 ' duration, even though the measure is'
+                                 ' determined to be monody.'.format(c.uid))
+            duration = potential_durations[0]
+
+            node = PrecedenceGraphNode(objid=c.objid,
+                                       cropobject=c,
+                                       inlinks=[],
+                                       outlinks=[],
+                                       duration=duration,
+                                       onset=None)
+            nodes.append(node)
+        for n1, n2 in zip(nodes[:-1], nodes[1:]):
+            n1.outlinks.append(n2)
+            n2.inlinks.append(n1)
+        source_nodes = [nodes[0]]
+        return source_nodes
+
+    def is_measure_monody(self, cropobjects):
+        """Checks whether the given measure is written as simple monody:
+        no two of the onset-carrying objects are active simultaneously.
+
+        Assumptions
+        -----------
+
+        * Detecting monody without looking at the time signature:
+            * All stems in the same direction? --> NOPE: Violin chords in Bach...
+            * All stems in horizontally overlapping noteheads in the same direction?
+              --> NOPE: Again, violin chords in Bach...
+            * Overlapping noteheads share a beam, but not a stem? --> this works,
+              but has false negatives: overlapping quarter notes
+        """
+        raise NotImplementedError()
+
+    def is_measure_chord_monody(self, cropobjects):
+        """Checks whether the given measure is written as monody potentially
+        with chords. That is: same as monody, but once all onset-carrying objects
+        that share a stem are merged into an equivalence class."""
+        raise NotImplementedError()
+
+    def msep_staff_overlap_bbox(self, measure_separator, staff):
+        """Computes the bounding box for the part of the input
+        ``measure_separator`` that actually overlaps the ``staff``.
+        This is implemented to deal with mseps that curve a lot,
+        so that their left/right bounding box may mistakenly
+        exclude some symbols from their preceding/following measure.
+
+        Returns the (T, L, B, R) bounding box.
+        """
+        intersection = measure_separator.bbox_intersection(staff)
+        if intersection is None:
+            # Corner case: measure separator is connected to staff,
+            # but its bounding box does *not* overlap the bbox
+            # of the staff.
+            output_bbox = staff.top, measure_separator.left, \
+                          staff.bottom, measure_separator.right
+        else:
+            # The key step: instead of using the bounding
+            # box intersection, first crop the zeros from
+            # msep intersection mask (well, find out how
+            # many left and right zeros there are).
+            it, il, ib, ir = intersection
+            msep_crop = measure_separator.mask[it, il, ib, ir]
+
+            if msep_crop.sum() == 0:
+                # Corner case: bounding box does encompass staff,
+                # but there is msep foreground pixel in that area
+                # (could happen e.g. with mseps only drawn *around*
+                # staffs).
+                output_bbox = staff.top, measure_separator.left, \
+                              staff.bottom, measure_separator.right
+            else:
+                # The canonical case: measure separator across the staff.
+                msep_crop_vproj = msep_crop.sum(axis=0)
+                _dl = 0
+                _dr = 0
+                for i, v in enumerate(msep_crop_vproj):
+                    if v != 0:
+                        _dl = i
+                        break
+                for i in range(1, len(msep_crop_vproj)):
+                    if msep_crop_vproj[-i] != 0:
+                        _dr = i
+                        break
+                output_bbox = staff.top, measure_separator.left + _dl, \
+                              staff.bottom, measure_separator.right - _dr
+        return output_bbox
+
+    def interpret_time_signature(self, time_signature):
+        """Converts the time signature into the beat count (in quarter
+        notes) it assigns to its following measures.
+
+        Dealing with numeric time signatures
+        ------------------------------------
+
+        * Is there both a numerator and a denominator?
+        * If yes: assign numerals to either num. (top), or denom. (bottom)
+        * If not: assume the number is no. of beats. (In some scores, the
+          base indicator may be attached in form of a note instead of a
+          denumerator, like e.g. scores by Janacek, but we ignore this for now.
+          In early music, 3 can mean "tripla", which is 3/2.)
+
+        Dealing with non-numeric time signatures
+        ----------------------------------------
+
+        * whole-time mark is interpreted as 4/4
+        * alla breve mark is interpreted as 2/4
+
+        """
         raise NotImplementedError()
 
     def onsets(self, cropobjects):
@@ -1089,6 +1490,8 @@ class MIDIInferenceEngine(object):
         :returns: A objid --> onset dict for all notehead-type
             CropObjects.
         """
+
+        # TODO: Don't infer_pitches(), remove dep. on self.measure_separators
         # Technicality, shortcut, to fill up all the internal dicts.
         # This does not take long.
         self.infer_pitches(cropobjects, with_names=True)
@@ -1122,8 +1525,8 @@ class MIDIInferenceEngine(object):
             q = queue[__qstart]
             __qstart += 1
             prec_qs = q.inlinks
-            prec_onsets = [onsets[pq.obj.objid] for pq in prec_qs]
-            prec_durations = [self.durations_beats[pq.obj.objid] for pq in prec_qs]
+            prec_onsets = [pq.onset for pq in prec_qs]
+            prec_durations = [pq.duration for pq in prec_qs]
 
             onset_proposals = [o + d for o, d in zip(prec_onsets, prec_durations)]
             if min(onset_proposals) != max(onset_proposals):
@@ -1131,7 +1534,10 @@ class MIDIInferenceEngine(object):
                                  ' predecessors: {1}'.format(q.obj.uid,
                                                              onset_proposals))
             onset = onset_proposals[0]
-            onsets[q.obj.objid] = onset
+            q.onset = onset
+            # Some nodes do not have a CropObject assigned.
+            if q.obj is not None:
+                onsets[q.obj.objid] = onset
 
             for post_q in q.outlinks:
                 queue.append(post_q)
@@ -1140,23 +1546,35 @@ class MIDIInferenceEngine(object):
 
         return onsets
 
-    def infer_precedence(self, cropobjects):
-        raise NotImplementedError()
-
 
 class PrecedenceGraphNode:
     """A helper plain-old-data class for onset extraction.
     The ``inlinks`` and ``outlinks`` attributes are lists
     of other ``PrecedenceGraphNode`` instances.
     """
-    def __init__(self, cropobject, inlinks=None, outlinks=None):
+    def __init__(self, objid=None, cropobject=None, inlinks=None, outlinks=None,
+                 onset=None, duration=0):
+        # Optional link to CropObjects, or just a placeholder ID.
         self.obj = cropobject
+        if objid is None and cropobject is not None:
+            objid = cropobject.objid
+        self.node_id = objid
+
         self.inlinks = []
         if inlinks:
             self.inlinks = inlinks
         self.outlinks = []
         if outlinks:
             self.outlinks = outlinks
+
+        self.onset = onset
+        '''Counting from the start of the musical sequence, how many
+        beat units pass before this object?'''
+
+        self.duration = duration
+        '''By how much musical time does the object delay the onsets
+        of its descendants in the precedence graph?'''
+
 
 ##############################################################################
 
