@@ -279,6 +279,8 @@ class CropObject(object):
         self.is_selected = False
         #logging.debug('...done!')
 
+        if data is None:
+            data = dict()
         self.data = data
 
     ##########################################################################
@@ -791,6 +793,9 @@ class CropObject(object):
     def encode_data(self, data):
         if self.data is None:
             return None
+        if len(self.data) == 0:
+            return None
+
         lines = []
         for k, v in self.data.items():
             vtype = 'str'
