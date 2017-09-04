@@ -59,10 +59,11 @@ Additional information
 Arbitrary data can be added to the CropObject using the optional
 ``<Data>`` element. It should encode a dictionary of additional
 information about the CropObject that may only apply to a subset
-of CropObjects.
+of CropObjects (this facultativeness is what distinguishes the
+purpose of the ``<Data>`` element from just subclassing ``CropObject``).
 
-For example, encoding the pitch information about a notehead
-could look like this::
+For example, encoding the pitch, duration and precedence information
+about a notehead could look like this::
 
     <CropObject>
         ...
@@ -72,6 +73,8 @@ could look like this::
             <DataItem key="pitch_octave" type="int">4</DataItem>
             <DataItem key="midi_pitch_code" type="int">63</DataItem>
             <DataItem key="midi_duration" type="int">128</DataItem>
+            <DataItem key="precedence_inlinks" type="list[int]">23 24 25</DataItem>
+            <DataItem key="precedence_outlinks" type="list[int]">27</DataItem>
         </Data>
     </CropObject
 
@@ -82,7 +85,9 @@ the dictionary::
                  'pitch_modification': 1,
                  'pitch_octave': 4,
                  'midi_pitch_code': 63,
-                 'midi_pitch_duration': 128}
+                 'midi_pitch_duration': 128,
+                 'precedence_inlinks': [23, 24, 25],
+                 'precedence_outlinks': [27]}
 
 
 This is also a basic mechanism to allow you to subclass
@@ -147,7 +152,9 @@ Individual elements of a ``<CropObject>``
   should be called in the ``data`` dict of the loaded CropObject.
   The ``type`` attribute encodes the Python type of the item and gets
   applied to the text of the ``<DataItem>`` to produce the value.
-  Currently supported types are ``int``, ``float``, and ``str``.
+  Currently supported types are ``int``, ``float``, and ``str``,
+  and ``list[int]``, ``list[float]`` and ``list[str]``. The lists
+  are whitespace-separated.
 
 The parser function provided for CropObjects does *not* check against
 the presence of other elements. You can extend CropObjects for your
@@ -305,6 +312,8 @@ def parse_cropobject_list(filename):
     'G'
     >>> cropobjects[0].data['midi_pitch_code']
     79
+    >>> cropobjects[0].data['precedence_outlinks']
+    [8, 17]
 
     :returns: A list of ``CropObject``s.
     """
@@ -412,12 +421,22 @@ def parse_cropobject_list(filename):
                 key = data_item.get('key')
                 value_type = data_item.get('type')
                 value = data_item.text
-                logging.warn('Creating data entry: key={0}, type={1},'
-                             ' value={2}'.format(key, value_type, value))
+
+                logging.debug('Creating data entry: key={0}, type={1},'
+                              ' value={2}'.format(key, value_type, value))
+
                 if value_type == 'int':
                     value = int(value)
                 elif value_type == 'float':
                     value = float(value)
+                elif value_type.startswith('list'):
+                    vt_factory = str
+                    if value_type.endswith('[int]'):
+                        vt_factory = int
+                    elif value_type.endswith('[float]'):
+                        vt_factory = float
+                    value = list(map(vt_factory, value.split()))
+
                 data_dict[key] = value
 
         #################################

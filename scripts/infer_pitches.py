@@ -1087,6 +1087,174 @@ class MIDIInferenceEngine(object):
     # Onsets inference
 
     def infer_precedence(self, cropobjects):
+        """This is the most complex part of onset computation.
+
+        The output of this method is a **precedence graph**. The precedence
+        graph is a Directed Acyclic Graph (DAG) consisting of
+        :class:`PrecedenceGraphNode` objects. Each node represents some
+        musical concept that participates in establishing the onsets
+        by having a *duration*. The invariant of the graph is that
+        the onset of a node is the sum of the durations on each of its
+        predecessor paths to a root node (which has onset 0).
+
+        Not all nodes necessarily have nonzero duration (although these
+        nodes can technically be factored out).
+
+        Once the precedence graph is formed, then a breadth-first search
+        (rather than DFS, to more easily spot/resolve conflicts at multi-source
+        precedence graph nodes) simply accumulates durations.
+        Conflicts can be resolved through failing (currently implemented),
+        or looking up possible errors in assigning durations and attempting
+        to fix them.
+
+        Forming the precedence graph itself is difficult, because
+        of polyphonic (and especially pianoform) music. Practically the only
+        actual constraint followed throughout music is that *within a voice*
+        notes are read left-to-right. The practice of aligning e.g. whole
+        notes in an outer voice to the beginning of the bar rather than
+        to the middle took over only cca. 1800 or later.
+
+        An imperfect but overwhelmingly valid constraint is that notes taking
+        up a certain proportion of the measure are not written to the *right*
+        of the proportional horizontal span in the measure corresponding
+        to their duration in time. However, this is *not* uniform across
+        the measure: e.g., if the first voice is 2-8-8-8-8 and the second
+        is 2-2, then the first half can be very narrow and the second
+        quite wide, with the second lower-voice half-note in the middle
+        of that part. However, the *first* lower-voice half-note will
+        at least *not* be positioned in the horizontal span where
+        the 8th notes in the upper voice are.
+
+        Which CropObjects participate in the precedence graph?
+        ------------------------------------------------------
+
+        We directly derive precedence graph nodes from the following
+        CropObjects:
+
+        * Noteheads: empty, full, and grace noteheads of both kinds, which
+          are assigned duration based on their type (e.g., quarter, 16th, etc.)
+          and then may be further modified by duration dots and/or tuples.
+        * Rests of all kinds, which get duration via a simple table based
+          on the rest class and tuple/dot modification.
+        * Measure separators, which get a duration of 0.
+
+        The assumption of our symbol classes is that there are no rests
+        shorter than 64th.
+
+        Furthermore, we add synthetic nodes representing:
+
+        * Root measure separator, with duration 0 **and** onset 0,
+          which initializes the onset computations along the graph
+        * Measure nodes, with durations derived from time signatures
+          valid for the given measures.
+
+        Constructing the precedence graph
+        ---------------------------------
+
+        We factor the precedence graph into measures, and then infer precedence
+        for each measure separately, in order to keep the problem tractable
+        and in order for errors not to propagate too far. The inference
+        graph construction algorithm is therefore split into two steps:
+
+        * Construct the "spine" of the precedence graph from measure nodes,
+        * Construct the single-measure precedence subgraphs (further factored
+          by staff).
+
+        The difficulties lie primarily in step 2.
+
+        (Note that ties are currently disregarded: the second note
+        of the tie normally gets an onset. After all, conceptually,
+        it is a separate note with an onset, it just does not get played.)
+
+        Precedence graph spine
+        ^^^^^^^^^^^^^^^^^^^^^^
+
+        The **spine** of the precedence graph is a single path of alternating
+        ``measure_separator`` and ``measure`` nodes. ``measure_separator``
+        nodes are constructed from the CropObjects, and ``measure`` nodes
+        are created artificially between consecutive ``measure_separator``
+        nodes. The measure separator nodes have a duration of 0, while
+        the duration of the measure nodes is inferred from the time signature
+        valid for that measure. An artificial root measure_separator node
+        is created to serve as the source of the entire precedence graph.
+
+        Thus, the first part of the algorithm is, at a high level:
+
+        * Order measure separators,
+        * Assign time signatures to measures and compute measure durations
+          from time signatures.
+
+        **Gory details:** In step 1, we assume that systems are ordered
+        top-down in time, that all systems are properly grouped using
+        ``staff_grouping`` symbols, that measure separators are strictly
+        monotonous (i.e., the same subset of possible onsets belongs to
+        the i-th measure on each staff, which is an assumption that does
+        *not* hold for isorhythmic motets and basically anything pre-16th
+        century).
+
+        In step 2, we assume that time signatures are always written within
+        the measure that *precedes* the first measure for which they are
+        valid, with the exception of the first time signature on the system.
+
+        We also currently assume that a given measure has the same number
+        of beats across all staves within a system (so: no polytempi for now).
+
+        Measure subgraphs
+        ^^^^^^^^^^^^^^^^^
+
+        There are again two high-level steps:
+
+        * Assign other onset-carrying objects (noteheads and rests)
+          to measures, to prepare the second phase that iterates over
+          these groups per measure (and staff).
+        * For each measure group, compute the subgraph and attach
+          its sources to the preceding measure separator node.
+
+        The first one can be resolved easily by looking at (a) staff
+        assignment, (b) horizontal position with respect to measure
+        separators. Noting that long measure separators might not
+        really be straight, we use the intersection of the separator
+        with the given staff.
+
+        The second step is the difficult one. We describe the algorithm
+        for inferring precedence, simultaneity span minimization,
+        in a separate section.
+
+
+        Simultaneity span minimization
+        ------------------------------
+
+        Inferring precedence in polyphonic music is non-trivial, especially
+        if one wants to handle handwritten music, and even more so when
+        extending the scope before the 1800s. We infer precedence using
+        the principle that notes which are supposed to be played together
+        should be as close to each other horizontally as possible: from
+        all the possible precedence assignments that fulfill notation
+        rule constraints, choose the one which minimizes the horizontal
+        span assigned to each unit of musical time in the bar.
+
+        The algorithm is initialized as follows:
+
+        * Determine the shortest subdivision of the measure (in beats)
+          which has to be treated independently. This generally corresponds
+          to the shortest note in the measure.
+        * Initialize the assignment table: for each onset-carrying object,
+          we will assign it to one of the time bins.
+
+        There are some rules of music notation that we use to prune the space
+        of possible precedence assignments by associating the notes (or rests)
+        into blocks:
+
+        * Beamed groups without intervening rests
+        * Tied note pairs
+        * Notes that share a stem
+        * Notes within a tuple
+
+        Rests within beamed groups (e.g., 8th - 8th_rest - 8th) are a problem.
+        A decision needs to be made whether the rest does belong to the group
+        or not.
+
+        """
 
         if not self.measure_separators:
             self._collect_symbols_for_pitch_inference(cropobjects)

@@ -794,13 +794,24 @@ class CropObject(object):
         lines = []
         for k, v in self.data.items():
             vtype = 'str'
+            vval = v
             if isinstance(v, int):
                 vtype = 'int'
+                vval = str(v)
             elif isinstance(v, float):
                 vtype = 'float'
+                vval = str(v)
+            elif isinstance(v, list):
+                vtype = 'list[str]'
+                if len(v) > 0:
+                    if isinstance(v[0], int): vtype='list[int]'
+                    elif isinstance(v[0], float): vtype='list[float]'
+                vval = ' '.join([str(vv) for vv in v])
+
             line = '\t\t<DataItem key="{0}" type="{1}">{2}</DataItem>' \
-                   ''.format(k, vtype, v)
+                   ''.format(k, vtype, vval)
             lines.append(line)
+
         return '\n'.join(lines)
 
     @staticmethod
