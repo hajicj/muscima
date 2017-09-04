@@ -37,165 +37,10 @@ import numpy
 
 from muscima.io import parse_cropobject_list, export_cropobject_list
 from muscima.cropobject import link_cropobjects
-
+from muscima.inference_engine_constants import InferenceEngineConstants
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
-
-
-class PitchInferenceEngineConstants(object):
-    """This class stores the constants used for pitch inference."""
-
-    ON_STAFFLINE_RATIO_TRHESHOLD = 0.2
-    '''Magic number for determining whether a notehead is *on* a ledger
-    line, or *next* to a ledger line: if the ratio between the smaller
-    and larger vertical difference of (top, bottom) vs. l.l. (top, bottom)
-    is smaller than this, it means the notehead is most probably *NOT*
-    on the l.l. and is next to it.'''
-
-    STAFF_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space', 'staff']
-
-    STAFFLINE_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space']
-
-    NOTEHEAD_CLSNAMES = {
-        'notehead-full',
-        'notehead-empty',
-        'grace-notehead-full',
-        'grace-notehead-empty',
-    }
-
-    CLEF_CLSNAMES = {
-        'g-clef',
-        'c-clef',
-        'f-clef',
-    }
-
-    KEY_SIGNATURE_CLSNAMES = {
-        'key_signature',
-    }
-
-    MEASURE_SEPARATOR_CLSNAMES = {
-        'measure_separator',
-    }
-
-    FLAGS_CLSNAMES = {
-        '8th_flag',
-        '16th_flag',
-        '32th_flag',
-        '64th_and_higher_flag',
-    }
-
-    BEAM_CLSNAMES = {
-        'beam',
-    }
-
-    FLAGS_AND_BEAMS ={
-        '8th_flag',
-        '16th_flag',
-        '32th_flag',
-        '64th_and_higher_flag',
-        'beam',
-    }
-
-    ACCIDENTAL_CLSNAMES = {
-        'sharp': 1,
-        'flat': -1,
-        'natural': 0,
-        'double_sharp': 2,
-        'double_flat': -2,
-    }
-
-    MIDI_CODE_RESIDUES_FOR_PITCH_STEPS = {
-        0: 'C',
-        1: 'C#',
-        2: 'D',
-        3: 'Eb',
-        4: 'E',
-        5: 'F',
-        6: 'F#',
-        7: 'G',
-        8: 'Ab',
-        9: 'A',
-        10: 'Bb',
-        11: 'B',
-    }
-    '''Simplified pitch naming.'''
-
-    # The individual MIDI codes for for the unmodified steps.
-    _fs = list(range(5, 114, 12))
-    _cs = list(range(0, 121, 12))
-    _gs = list(range(7, 116, 12))
-    _ds = list(range(2, 110, 12))
-    _as = list(range(9, 118, 12))
-    _es = list(range(4, 112, 12))
-    _bs = list(range(11, 120, 12))
-
-    KEY_TABLE_SHARPS = {
-        0: {},
-        1: {i: 1 for i in _fs},
-        2: {i: 1 for i in _fs + _cs},
-        3: {i: 1 for i in _fs + _cs + _gs},
-        4: {i: 1 for i in _fs + _cs + _gs + _ds},
-        5: {i: 1 for i in _fs + _cs + _gs + _ds + _as},
-        6: {i: 1 for i in _fs + _cs + _gs + _ds + _as + _es},
-        7: {i: 1 for i in _fs + _cs + _gs + _ds + _as + _es + _bs},
-    }
-
-    KEY_TABLE_FLATS = {
-        0: {},
-        1: {i: -1 for i in _bs},
-        2: {i: -1 for i in _bs + _es},
-        3: {i: -1 for i in _bs + _es + _as},
-        4: {i: -1 for i in _bs + _es + _as + _ds},
-        5: {i: -1 for i in _bs + _es + _as + _ds + _gs},
-        6: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs},
-        7: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs + _fs},
-    }
-
-    PITCH_STEPS = ['C', 'D', 'E', 'F', 'G', 'A', 'B',
-                   'C', 'D', 'E', 'F', 'G', 'A', 'B']
-    # Wrap around twice for easier indexing.
-
-    ACCIDENTAL_CODES = {'sharp': '#', 'flat': 'b',
-                        'double_sharp': 'x', 'double_flat': 'bb'}
-
-    REST_CLSNAMES = {
-        'whole_rest',
-        'half_rest',
-        'quarter_rest',
-        '8th_rest',
-        '16th_rest',
-        '32th_rest',
-        '64th_and_higher_rest',
-        'multi-measure_rest',
-    }
-
-    TIME_SIGNATURES = {
-        'time_signature',
-    }
-
-    @property
-    def clsnames_affecting_onsets(self):
-        """Returns a list of CropObject class names for objects
-        that affect onsets. Assumes notehead and rest durations
-        have already been given."""
-        output = set()
-        output.update(self.NOTEHEAD_CLSNAMES)
-        output.update(self.REST_CLSNAMES)
-        output.update(self.MEASURE_SEPARATOR_CLSNAMES)
-        output.update(self.TIME_SIGNATURES)
-        output.add('repeat_measure')
-        return output
-
-    @property
-    def clsnames_bearing_duration(self):
-        """Returns the list of classes that actually bear duration,
-        i.e. contribute to onsets of their descendants in the precedence
-        graph."""
-        output = set()
-        output.update(self.NOTEHEAD_CLSNAMES)
-        output.update(self.REST_CLSNAMES)
-        return output
 
 
 class PitchInferenceEngineState(object):
@@ -426,19 +271,19 @@ class PitchInferenceEngineState(object):
 
     def pitch_name(self, delta):
         """Given a staffline delta, returns the name of the corrensponding pitch."""
-        output_step = PitchInferenceEngineConstants.PITCH_STEPS[(self.base_pitch_step + delta) % 7]
+        output_step = InferenceEngineConstants.PITCH_STEPS[(self.base_pitch_step + delta) % 7]
         output_octave = self.base_pitch_octave + (delta // 7)
         output_mod = ''
 
         accidental = self.accidental(delta)
         if accidental == 1:
-            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['sharp']
+            output_mod = InferenceEngineConstants.ACCIDENTAL_CODES['sharp']
         elif accidental == 2:
-            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['double_sharp']
+            output_mod = InferenceEngineConstants.ACCIDENTAL_CODES['double_sharp']
         elif accidental == -1:
-            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['flat']
+            output_mod = InferenceEngineConstants.ACCIDENTAL_CODES['flat']
         elif accidental == 2:
-            output_mod = PitchInferenceEngineConstants.ACCIDENTAL_CODES['double_flat']
+            output_mod = InferenceEngineConstants.ACCIDENTAL_CODES['double_flat']
 
         return output_step + output_mod, output_octave
 
@@ -494,7 +339,7 @@ class MIDIInferenceEngine(object):
     """
     def __init__(self):
         # Inference engine constants
-        self._CONST = PitchInferenceEngineConstants()
+        self._CONST = InferenceEngineConstants()
 
         # Static temp data from which the pitches are inferred
         self._cdict = {}
@@ -795,7 +640,7 @@ class MIDIInferenceEngine(object):
                                                closest_ll.bounding_box))
 
                 if min(dtop, dbottom) / max(dtop, dbottom) \
-                        < PitchInferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
+                        < InferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
                     _on_ledger_line = False
 
                     # Check orientation congruent with rel. to staff.
@@ -956,7 +801,7 @@ class MIDIInferenceEngine(object):
         stems = self.__children(notehead, ['stem'])
         flags_and_beams = self.__children(
             notehead,
-            PitchInferenceEngineConstants.FLAGS_AND_BEAMS)
+            InferenceEngineConstants.FLAGS_AND_BEAMS)
 
         if notehead.clsname.startswith('grace-notehead'):
             logging.warn('Notehead {0}: Grace notes get zero duration!'
