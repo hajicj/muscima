@@ -27,6 +27,11 @@ class InferenceEngineConstants(object):
         'grace-notehead-empty',
     }
 
+    NONGRACE_NOTEHEAD_CLSNAMES = {
+        'notehead-full',
+        'notehead-empty',
+    }
+
     CLEF_CLSNAMES = {
         'g-clef',
         'c-clef',
@@ -143,7 +148,7 @@ class InferenceEngineConstants(object):
         that affect onsets. Assumes notehead and rest durations
         have already been given."""
         output = set()
-        output.update(self.NOTEHEAD_CLSNAMES)
+        output.update(self.NONGRACE_NOTEHEAD_CLSNAMES)
         output.update(self.REST_CLSNAMES)
         output.update(self.MEASURE_SEPARATOR_CLSNAMES)
         output.update(self.TIME_SIGNATURES)
@@ -156,7 +161,7 @@ class InferenceEngineConstants(object):
         i.e. contribute to onsets of their descendants in the precedence
         graph."""
         output = set()
-        output.update(self.NOTEHEAD_CLSNAMES)
+        output.update(self.NONGRACE_NOTEHEAD_CLSNAMES)
         output.update(self.REST_CLSNAMES)
         return output
 

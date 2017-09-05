@@ -370,8 +370,8 @@ class MIDIInferenceEngine(object):
         self.pitch_names = None
         self.pitch_names_per_staff = None
 
-        self.durations_beats = None
-        self.durations_beats_per_staff = None
+        # self.durations_beats = None
+        # self.durations_beats_per_staff = None
 
     def reset(self):
         self.__init__()
@@ -439,8 +439,8 @@ class MIDIInferenceEngine(object):
         self.pitches = {}
         self.pitch_names_per_staff = {}
         self.pitch_names = {}
-        self.durations_beats = {}
-        self.durations_beats_per_staff = {}
+        # self.durations_beats = {}
+        # self.durations_beats_per_staff = {}
 
         for staff in self.staves:
             self.process_staff(staff)
@@ -456,7 +456,7 @@ class MIDIInferenceEngine(object):
         self.pitches_per_staff[staff.objid] = {}
         self.pitch_names_per_staff[staff.objid] = {}
 
-        self.durations_beats_per_staff[staff.objid] = {}
+        # self.durations_beats_per_staff[staff.objid] = {}
 
         self.pitch_state.reset()
         self.pitch_state.init_base_pitch()
@@ -482,9 +482,9 @@ class MIDIInferenceEngine(object):
                 self.pitch_names[q.objid] = pn
                 self.pitch_names_per_staff[staff.objid][q.objid] = pn
 
-                b = self.beats(q)
-                self.durations_beats[q.objid] = b
-                self.durations_beats_per_staff[staff.objid][q.objid] = b
+                # b = self.beats(q)
+                # self.durations_beats[q.objid] = b
+                # self.durations_beats_per_staff[staff.objid][q.objid] = b
 
         return self.pitches_per_staff[staff.objid]
 
@@ -702,7 +702,7 @@ class MIDIInferenceEngine(object):
 
     def process_key_signature(self, key_signature):
         sharps = self.__children(key_signature, ['sharp'])
-        flats =  self.__children(key_signature, ['flat'])
+        flats = self.__children(key_signature, ['flat'])
         self.pitch_state.set_key(len(sharps), len(flats))
 
     def process_clef(self, clef):
@@ -769,8 +769,13 @@ class MIDIInferenceEngine(object):
         return [self._cdict[i] for i in c.inlinks
                 if self._cdict[i].clsname in clsnames]
 
-    ##########################################################################
-    # Durations inference
+
+class OnsetsInferenceEngine(object):
+
+    def __init__(self, cropobjects):
+
+        self._CONST = InferenceEngineConstants()
+        self._cdict = {c.objid: c for c in cropobjects}
 
     def beats(self, cropobject):
         if cropobject.clsname in self._CONST.NOTEHEAD_CLSNAMES:
@@ -842,6 +847,8 @@ class MIDIInferenceEngine(object):
         for the given notehead (or rest) from the tuples and duration dots.
 
         Can handle duration dots within tuples.
+
+        Cannot handle nested/multiple tuples.
         """
         duration_modifier = 1
         # Dealing with tuples:
@@ -913,7 +920,8 @@ class MIDIInferenceEngine(object):
                            '64th_and_higher_rest': 0.0625,
                            # Technically, these two should just apply time sig.,
                            # but the measure-factorized precedence graph
-                           # means these durations never have descendants anyway.
+                           # means these durations never have sounding
+                           # descendants anyway:
                            'multi-measure_rest': 4,
                            'repeat-measure': 4,
                            }
@@ -1104,6 +1112,9 @@ class MIDIInferenceEngine(object):
         if not self.measure_separators:
             self._collect_symbols_for_pitch_inference(cropobjects)
 
+        measure_separators = [c for c in cropobjects
+                              if c.clsname in self._CONST.MEASURE_SEPARATOR_CLSNAMES]
+
         ######################################################################
         # An important feature of measure-factorized onset inference
         # instead of going left-to-right per part throughout is resistance
@@ -1117,11 +1128,11 @@ class MIDIInferenceEngine(object):
         # Add the relationships between the measure separator nodes.
         #  - Get staves to which the mseps are connected
         msep_staffs = {m.objid: self.__children(m, ['staff'])
-                       for m in self.measure_separators}
+                       for m in measure_separators}
         #  - Sort first by bottom-most staff to which the msep is connected
         #    to get systems
         #  - Sort left-to-right within systems to get final ordering of mseps
-        ordered_mseps = sorted(self.measure_separators,
+        ordered_mseps = sorted(measure_separators,
                                key=lambda m: (max([s.bottom
                                                    for s in msep_staffs[m.objid]]),
                                               m.left))
@@ -1158,11 +1169,11 @@ class MIDIInferenceEngine(object):
                                              duration=0,  # Durations will be filled in
                                              onset=None)
                          for i in range(len(ordered_msep_nodes) - 2)]
-        '''A list of PrecedenceGraph nodes. These don't really need any CropObject
-        or objid, they are just introducing through their duration the offsets
-        between measure separators (mseps have legit 0 duration, so that they
-        do not move the notes in their note descendants).
-        The list is already ordered.'''
+        #: A list of PrecedenceGraph nodes. These don't really need any CropObject
+        #  or objid, they are just introducing through their duration the offsets
+        #  between measure separators (mseps have legit 0 duration, so that they
+        #  do not move the notes in their note descendants).
+        #  The list is already ordered.
 
         # Add measure separator inlinks and outlinks.
         for m_node in measure_nodes:
@@ -1291,10 +1302,10 @@ class MIDIInferenceEngine(object):
         # more curved measure separators.
 
         msep_to_staff_projections = {}
-        '''For each measure separator, for each staff it connects to,
-        the bounding box of the measure separator's intersection with
-        that staff.'''
-        for msep in self.measure_separators:
+        #: For each measure separator, for each staff it connects to,
+        #  the bounding box of the measure separator's intersection with
+        #  that staff.
+        for msep in measure_separators:
             msep_to_staff_projections[msep.objid] = {}
             for s in msep_staffs[msep.objid]:
                 intersection_bbox = self.msep_staff_overlap_bbox(msep, s)
@@ -1302,8 +1313,8 @@ class MIDIInferenceEngine(object):
 
         staff_and_measure_to_objs_map = collections.defaultdict(
                                             collections.defaultdict(list))
-        '''Per staff (indexed by objid) and measure (by order no.), keeps a list of
-        CropObjects from that staff that fall within that measure.'''
+        #: Per staff (indexed by objid) and measure (by order no.), keeps a list of
+        #  CropObjects from that staff that fall within that measure.
 
         # Iterate over objects left to right, shift measure if next object
         # over bound of current measure.
@@ -1348,7 +1359,7 @@ class MIDIInferenceEngine(object):
                     l_msep_node.outlinks.append(source_node)
                     source_node.inlinks.append(l_msep_node)
 
-        return root_msep
+        return [root_msep]
 
     def measure_precedence_graph(self, cropobjects):
         """Indexed by staff objid and measure number, holds the precedence graph
@@ -1511,12 +1522,10 @@ class MIDIInferenceEngine(object):
 
         # We first find the precedence graph. (This is the hard
         # part.)
-        # The precedence graph is a dict of CropObjects
-        # that have additional prec_inlinks and prec_outlinks
-        # attributes.
-        #
-        # Note that measure separators should participate in the precedence
-        # graph...
+        # The precedence graph is a DAG structure of PrecedenceGraphNode
+        # objects. The infer_precedence() method returns a list
+        # of the graph's source nodes (of which there is in fact
+        # only one, the way it is currently defined).
         precedence_graph = self.infer_precedence(cropobjects)
 
         # Once we have the precedence graph, we need to walk it.
@@ -1558,6 +1567,18 @@ class MIDIInferenceEngine(object):
             __qstart += 1
 
         return onsets
+
+    def __children(self, c, clsnames):
+        """Retrieve the children of the given CropObject ``c``
+        that have class in ``clsnames``."""
+        return [self._cdict[o] for o in c.outlinks
+                if self._cdict[o].clsname in clsnames]
+
+    def __parents(self, c, clsnames):
+        """Retrieve the parents of the given CropObject ``c``
+        that have class in ``clsnames``."""
+        return [self._cdict[i] for i in c.inlinks
+                if self._cdict[i].clsname in clsnames]
 
 
 class PrecedenceGraphNode:
@@ -1629,7 +1650,7 @@ def main(args):
     logging.info('Running pitch inference.')
     pitches, pitch_names = inference_engine.infer_pitches(cropobjects,
                                                           with_names=True)
-    durations = inference_engine.durations_beats
+    # durations = inference_engine.durations_beats
 
     # Logging
     #pitch_names = {objid: midi2pitch_name(midi_code)
@@ -1641,17 +1662,18 @@ def main(args):
         if c.objid in pitches:
             midi_pitch_code = pitches[c.objid]
             pitch_step, pitch_octave = pitch_names[c.objid]
-            beats = durations[c.objid]
-            if len(beats) > 1:
-                logging.warn('Notehead {0}: multiple possible beats: {1}'
-                             ''.format(c.uid, beats))
-                b = beats[0]
-            else:
-                b = beats[0]
+            # beats = durations[c.objid]
+            # if len(beats) > 1:
+            #     logging.warn('Notehead {0}: multiple possible beats: {1}'
+            #                  ''.format(c.uid, beats))
+            #     b = beats[0]
+            # else:
+            #     b = beats[0]
             c.data = {'midi_pitch_code': midi_pitch_code,
                       'normalized_pitch_step': pitch_step,
                       'pitch_octave': pitch_octave,
-                      'duration_beats': b}
+                      # 'duration_beats': b,
+            }
 
     if args.export is not None:
         with open(args.export, 'w') as hdl:
