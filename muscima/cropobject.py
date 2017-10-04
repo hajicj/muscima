@@ -1020,6 +1020,11 @@ class CropObject(object):
                 break
         return output
 
+    def translate(self, down=0, right=0):
+        """Move the cropobject down and right by the given amount of pixels."""
+        self.x += down
+        self.y += right
+
 
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
@@ -1228,3 +1233,35 @@ def bbox_intersection(bbox_this, bbox_other):
                out_right - tl
     else:
         return None
+
+
+def cropobject_distance(c, d):
+    """Computes the distance between two CropObjects.
+    Their minimum vertical and horizontal distances are each taken
+    separately, and the euclidean norm is computed from them."""
+    if c.doc != d.doc:
+        raise ValueError('Cannot compute distances between CropObjects'
+                         ' from different documents! ({0} vs. {1})'
+                         ''.format(c.doc, d.doc))
+
+    c_t, c_l, c_b, c_r = c.bounding_box
+    d_t, d_l, d_b, d_r = d.bounding_box
+
+    delta_vert = 0
+    delta_horz = 0
+
+    if (c_t <= d_t <= c_b) or (d_t <= c_t <= d_b):
+        delta_vert = 0
+    elif c_t < d_t:
+        delta_vert = d_t - c_b
+    else:
+        delta_vert = c_t - d_b
+
+    if (c_l <= d_l <= c_r) or (d_l <= c_l <= d_r):
+        delta_horz = 0
+    elif c_l < d_l:
+        delta_horz = d_l - c_r
+    else:
+        delta_horz = c_l - d_r
+
+    return numpy.sqrt(delta_vert ** 2 + delta_horz ** 2)

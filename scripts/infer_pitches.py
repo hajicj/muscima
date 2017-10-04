@@ -272,9 +272,9 @@ class PitchInferenceEngineState(object):
     def pitch_name(self, delta):
         """Given a staffline delta, returns the name of the corrensponding pitch."""
         output_step = InferenceEngineConstants.PITCH_STEPS[(self.base_pitch_step + delta) % 7]
-        output_octave = self.base_pitch_octave + (delta // 7)
-        output_mod = ''
+        output_octave = self.base_pitch_octave + ((delta + self.base_pitch_step) // 7)
 
+        output_mod = ''
         accidental = self.accidental(delta)
         if accidental == 1:
             output_mod = InferenceEngineConstants.ACCIDENTAL_CODES['sharp']
@@ -510,7 +510,7 @@ class MIDIInferenceEngine(object):
             if len(tied_noteheads) < 2:
                 logging.warning('Tie {0}: only one notehead. Staff break?'
                                 ''.format(t.uid))
-                continue
+                break
 
             left_tied_notehead = min(tied_noteheads, key=lambda x: x.left)
             if left_tied_notehead.objid != notehead.objid:
@@ -608,30 +608,70 @@ class MIDIInferenceEngine(object):
             #    then it would be weird to find out it is in the
             #    mini-staffspace *below* the closest ledger line,
             #    signalling a mistake in the data.
-            closest_ll = min(lls, key=lambda x: x.top - notehead.top)
+            closest_ll = min(lls, key=lambda x: (x.top - notehead.top)**2 + (x.bottom - notehead.bottom)**2)
+
             # Determining whether the notehead is on a ledger
             # line or in the adjacent temp staffspace.
             # This uses a magic number, ON_STAFFLINE_RATIO_THRESHOLD.
             _on_ledger_line = True
+
+            ### DEBUG!!!
+            dtop, dbottom = 1, 1
+
             # Weird situation with notehead vertically *inside* bbox
             # of ledger line (could happen with slanted LLs and very small
             # noteheads).
             if closest_ll.top <= notehead.top <= notehead.bottom <= closest_ll.bottom:
                 _on_ledger_line = True
+
+            # No vertical overlap between LL and notehead
             elif closest_ll.top > notehead.bottom:
                 _on_ledger_line = False
             elif notehead.top > closest_ll.bottom:
                 _on_ledger_line = False
+
+            # Complicated situations: overlap
             else:
+                # Notehead "around" ledger line.
                 if notehead.top < closest_ll.top <= closest_ll.bottom < notehead.bottom:
                     dtop = closest_ll.top - notehead.top
                     dbottom = notehead.bottom - closest_ll.bottom
+
+                    if min(dtop, dbottom) / max(dtop, dbottom) \
+                            < InferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
+                        _on_ledger_line = False
+
+                        # Check orientation congruent with rel. to staff.
+                        # If it is wrong (e.g., notehead mostly under LL
+                        # but above staffline, and looks like off-LL),
+                        # change back to on-LL.
+                        if (dtop > dbottom) and not is_above_staff:
+                            _on_ledger_line = True
+                            logging.debug('Notehead in LL space with wrong orientation '
+                                          'w.r.t. staff:'
+                                          ' {0}'.format(notehead.uid))
+                        if (dbottom > dtop) and is_above_staff:
+                            _on_ledger_line = True
+                            logging.debug('Notehead in LL space with wrong orientation '
+                                          'w.r.t. staff:'
+                                          ' {0}'.format(notehead.uid))
+
+                # Notehead interlaced with ledger line, notehead on top
                 elif notehead.top < closest_ll.top <= notehead.bottom <= closest_ll.bottom:
-                    dtop = closest_ll.top - notehead.top
-                    dbottom = max(closest_ll.bottom - notehead.bottom, 1)
+                    # dtop = closest_ll.top - notehead.top
+                    # dbottom = max(notehead.bottom - closest_ll.top, 1)
+                    # if float(dbottom) / float(dtop) \
+                    #         < InferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
+                    _on_ledger_line = False
+
+                # Notehead interlaced with ledger line, ledger line on top
                 elif closest_ll.top <= notehead.top <= closest_ll.bottom < notehead.bottom:
-                    dtop = max(notehead.top - closest_ll.top, 1)
-                    dbottom = notehead.bottom - closest_ll.bottom
+                    # dtop = max(closest_ll.bottom - notehead.top, 1)
+                    # dbottom = notehead.bottom - closest_ll.bottom
+                    # if float(dtop) / float(dbottom) \
+                    #         < InferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
+                    _on_ledger_line = False
+
                 else:
                     raise ValueError('Strange notehead {0} vs. ledger line {1}'
                                      ' situation: bbox notehead {2}, LL {3}'
@@ -639,31 +679,22 @@ class MIDIInferenceEngine(object):
                                                notehead.bounding_box,
                                                closest_ll.bounding_box))
 
-                if min(dtop, dbottom) / max(dtop, dbottom) \
-                        < InferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
-                    _on_ledger_line = False
-
-                    # Check orientation congruent with rel. to staff.
-                    # If it is wrong (e.g., notehead mostly under LL
-                    # but above staffline, and looks like off-LL),
-                    # change back to on-LL.
-                    if (dtop > dbottom) and not is_above_staff:
-                        _on_ledger_line = True
-                        logging.debug('Notehead in LL space with wrong orientation '
-                                      'w.r.t. staff:'
-                                      ' {0}'.format(notehead.uid))
-                    if (dbottom > dtop) and is_above_staff:
-                        _on_ledger_line = True
-                        logging.debug('Notehead in LL space with wrong orientation '
-                                      'w.r.t. staff:'
-                                      ' {0}'.format(notehead.uid))
-
             delta = (2 * n_lls - 1) + 5
             if not _on_ledger_line:
                 delta += 1
 
             if not is_above_staff:
                 delta *= -1
+
+            ### DEBUG
+            if notehead.objid in [178]:
+                logging.info('Notehead {0}: bbox {1}'.format(notehead.objid, notehead.bounding_box))
+                logging.info('Closest LL objid: {0}'.format(closest_ll.objid))
+                logging.info('no. of LLs: {0}'.format(n_lls))
+                logging.info('Is above staff: {0}'.format(is_above_staff))
+                logging.info('On ledger line: {0}'.format(_on_ledger_line))
+                logging.info('Dtop: {0}, Dbottom: {1}'.format(dtop, dbottom))
+                logging.info('Delta: {0}'.format(delta))
 
             return delta
 
