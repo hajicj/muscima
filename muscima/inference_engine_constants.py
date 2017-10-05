@@ -16,6 +16,10 @@ class InferenceEngineConstants(object):
     is smaller than this, it means the notehead is most probably *NOT*
     on the l.l. and is next to it.'''
 
+    STAFFLINE_CLSNAME = 'staff_line'
+    STAFFSPACE_CLSNAME = 'staff_space'
+    STAFF_CLSNAME = 'staff'
+
     STAFF_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space', 'staff']
 
     STAFFLINE_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space']

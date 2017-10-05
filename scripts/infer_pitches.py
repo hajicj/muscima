@@ -288,7 +288,7 @@ class PitchInferenceEngineState(object):
         return output_step + output_mod, output_octave
 
 
-class MIDIInferenceEngine(object):
+class PitchInferenceEngine(object):
     """The Pitch Inference Engine extracts MIDI from the notation
     graph. To get the MIDI, there are two streams of information
     that need to be combined: pitches and onsets, where the onsets
@@ -808,6 +808,15 @@ class OnsetsInferenceEngine(object):
         self._CONST = InferenceEngineConstants()
         self._cdict = {c.objid: c for c in cropobjects}
 
+    def durations(self, cropobjects):
+        # Generate & return the durations dictionary.
+        _relevant_clsnames = self._CONST.clsnames_bearing_duration
+        d_cropobjects = [c for c in cropobjects
+                         if c.clsname in _relevant_clsnames]
+
+        durations = {c.objid: self.beats(c) for c in d_cropobjects}
+        return durations
+
     def beats(self, cropobject):
         if cropobject.clsname in self._CONST.NOTEHEAD_CLSNAMES:
             return self.notehead_beats(cropobject)
@@ -871,7 +880,10 @@ class OnsetsInferenceEngine(object):
 
         beat = [b * duration_modifier for b in beat]
 
-        return beat
+        if len(beat) > 1:
+            logging.warning('Notehead {0}: more than 1 duration: {1}, choosing first'
+                            ''.format(notehead.uid, beat))
+        return beat[0]
 
     def compute_duration_modifier(self, notehead):
         """Computes the duration modifier (multiplicative, in beats)
@@ -965,10 +977,125 @@ class OnsetsInferenceEngine(object):
 
         duration_modifier = self.compute_duration_modifier(rest)
 
-        return [base_rest_duration * duration_modifier]
+        beat = [base_rest_duration * duration_modifier]
+        if len(beat) > 1:
+            logging.warning('Notehead {0}: more than 1 duration: {1}, choosing first'
+                            ''.format(rest.uid, beat))
+        return beat[0]
+
 
     ##########################################################################
     # Onsets inference
+    def infer_precedence_from_annotations(self, cropobjects):
+        """Infer precedence graph based solely on the "green lines"
+        in MUSCIMA++ annotation: precedence edges. These are encoded
+        in the data as inlink/outlink lists
+        in ``cropobject.data['precedence_inlinks']``,
+        aand ``cropobject.data['precedence_outlinks']``.
+
+        :param cropobjects: A list of CropObjects, not necessarily
+            only those that participate in the precedence graph.
+
+        :return: The list of source nodes of the precedence graph.
+        """
+        _relevant_clsnames = self._CONST.clsnames_bearing_duration
+        p_cropobjects = [c for c in cropobjects
+                         if c.clsname in _relevant_clsnames]
+
+        durations = {c.objid: self.beats(c) for c in p_cropobjects}
+
+        p_nodes = {}
+        for c in p_cropobjects:
+            p_node = PrecedenceGraphNode(objid=c.objid,
+                                         cropobject=c,
+                                         inlinks=[],
+                                         outlinks=[],
+                                         duration=durations[c.objid],
+                                         )
+            p_nodes[c.objid] = p_node
+
+        for c in p_cropobjects:
+            inlinks = []
+            outlinks = []
+            if 'precedence_inlinks' in c.data:
+                inlinks = c.data['precedence_inlinks']
+            if 'precedence_outlinks' in c.data:
+                outlinks = c.data['precedence_outlinks']
+            p_node = p_nodes[c.objid]
+            p_node.outlinks = [p_nodes[o] for o in outlinks]
+            p_node.inlinks = [p_nodes[i] for i in inlinks]
+
+        # Join staves/systems!
+        # TODO: join staves/systems
+
+        # ...systems:
+        _cdict = {c.objid: c for c in cropobjects}
+        staff_groups = [c for c in cropobjects
+                        if c.clsname == 'staff_grouping']
+        outer_staff_groups = [c for c in staff_groups
+                              if len([_cdict[i] for i in c.inlinks
+                                      if _cdict[i].clsname == 'staff_group']) == 0]
+        systems = [[c for c in cropobjects
+                    if (c.clsname == 'staff') and (c.objid in sg.outlinks)]
+                   for sg in outer_staff_groups]
+
+        if len(systems) == 1:
+            logging.info('Single-system score, no staff chaining needed.')
+            source_nodes = [n for n in p_nodes.values() if len(n.inlinks) == 0]
+            return source_nodes
+
+        # Check all systems same no. of staffs
+        _system_lengths = [len(s) for s in systems]
+        if len(set(_system_lengths)) > 1:
+            raise ValueError('Cannot deal with variable number of staffs'
+                             ' w.r.t. systems! Systems: {0}'.format(systems))
+
+        staff_chains = [[] for _ in systems[0]]
+        for system in systems:
+            for i, staff in enumerate(system):
+                staff_chains[i].append(staff)
+
+        # Now, join the last --> first nodes within chains.
+
+        # - Assign objects to staffs
+        objid2staff = {}
+        for c in cropobjects:
+            staffs = self.__children(c, ['staff'])
+            if len(staffs) == 1:
+                objid2staff[c.objid] = staffs[0].objid
+
+        # - Assign staffs to sink nodes
+        sink_nodes2staff = {}
+        staff2sink_nodes = collections.defaultdict(list)
+        for node in p_nodes.values():
+            if len(node.outlinks) == 0:
+                staff = self.__children(node.obj, ['staff'])[0]
+                sink_nodes2staff[node.obj.objid] = staff.objid
+                staff2sink_nodes[staff.objid].append(node)
+
+        # - Assign staffs to source nodes
+        source_nodes2staff = {}
+        staff2source_nodes = collections.defaultdict(list)
+        for node in p_nodes.values():
+            if len(node.inlinks) == 0:
+                staff = self.__children(node.obj, ['staff'])[0]
+                source_nodes2staff[node.obj.objid] = staff.objid
+                staff2source_nodes[staff.objid].append(node)
+
+        # - For each staff chain, link the sink nodes of the prev
+        #   to the source nodes of the next staff.
+        for staff_chain in staff_chains:
+            staffs = sorted(staff_chain, key=lambda x: x.top)
+            for (s1, s2) in zip(staffs[:-1], staffs[1:]):
+                sinks = staff2sink_nodes[s1.objid]
+                sources = staff2source_nodes[s2.objid]
+                for sink in sinks:
+                    for source in sources:
+                        sink.outlinks.append(source)
+                        source.inlinks.append(sink)
+
+        source_nodes = [n for n in p_nodes.values() if len(n.inlinks) == 0]
+        return source_nodes
 
     def infer_precedence(self, cropobjects):
         """This is the most complex part of onset computation.
@@ -1549,7 +1676,7 @@ class OnsetsInferenceEngine(object):
         # TODO: Don't infer_pitches(), remove dep. on self.measure_separators
         # Technicality, shortcut, to fill up all the internal dicts.
         # This does not take long.
-        self.infer_pitches(cropobjects, with_names=True)
+        #self.infer_pitches(cropobjects, with_names=True)
 
         # We first find the precedence graph. (This is the hard
         # part.)
@@ -1557,7 +1684,10 @@ class OnsetsInferenceEngine(object):
         # objects. The infer_precedence() method returns a list
         # of the graph's source nodes (of which there is in fact
         # only one, the way it is currently defined).
-        precedence_graph = self.infer_precedence(cropobjects)
+        ### precedence_graph = self.infer_precedence(cropobjects)
+        precedence_graph = self.infer_precedence_from_annotations(cropobjects)
+        for node in precedence_graph:
+            node.onset = 0
 
         # Once we have the precedence graph, we need to walk it.
         # It is a DAG, so we simply do a BFS from each source.
@@ -1565,21 +1695,51 @@ class OnsetsInferenceEngine(object):
         # we need to wait until they are *all* resolved,
         # and check whether they agree.
         queue = []
+        # Note: the queue should be prioritized by *onset*, not number
+        # of links from initial node. Leades to trouble with unprocessed
+        # ancestors.
         for node in precedence_graph:
             if len(node.inlinks) == 0:
                 queue.append(node)
 
         onsets = {}
 
+        logging.debug('Size of initial queue: {0}'.format(len(queue)))
+        logging.debug('Initial queue: {0}'.format([(q.obj.objid, q.onset) for q in queue]))
+
         # We will only be appending to the queue, so the
         # start of the queue is defined simply by the index.
         __qstart = 0
-        while len(queue) > 0:
+        while (len(queue) - __qstart) > 0:
             q = queue[__qstart]
+            logging.debug('Current @{0}: {1}'.format(__qstart, q.obj.uid))
+            logging.debug('Will add @{0}: {1}'.format(__qstart, q.outlinks))
+
             __qstart += 1
+            for post_q in q.outlinks:
+                if post_q not in queue:
+                    queue.append(post_q)
+
+            logging.debug('Queue state: {0}'
+                         ''.format([ppq.obj.objid for ppq in queue[__qstart:]]))
+
+            logging.debug('  {0} has onset: {1}'.format(q.node_id, q.onset))
+            if q.onset is not None:
+                onsets[q.obj.objid] = q.onset
+                continue
+
             prec_qs = q.inlinks
             prec_onsets = [pq.onset for pq in prec_qs]
+            # If the node did not yet get all its ancestors processed,
+            # send it down the queue.
+            if None in prec_onsets:
+                queue.append(q)
+                continue
+
             prec_durations = [pq.duration for pq in prec_qs]
+
+            logging.debug('    Prec_onsets @{0}: {1}'.format(__qstart - 1, prec_onsets))
+            logging.debug('    Prec_durations @{0}: {1}'.format(__qstart - 1, prec_durations))
 
             onset_proposals = [o + d for o, d in zip(prec_onsets, prec_durations)]
             if min(onset_proposals) != max(onset_proposals):
@@ -1591,11 +1751,6 @@ class OnsetsInferenceEngine(object):
             # Some nodes do not have a CropObject assigned.
             if q.obj is not None:
                 onsets[q.obj.objid] = onset
-
-            for post_q in q.outlinks:
-                queue.append(post_q)
-
-            __qstart += 1
 
         return onsets
 
@@ -1641,6 +1796,32 @@ class PrecedenceGraphNode:
         of its descendants in the precedence graph?'''
 
 
+class MIDIBuilder:
+
+    def build_midi(self, pitches, durations, onsets, tempo=120):
+        from midiutil.MidiFile import MIDIFile
+
+        # create your MIDI object
+        mf = MIDIFile(1)     # only 1 track
+        track = 0   # the only track
+
+        time = 0    # start at the beginning
+        mf.addTrackName(track, time, "Sample Track")
+        mf.addTempo(track, time, tempo)
+
+        channel = 0
+        volume = 100
+
+        keys = pitches.keys()
+        for objid in keys:
+            if (objid in onsets) and (objid in durations):
+                pitch = pitches[objid]
+                onset = onsets[objid]
+                duration = durations[objid]
+                mf.addNote(track, channel, pitch, onset, duration, volume)
+
+        return mf
+
 ##############################################################################
 
 
@@ -1655,6 +1836,9 @@ def build_argument_parser():
                         help='A filename to which the output CropObjectList'
                              ' should be saved. If not given, will print to'
                              ' stdout.')
+    parser.add_argument('-m', '--midi', action='store',
+                        help='A filename to which to export the MIDI file'
+                             ' for the given score.')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -1676,11 +1860,12 @@ def main(args):
                          ''.format(args.annot))
     cropobjects = parse_cropobject_list(args.annot)
 
-    inference_engine = MIDIInferenceEngine()
+    pitch_inference_engine = PitchInferenceEngine()
+    time_inference_engine = OnsetsInferenceEngine(cropobjects=cropobjects)
 
     logging.info('Running pitch inference.')
-    pitches, pitch_names = inference_engine.infer_pitches(cropobjects,
-                                                          with_names=True)
+    pitches, pitch_names = pitch_inference_engine.infer_pitches(cropobjects,
+                                                                with_names=True)
     # durations = inference_engine.durations_beats
 
     # Logging
@@ -1700,11 +1885,27 @@ def main(args):
             #     b = beats[0]
             # else:
             #     b = beats[0]
-            c.data = {'midi_pitch_code': midi_pitch_code,
-                      'normalized_pitch_step': pitch_step,
-                      'pitch_octave': pitch_octave,
-                      # 'duration_beats': b,
-            }
+            if c.data is None:
+                c.data = dict()
+            c.data['midi_pitch_code'] = midi_pitch_code
+            c.data['normalized_pitch_step'] = pitch_step
+            c.data['pitch_octave'] = pitch_octave
+
+    logging.info('Adding duration info to <Data> attributes.')
+    durations = time_inference_engine.durations(cropobjects)
+    logging.info('Total durations: {0}'.format(len(durations)))
+    for c in cropobjects:
+        if c.objid in durations:
+            c.data['duration_beats'] = durations[c.objid]
+
+    logging.info('Some durations: {0}'.format(sorted(durations.items())[:10]))
+
+    logging.info('Adding onset info to <Data> attributes.')
+    onsets = time_inference_engine.onsets(cropobjects)
+    logging.info('Total onsets: {0}'.format(len(onsets)))
+    for c in cropobjects:
+        if c.objid in onsets:
+            c.data['onset_beats'] = onsets[c.objid]
 
     if args.export is not None:
         with open(args.export, 'w') as hdl:
@@ -1712,6 +1913,12 @@ def main(args):
             hdl.write('\n')
     else:
         print(export_cropobject_list(cropobjects))
+
+    if args.midi is not None:
+        midi_builder = MIDIBuilder()
+        mf = midi_builder.build_midi(pitches, durations, onsets)
+        with open(args.midi, 'wb') as hdl:
+            mf.writeFile(hdl)
 
     _end_time = time.clock()
     logging.info('infer_pitches.py done in {0:.3f} s'.format(_end_time - _start_time))

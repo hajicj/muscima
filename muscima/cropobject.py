@@ -586,8 +586,8 @@ class CropObject(object):
         img[self.top:self.bottom, self.left:self.right] = mix
         return img
 
-    def overlaps(self, bounding_box):
-        """Check whether this CropObject overlaps the given bounding box.
+    def overlaps(self, bounding_box_or_cropobject):
+        """Check whether this CropObject overlaps the given bounding box or CropObject.
 
         >>> c = CropObject(0, 'test', 10, 100, height=20, width=10)
         >>> c.bounding_box
@@ -618,7 +618,10 @@ class CropObject(object):
         True
 
         """
-        t, l, b, r = bounding_box
+        if isinstance(bounding_box_or_cropobject, CropObject):
+            t, l, b, r = bounding_box_or_cropobject.bounding_box
+        else:
+            t, l, b, r = bounding_box_or_cropobject
         # Does it overlap vertically? Includes situations where the CropObject is
         # inside the bounding box.
         # Note that the bottom is +1 (fencepost), so the checks bottom vs. top need to be "less than",
@@ -1240,7 +1243,7 @@ def cropobject_distance(c, d):
     Their minimum vertical and horizontal distances are each taken
     separately, and the euclidean norm is computed from them."""
     if c.doc != d.doc:
-        raise ValueError('Cannot compute distances between CropObjects'
+        logging.warning('Cannot compute distances between CropObjects'
                          ' from different documents! ({0} vs. {1})'
                          ''.format(c.doc, d.doc))
 
