@@ -1268,3 +1268,25 @@ def cropobject_distance(c, d):
         delta_horz = c_l - d_r
 
     return numpy.sqrt(delta_vert ** 2 + delta_horz ** 2)
+
+
+def cropobjects_on_canvas(cropobjects, margin=10):
+    """Draws all the given CropObjects onto a zero background.
+    The size of the canvas adapts to the CropObjects, with the
+    given margin.
+
+    Also returns the top left corner coordinates w.r.t. CropObjects' bboxes.
+    """
+    # margin is used to avoid the stafflines touching the edges,
+    # which could perhaps break some assumptions down the line.
+    it, il, ib, ir = cropobjects_merge_bbox(cropobjects)
+    _t, _l, _b, _r = max(0, it - margin), max(0, il - margin), ib + margin, ir + margin
+
+    canvas = numpy.zeros((_b - _t, _r - _l))
+
+    for c in cropobjects:
+        canvas[c.top - _t:c.bottom - _t, c.left - _l:c.right - _l] = c.mask * 1
+
+    canvas[canvas != 0] = 1
+
+    return canvas, (_t, _l)

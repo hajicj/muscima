@@ -9,7 +9,7 @@ from skimage.measure import label
 from skimage.morphology import watershed
 from skimage.filters import gaussian
 
-from muscima.cropobject import cropobjects_merge_bbox, CropObject
+from muscima.cropobject import cropobjects_merge_bbox, CropObject, cropobjects_on_canvas
 from muscima.inference_engine_constants import InferenceEngineConstants as _CONST
 
 __version__ = "0.0.1"
@@ -89,16 +89,9 @@ def merge_staffline_segments(cropobjects, margin=10):
     """
     # margin is used to avoid the stafflines touching the edges,
     # which could perhaps break some assumptions down the line.
-    it, il, ib, ir = cropobjects_merge_bbox(cropobjects)
-    _t, _l, _b, _r = max(0, it - margin), max(0, il - margin), ib + margin, ir + margin
-
-    canvas = numpy.zeros((_b - _t, _r - _l))
-
-    for c in cropobjects:
-        if c.clsname == _CONST.STAFFLINE_CLSNAME:
-            canvas[c.top - _t:c.bottom - _t, c.left - _l:c.right - _l] = c.mask * 1
-
-    canvas[canvas != 0] = 1
+    old_staffline_cropobjects = [c for c in cropobjects
+                             if c.clsname == _CONST.STAFFLINE_CLSNAME]
+    canvas, (_t, _l) = cropobjects_on_canvas(old_staffline_cropobjects)
 
     _staffline_bboxes, staffline_masks = staffline_bboxes_and_masks_from_horizontal_merge(canvas)
     # Bounding boxes need to be adjusted back with respect to the original image!
@@ -124,8 +117,6 @@ def merge_staffline_segments(cropobjects, margin=10):
 
     non_staffline_cropobjects = [c for c in cropobjects
                                  if c.clsname != _CONST.STAFFLINE_CLSNAME]
-    old_staffline_cropobjects = [c for c in cropobjects
-                                 if c.clsname == _CONST.STAFFLINE_CLSNAME]
     old_staffline_objids = set([c.objid for c in old_staffline_cropobjects])
     old2new_staffline_objid_map = {}
     for os in old_staffline_cropobjects:
@@ -266,3 +257,60 @@ def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mas
     logging.warning('Total staffs: {0}'.format(len(staff_bboxes)))
 
     return staff_bboxes, staff_masks
+
+
+##############################################################################
+
+
+def build_staff_cropobjects(cropobjects):
+    """Derives staff objects from staffline objcets.
+
+    Assumes each staff has 5 stafflines.
+
+    Assumes the stafflines have already been merged."""
+    stafflines = [c for c in cropobjects if c.clsname == _CONST.STAFFLINE_CLSNAME]
+    staffline_bboxes = [c.bounding_box for c in stafflines]
+    canvas, (_t, _l) = cropobjects_on_canvas(stafflines)
+
+    logging.warning('Creating staff bboxes and masks.')
+
+    #  - Go top-down and group the stafflines by five to get staves.
+    #    (The staffline bboxes are already sorted top-down.)
+    staff_bboxes = []
+    staff_masks = []
+
+    n_stafflines = len(stafflines)
+    for i in range(n_stafflines // 5):
+        _sbb = staffline_bboxes[5*i:5*(i+1)]
+        _st = min([bb[0] for bb in _sbb])
+        _sl = min([bb[1] for bb in _sbb])
+        _sb = max([bb[2] for bb in _sbb])
+        _sr = max([bb[3] for bb in _sbb])
+        staff_bboxes.append((_st, _sl, _sb, _sr))
+        staff_masks.append(canvas[_st-_t:_sb-_t, _sl-_l:_sr-_l])
+
+    logging.info('Creating staff CropObjects')
+    next_objid = max([c.objid for c in cropobjects]) + 1
+    dataset_namespace = cropobjects[0].dataset
+    docname = cropobjects[0].doc
+
+    staff_cropobjects = []
+    for s_bb, s_m in zip(staff_bboxes, staff_masks):
+        uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
+        t, l, b, r = s_bb
+        c = CropObject(objid=next_objid,
+                       clsname=_CONST.STAFF_CLSNAME,
+                       top=t, left=l, height=b - t, width=r - l,
+                       mask=s_m,
+                       uid=uid)
+        staff_cropobjects.append(c)
+        next_objid += 1
+
+    for i, sc in enumerate(staff_cropobjects):
+        sl_from = 5 * i
+        sl_to = 5 * (i + 1)
+        for sl in stafflines[sl_from:sl_to]:
+            sl.inlinks.append(sc.objid)
+            sc.outlinks.append(sl.objid)
+
+    return staff_cropobjects
