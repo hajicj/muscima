@@ -259,6 +259,32 @@ def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mas
     return staff_bboxes, staff_masks
 
 
+def staffline_surroundings_mask(staffline_cropobject):
+    """Find the parts of the staffline's bounding box which lie
+    above or below the actual staffline.
+
+    These areas will be very small for straight stafflines,
+    but might be considerable when staffline curvature grows.
+    """
+    # We segment both masks into "above staffline" and "below staffline"
+    # areas.
+    elevation = staffline_cropobject.mask * 255
+    # Blur, to plug small holes somewhat:
+    elevation = gaussian(elevation, sigma=1.0)
+    # Prepare the segmentation markers: 1 is ABOVE, 2 is BELOW
+    markers = numpy.zeros(staffline_cropobject.mask.shape)
+    markers[0, :] = 1
+    markers[-1, :] = 2
+    markers[staffline_cropobject.mask != 0] = 0
+    seg = watershed(elevation, markers)
+
+    bmask = numpy.ones(seg.shape)
+    bmask[seg != 2] = 0
+    tmask = numpy.ones(seg.shape)
+    tmask[seg != 1] = 0
+
+    return bmask, tmask
+
 ##############################################################################
 
 
@@ -314,3 +340,186 @@ def build_staff_cropobjects(cropobjects):
             sc.outlinks.append(sl.objid)
 
     return staff_cropobjects
+
+
+def build_staffspace_cropobjects(cropobjects):
+    """Creates the staffspace objects based on stafflines
+    and staffs. There is a staffspace between each two stafflines,
+    one on the top side of each staff, and one on the bottom
+    side for each staff (corresponding e.g. to positions of g5 and d4
+    with the standard G-clef).
+
+    Note that staffspaces do not assume anything about the number
+    of stafflines per staff.
+
+    :param cropobjects: A list of CropObjects that must contain
+        all the relevant stafflines and staffs.
+
+    :return: A list of staffspace CropObjects.
+    """
+    next_objid = max([c.objid for c in cropobjects]) + 1
+    dataset_namespace = cropobjects[0].dataset
+    docname = cropobjects[0].doc
+
+    staff_cropobjects = [c for c in cropobjects
+                         if c.clsname == _CONST.STAFF_CLSNAME]
+    staffline_cropobjects = [c for c in cropobjects
+                             if c.clsname == _CONST.STAFFLINE_CLSNAME]
+
+    staffspace_cropobjects = []
+
+    for i, staff in enumerate(staff_cropobjects):
+        current_stafflines = [sc for sc in staffline_cropobjects
+                              if sc.objid in staff.outlinks]
+        sorted_stafflines = sorted(current_stafflines, key=lambda x: x.top)
+
+        current_staffspace_cropobjects = []
+
+        # Percussion single-line staves do not have staffspaces.
+        if len(sorted_stafflines) == 1:
+            continue
+
+        #################
+        # Internal staffspace
+        for s1, s2 in zip(sorted_stafflines[:-1], sorted_stafflines[1:]):
+            # s1 is the UPPER staffline, s2 is the LOWER staffline
+            # Left and right limits: to simplify things, we take the column
+            # *intersection* of (s1, s2). This gives the invariant that
+            # the staffspace is limited from top and bottom in each of its columns.
+            l = max(s1.left, s2.left)
+            r = min(s1.right, s2.right)
+
+            # Shift s1, s2 to the right by this much to have the cols. align
+            # All of these are non-negative.
+            dl1, dl2 = l - s1.left, l - s2.left
+            dr1, dr2 = s1.right - r, s2.right - r
+
+            # The stafflines are not necessarily straight,
+            # so top is given for the *topmost bottom edge* of the top staffline + 1
+
+            # First create mask
+            canvas = numpy.zeros((s2.bottom - s1.top, r - l), dtype='uint8')
+
+            # Paste masks into canvas.
+            # This assumes that the top of the bottom staffline is below
+            # the top of the top staffline... and that the bottom
+            # of the top staffline is above the bottom of the bottom
+            # staffline. This may not hold in very weird situations,
+            # but it's good for now.
+            logging.debug(s1.bounding_box, s1.mask.shape)
+            logging.debug(s2.bounding_box, s2.mask.shape)
+            logging.debug(canvas.shape)
+            logging.debug('l={0}, dl1={1}, dl2={2}, r={3}, dr1={4}, dr2={5}'
+                          ''.format(l, dl1, dl2, r, dr1, dr2))
+            #canvas[:s1.height, :] += s1.mask[:, dl1:s1.width-dr1]
+            #canvas[-s2.height:, :] += s2.mask[:, dl2:s2.width-dr2]
+
+            # We have to deal with staffline interruptions.
+            # One way to do this
+            # is watershed fill: put markers along the bottom and top
+            # edge, use mask * 10000 as elevation
+
+            s1_above, s1_below = staffline_surroundings_mask(s1)
+            s2_above, s2_below = staffline_surroundings_mask(s2)
+
+            # Get bounding boxes of the individual stafflines' masks
+            # that intersect with the staffspace bounding box, in terms
+            # of the staffline bounding box.
+            s1_t, s1_l, s1_b, s1_r = 0, dl1, \
+                                     s1.height, s1.width - dr1
+            s1_h, s1_w = s1_b - s1_t, s1_r - s1_l
+            s2_t, s2_l, s2_b, s2_r = canvas.shape[0] - s2.height, dl2, \
+                                     canvas.shape[0], s2.width - dr2
+            s2_h, s2_w = s2_b - s2_t, s2_r - s2_l
+
+            logging.debug(s1_t, s1_l, s1_b, s1_r, (s1_h, s1_w))
+
+            # We now take the intersection of s1_below and s2_above.
+            # If there is empty space in the middle, we fill it in.
+            staffspace_mask = numpy.ones(canvas.shape)
+            staffspace_mask[s1_t:s1_b, :] -= (1 - s1_below[:, dl1:s1.width-dr1])
+            staffspace_mask[s2_t:s2_b, :] -= (1 - s2_above[:, dl2:s2.width-dr2])
+
+            ss_top = s1.top
+            ss_bottom = s2.bottom
+            ss_left = l
+            ss_right = r
+
+            uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
+
+            staffspace = CropObject(next_objid, _CONST.STAFFSPACE_CLSNAME,
+                                    top=ss_top, left=ss_left,
+                                    height=ss_bottom - ss_top,
+                                    width=ss_right - ss_left,
+                                    mask=staffspace_mask,
+                                    uid=uid)
+
+            staffspace.inlinks.append(staff.objid)
+            staff.outlinks.append(staffspace.objid)
+
+            current_staffspace_cropobjects.append(staffspace)
+
+            next_objid += 1
+
+        ##########
+        # Add top and bottom staffspace.
+        # These outer staffspaces will have the width
+        # of their bottom neighbor, and height derived
+        # from its mask columns.
+        # This is quite approximate, but it should do.
+
+        # Upper staffspace
+        tsl = sorted_stafflines[0]
+        tsl_heights = tsl.mask.sum(axis=0)
+        tss = current_staffspace_cropobjects[0]
+        tss_heights = tss.mask.sum(axis=0)
+
+        uss_top = max(0, tss.top - max(tss_heights))
+        uss_left = tss.left
+        uss_width = tss.width
+        # We use 1.5, so that large noteheads
+        # do not "hang out" of the staffspace.
+        uss_height = int(tss.height / 1.2)
+        # Shift because of height downscaling:
+        uss_top += tss.height - uss_height
+        uss_mask = tss.mask[:uss_height, :] * 1
+
+        uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
+        staffspace = CropObject(next_objid, _CONST.STAFFSPACE_CLSNAME,
+                                top=uss_top, left=uss_left,
+                                height=uss_height,
+                                width=uss_width,
+                                mask=uss_mask,
+                                uid=uid)
+        current_staffspace_cropobjects.append(staffspace)
+        staff.outlinks.append(staffspace.objid)
+        staffspace.inlinks.append(staff.objid)
+        next_objid += 1
+
+        # Lower staffspace
+        bss = current_staffspace_cropobjects[-2]
+        bss_heights = bss.mask.sum(axis=0)
+        bsl = sorted_stafflines[-1]
+        bsl_heights = bsl.mask.sum(axis=0)
+
+        lss_top = bss.bottom # + max(bsl_heights)
+        lss_left = bss.left
+        lss_width = bss.width
+        lss_height = int(bss.height / 1.2)
+        lss_mask = bss.mask[:lss_height, :] * 1
+
+        uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
+        staffspace = CropObject(next_objid, _CONST.STAFFSPACE_CLSNAME,
+                                top=lss_top, left=lss_left,
+                                height=lss_height,
+                                width=lss_width,
+                                mask=lss_mask,
+                                uid=uid)
+        current_staffspace_cropobjects.append(staffspace)
+        staff.outlinks.append(staffspace.objid)
+        staffspace.inlinks.append(staff.objid)
+        next_objid += 1
+
+        staffspace_cropobjects += current_staffspace_cropobjects
+
+    return staffspace_cropobjects

@@ -393,17 +393,13 @@ def main(args):
         # of their bottom neighbor, and height derived
         # from its mask columns.
         # This is quite approximate, but it should do.
+
+        # Upper staffspace
         tsl = sorted_stafflines[0]
         tsl_heights = tsl.mask.sum(axis=0)
         tss = current_staffspace_cropobjects[0]
         tss_heights = tss.mask.sum(axis=0)
 
-        bss = current_staffspace_cropobjects[-1]
-        bss_heights = bss.mask.sum(axis=0)
-        bsl = sorted_stafflines[-1]
-        bsl_heights = bsl.mask.sum(axis=0)
-
-        # Upper staffspace
         uss_top = max(0, tss.top - max(tss_heights))
         uss_left = tss.left
         uss_width = tss.width
@@ -427,6 +423,11 @@ def main(args):
         next_objid += 1
 
         # Lower staffspace
+        bss = current_staffspace_cropobjects[-1]
+        bss_heights = bss.mask.sum(axis=0)
+        bsl = sorted_stafflines[-1]
+        bsl_heights = bsl.mask.sum(axis=0)
+
         lss_top = bss.bottom # + max(bsl_heights)
         lss_left = bss.left
         lss_width = bss.width
