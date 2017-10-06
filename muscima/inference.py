@@ -872,9 +872,10 @@ class OnsetsInferenceEngine(object):
 
             # Find the number in the tuple.
             numerals = sorted([self._cdict[o] for o in tuple.outlinks
-                               if o.clsname.startswith('numeral')],
+                               if self._cdict[o].clsname.startswith('numeral')],
                               key=lambda x: x.left)
-            tuple_number = int(''.join([num[-1] for num in numerals]))
+            # Concatenate numerals left to right.
+            tuple_number = int(''.join([num.clsname[-1] for num in numerals]))
 
             if tuple_number == 2:
                 # Duola makes notes *longer*
@@ -889,7 +890,7 @@ class OnsetsInferenceEngine(object):
             elif tuple_number == 6:
                 # Most often done for two consecutive triolas,
                 # e.g. 16ths with a 6-tuple filling one beat
-                duration_modifier = 3 / 2
+                duration_modifier = 2 / 3
             elif tuple_number == 7:
                 # Here we get into trouble, because this one
                 # can be both 4 / 7 (7 16th in a beat)
@@ -1669,7 +1670,7 @@ class OnsetsInferenceEngine(object):
         queue = []
         # Note: the queue should be prioritized by *onset*, not number
         # of links from initial node. Leades to trouble with unprocessed
-        # ancestors.
+        # ancestors...
         for node in precedence_graph:
             if len(node.inlinks) == 0:
                 queue.append(node)
@@ -1682,7 +1683,14 @@ class OnsetsInferenceEngine(object):
         # We will only be appending to the queue, so the
         # start of the queue is defined simply by the index.
         __qstart = 0
+        __prec_clsnames = InferenceEngineConstants().clsnames_affecting_onsets
+        __n_prec_nodes = len([c for c in cropobjects
+                              if c.clsname in __prec_clsnames])
         while (len(queue) - __qstart) > 0:
+            if len(queue) > 2 * __n_prec_nodes:
+                logging.warning('Safety valve triggered: queue growing endlessly!')
+                break
+
             q = queue[__qstart]
             logging.debug('Current @{0}: {1}'.format(__qstart, q.obj.uid))
             logging.debug('Will add @{0}: {1}'.format(__qstart, q.outlinks))
@@ -1693,10 +1701,12 @@ class OnsetsInferenceEngine(object):
                     queue.append(post_q)
 
             logging.debug('Queue state: {0}'
-                         ''.format([ppq.obj.objid for ppq in queue[__qstart:]]))
+                          ''.format([ppq.obj.objid for ppq in queue[__qstart:]]))
 
             logging.debug('  {0} has onset: {1}'.format(q.node_id, q.onset))
             if q.onset is not None:
+                if q.onset > 0:
+                    break
                 onsets[q.obj.objid] = q.onset
                 continue
 
@@ -1705,6 +1715,8 @@ class OnsetsInferenceEngine(object):
             # If the node did not yet get all its ancestors processed,
             # send it down the queue.
             if None in prec_onsets:
+                logging.warning('Found node with predecessor that has no onset yet; delaying processing: {0}'
+                                ''.format(q.obj.uid))
                 queue.append(q)
                 continue
 
@@ -1812,7 +1824,8 @@ def play_midi(midi,
 
     import uuid
     tmp_midi_path = os.path.join(tmp_dir, 'play_' + str(uuid.uuid4())[:8] + '.mid')
-    midi.writeFile(tmp_midi_path)
+    with open(tmp_midi_path, 'wb') as hdl:
+        midi.writeFile(hdl)
     if not os.path.isfile(tmp_midi_path):
         logging.warn('Could not write MIDI data to temp file {0}!'.format(tmp_midi_path))
         return

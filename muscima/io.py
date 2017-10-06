@@ -367,6 +367,7 @@ def parse_cropobject_list(filename):
             xs = cropobject.findall('Y')
             ys = cropobject.findall('X')
             return (len(xs) > 0) and (len(ys) > 0)
+
         def _uses_topleft(cropobject):
             xs = cropobject.findall('Top')
             ys = cropobject.findall('Left')
@@ -422,8 +423,8 @@ def parse_cropobject_list(filename):
                 value_type = data_item.get('type')
                 value = data_item.text
 
-                logging.debug('Creating data entry: key={0}, type={1},'
-                              ' value={2}'.format(key, value_type, value))
+                #logging.debug('Creating data entry: key={0}, type={1},'
+                #              ' value={2}'.format(key, value_type, value))
 
                 if value_type == 'int':
                     value = int(value)
@@ -463,7 +464,7 @@ def parse_cropobject_list(filename):
             mask = obj.decode_mask(cropobject.findall('Mask')[0].text,
                                    shape=(obj.height, obj.width))
         obj.set_mask(mask)
-        logging.debug('Created CropObject with ID {0}'.format(obj.objid))
+        # logging.debug('Created CropObject with ID {0}'.format(obj.objid))
 
         cropobject_list.append(obj)
 

@@ -245,9 +245,9 @@ class CropObject(object):
                  mask=None,
                  uid=None,
                  data=None):
-        logging.debug('Initializing CropObject with objid {0}, uid {5}, x={1},'
-                     ' y={2}, h={3}, w={4}'
-                      ''.format(objid, top, left, height, width, uid))
+        # logging.debug('Initializing CropObject with objid {0}, uid {5}, x={1},'
+        #              ' y={2}, h={3}, w={4}'
+        #               ''.format(objid, top, left, height, width, uid))
         self.objid = objid
 
         self.clsname = clsname
