@@ -24,6 +24,14 @@ class InferenceEngineConstants(object):
 
     STAFFLINE_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space']
 
+    STAFF_RELATED_CLSNAMES = {
+        'staff_grouping',
+        'measure_separator',
+        'key_signature',
+        'time_signature',
+        'g-clef', 'c-clef', 'f-clef', 'other-clef',
+    }
+
     NOTEHEAD_CLSNAMES = {
         'notehead-full',
         'notehead-empty',

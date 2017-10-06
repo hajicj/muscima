@@ -19,6 +19,7 @@ import os
 import pprint
 import time
 
+from muscima.inference_engine_constants import InferenceEngineConstants as _CONST
 from muscima.io import parse_cropobject_list, export_cropobject_list
 from muscima.cropobject import link_cropobjects
 
@@ -65,61 +66,25 @@ REST_CLSNAMES = {
 
 ##############################################################################
 
-
-def build_argument_parser():
-    parser = argparse.ArgumentParser(description=__doc__, add_help=True,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-
-    parser.add_argument('-a', '--annot', action='store', required=True,
-                        help='The annotation file for which the staffline and staff'
-                             ' CropObject relationships should be added.')
-    parser.add_argument('-e', '--export', action='store',
-                        help='A filename to which the output CropObjectList'
-                             ' should be saved. If not given, will print to'
-                             ' stdout.')
-
-    parser.add_argument('-t', '--notehead_staffspace_threshold', action='store', type=float,
-                        default=0.2,
-                        help='If the ratio of the smaller to the larger lobe w.r.t.'
-                             ' an overlapped staffline is lower than this, we consider'
-                             ' the notehead to belong to the adjacent staffspace.')
-
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Turn on INFO messages.')
-    parser.add_argument('--debug', action='store_true',
-                        help='Turn on DEBUG messages.')
-
-    return parser
-
-
-def main(args):
-    logging.info('Starting main...')
-    _start_time = time.clock()
-
-    ##########################################################################
-    logging.info('Import the CropObject list')
-    if not os.path.isfile(args.annot):
-        raise ValueError('Annotation file {0} not found!'
-                         ''.format(args.annot))
-    cropobjects = parse_cropobject_list(args.annot)
-
+def add_staff_relationships(cropobjects,
+                            notehead_staffspace_threshold=0.2):
     _cropobjects_dict = {c.objid: c for c in cropobjects}
 
-    ON_STAFFLINE_RATIO_TRHESHOLD = args.notehead_staffspace_threshold
+    ON_STAFFLINE_RATIO_TRHESHOLD = notehead_staffspace_threshold
 
     ##########################################################################
     logging.info('Find the staff-related symbols')
-    staffs = [c for c in cropobjects if c.clsname == STAFF_CLSNAME]
+    staffs = [c for c in cropobjects if c.clsname == _CONST.STAFF_CLSNAME]
 
     staff_related_symbols = collections.defaultdict(list)
     notehead_symbols = collections.defaultdict(list)
     rest_symbols = collections.defaultdict(list)
     for c in cropobjects:
-        if c.clsname in STAFF_RELATED_CLSNAMES:
+        if c.clsname in _CONST.STAFF_RELATED_CLSNAMES:
             staff_related_symbols[c.clsname].append(c)
-        if c.clsname in NOTEHEAD_CLSNAMES:
+        if c.clsname in _CONST.NOTEHEAD_CLSNAMES:
             notehead_symbols[c.clsname].append(c)
-        if c.clsname in REST_CLSNAMES:
+        if c.clsname in _CONST.REST_CLSNAMES:
             rest_symbols[c.clsname].append(c)
 
     ##########################################################################
@@ -162,11 +127,11 @@ def main(args):
     # Sort the staff objects top-down. Assumes stafflines do not cross,
     # and that there are no crazy curves at the end that would make the lower
     # stafflines stick out over the ones above them...
-    stafflines = [c for c in cropobjects if c.clsname == STAFFLINE_CLSNAME]
+    stafflines = [c for c in cropobjects if c.clsname == _CONST.STAFFLINE_CLSNAME]
     stafflines = sorted(stafflines, key=lambda c: c.top)
-    staffspaces = [c for c in cropobjects if c.clsname == STAFFSPACE_CLSNAME]
+    staffspaces = [c for c in cropobjects if c.clsname == _CONST.STAFFSPACE_CLSNAME]
     staffspaces= sorted(staffspaces, key=lambda c: c.top)
-    staves = [c for c in cropobjects if c.clsname == STAFF_CLSNAME]
+    staves = [c for c in cropobjects if c.clsname == _CONST.STAFF_CLSNAME]
     staves = sorted(staves, key=lambda c: c.top)
 
     # Indexing data structures.
@@ -193,7 +158,8 @@ def main(args):
             _staff_per_ss_sl[_sl.objid] = _staff
             _ss_sl_idx_wrt_staff[_sl.objid] = i
             _staff_and_idx2sl[_staff.objid][i] = _sl
-            logging.debug('Staff {0}: stafflines {1}'.format(_staff.objid, _staff_and_idx2sl[_staff.objid]))
+            logging.debug('Staff {0}: stafflines {1}'.format(_staff.objid,
+                                                             _staff_and_idx2sl[_staff.objid]))
         for i, _ss in enumerate(_s_staffspaces):
             _staff_per_ss_sl[_ss.objid] = _staff
             _ss_sl_idx_wrt_staff[_ss.objid] = i
@@ -370,8 +336,56 @@ def main(args):
     clefs = [c for c in cropobjects if c.clsname in ['g-clef', 'c-clef', 'f-clef']]
 
     ##########################################################################
+    return cropobjects
+
+
+###############################################################################
+
+
+def build_argument_parser():
+    parser = argparse.ArgumentParser(description=__doc__, add_help=True,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    parser.add_argument('-a', '--annot', action='store', required=True,
+                        help='The annotation file for which the staffline and staff'
+                             ' CropObject relationships should be added.')
+    parser.add_argument('-e', '--export', action='store',
+                        help='A filename to which the output CropObjectList'
+                             ' should be saved. If not given, will print to'
+                             ' stdout.')
+
+    parser.add_argument('-t', '--notehead_staffspace_threshold', action='store', type=float,
+                        default=0.2,
+                        help='If the ratio of the smaller to the larger lobe w.r.t.'
+                             ' an overlapped staffline is lower than this, we consider'
+                             ' the notehead to belong to the adjacent staffspace.')
+
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Turn on INFO messages.')
+    parser.add_argument('--debug', action='store_true',
+                        help='Turn on DEBUG messages.')
+
+    return parser
+
+
+def main(args):
+    logging.info('Starting main...')
+    _start_time = time.clock()
+
+    ##########################################################################
+    logging.info('Import the CropObject list')
+    if not os.path.isfile(args.annot):
+        raise ValueError('Annotation file {0} not found!'
+                         ''.format(args.annot))
+    cropobjects = parse_cropobject_list(args.annot)
+
+    output_cropobjects = add_staff_relationships(
+        cropobjects,
+        notehead_staffspace_threshold=args.notehead_staffspace_threshold)
+
+    ##########################################################################
     logging.info('Export the combined list.')
-    cropobject_string = export_cropobject_list(cropobjects)
+    cropobject_string = export_cropobject_list(output_cropobjects)
 
     if args.export is not None:
         with open(args.export, 'w') as hdl:
