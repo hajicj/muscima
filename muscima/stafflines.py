@@ -1,5 +1,5 @@
 """This module implements functions for manipulating staffline symbols."""
-from __future__ import print_function, unicode_literals
+from __future__ import print_function, unicode_literals, division
 
 import collections
 import logging
@@ -710,7 +710,7 @@ def add_staff_relationships(cropobjects,
                     overlapped_staffline_idxs.append(i)
 
             if c.objid < 10:
-                logging.debug('Notehead {0} ({1}): overlaps {2} stafflines'.format(c.uid,
+                logging.info('Notehead {0} ({1}): overlaps {2} stafflines'.format(c.uid,
                                                                                    c.bounding_box,
                                                                                    len(overlapped_stafflines),
                                                                                    ))
@@ -719,9 +719,10 @@ def add_staff_relationships(cropobjects,
                 s = overlapped_stafflines[0]
                 dtop = s.top - ct
                 dbottom = cb - s.bottom
+
+                logging.info('Notehead {0}, staffline {1}: ratio {2:.2f}'
+                             ''.format(c.objid, s.objid, min(dtop, dbottom) / max(dtop, dbottom)))
                 if min(dtop, dbottom) / max(dtop, dbottom) < ON_STAFFLINE_RATIO_TRHESHOLD:
-                    logging.info('Notehead {0}, staffline {1}: very small ratio {2:.2f}'
-                                  ''.format(c.objid, s.objid, min(dtop, dbottom) / max(dtop, dbottom)))
                     # Staffspace?
                     #
                     # To get staffspace:
@@ -754,7 +755,6 @@ def add_staff_relationships(cropobjects,
                     # And staff:
                     _c_staff = _staff_per_ss_sl[s.objid]
                     link_cropobjects(c, _c_staff, check_docname=False)
-
             elif len(overlapped_stafflines) == 0:
                 # Staffspace!
                 # Link to the staffspace with which the notehead has

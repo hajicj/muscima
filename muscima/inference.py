@@ -5,6 +5,7 @@ import copy
 import logging
 import os
 
+from muscima.graph import group_staffs_into_systems, NotationGraph, NotationGraphError
 from muscima.inference_engine_constants import InferenceEngineConstants
 
 __version__ = "0.0.1"
@@ -877,6 +878,9 @@ class OnsetsInferenceEngine(object):
             # Concatenate numerals left to right.
             tuple_number = int(''.join([num.clsname[-1] for num in numerals]))
 
+            # Last note in tuple should get complementary duration
+            # to sum to a whole. Otherwise, playing brings trouble.
+
             if tuple_number == 2:
                 # Duola makes notes *longer*
                 duration_modifier = 3 / 2
@@ -995,22 +999,39 @@ class OnsetsInferenceEngine(object):
             p_node.inlinks = [p_nodes[i] for i in inlinks]
 
         # Join staves/systems!
-        # TODO: join staves/systems
 
         # ...systems:
-        _cdict = {c.objid: c for c in cropobjects}
-        staff_groups = [c for c in cropobjects
-                        if c.clsname == 'staff_grouping']
-
-        if len(staff_groups) != 0:
-            outer_staff_groups = [c for c in staff_groups
-                                  if len([_cdict[i] for i in c.inlinks
-                                          if _cdict[i].clsname == 'staff_group']) == 0]
-            systems = [[c for c in cropobjects
-                        if (c.clsname == 'staff') and (c.objid in sg.outlinks)]
-                       for sg in outer_staff_groups]
-        else:
-            systems = [[c] for c in cropobjects if c.clsname == 'staff']
+        systems = group_staffs_into_systems(cropobjects)
+        # _cdict = {c.objid: c for c in cropobjects}
+        # staff_groups = [c for c in cropobjects
+        #                 if c.clsname == 'staff_grouping']
+        #
+        # if len(staff_groups) != 0:
+        #     staffs_per_group = {c.objid: [_cdict[i] for i in c.outlinks
+        #                                   if _cdict[i].clsname == 'staff']
+        #                         for c in staff_groups}
+        #     # Build hierarchy of staff_grouping based on inclusion.
+        #     outer_staff_groups = []
+        #     for sg in staff_groups:
+        #         sg_staffs = staffs_per_group[sg.objid]
+        #         is_outer = True
+        #         for other_sg in staff_groups:
+        #             if sg.objid == other_sg.objid: continue
+        #             other_sg_staffs = staffs_per_group[other_sg.objid]
+        #             if len([s for s in sg_staffs
+        #                     if s not in other_sg_staffs]) == 0:
+        #                 is_outer = False
+        #         if is_outer:
+        #             outer_staff_groups.append(sg)
+        #     #
+        #     # outer_staff_groups = [c for c in staff_groups
+        #     #                       if len([_cdict[i] for i in c.inlinks
+        #     #                               if _cdict[i].clsname == 'staff_group']) == 0]
+        #     systems = [[c for c in cropobjects
+        #                 if (c.clsname == 'staff') and (c.objid in sg.outlinks)]
+        #                for sg in outer_staff_groups]
+        # else:
+        #     systems = [[c] for c in cropobjects if c.clsname == 'staff']
 
         if len(systems) == 1:
             logging.info('Single-system score, no staff chaining needed.')
@@ -1686,10 +1707,11 @@ class OnsetsInferenceEngine(object):
         __prec_clsnames = InferenceEngineConstants().clsnames_affecting_onsets
         __n_prec_nodes = len([c for c in cropobjects
                               if c.clsname in __prec_clsnames])
+        __delayed_prec_nodes = dict()
         while (len(queue) - __qstart) > 0:
-            if len(queue) > 2 * __n_prec_nodes:
-                logging.warning('Safety valve triggered: queue growing endlessly!')
-                break
+            # if len(queue) > 2 * __n_prec_nodes:
+            #     logging.warning('Safety valve triggered: queue growing endlessly!')
+            #     break
 
             q = queue[__qstart]
             logging.debug('Current @{0}: {1}'.format(__qstart, q.obj.uid))
@@ -1718,7 +1740,14 @@ class OnsetsInferenceEngine(object):
                 logging.warning('Found node with predecessor that has no onset yet; delaying processing: {0}'
                                 ''.format(q.obj.uid))
                 queue.append(q)
-                continue
+                if q in __delayed_prec_nodes:
+                    logging.warning('This node has already been delayed once! Breaking.')
+                    logging.warning('Queue state: {0}'
+                                    ''.format([ppq.obj.objid for ppq in queue[__qstart:]]))
+                    break
+                else:
+                    __delayed_prec_nodes[q.obj.objid] = q
+                    continue
 
             prec_durations = [pq.duration for pq in prec_qs]
 
@@ -1735,6 +1764,8 @@ class OnsetsInferenceEngine(object):
             # Some nodes do not have a CropObject assigned.
             if q.obj is not None:
                 onsets[q.obj.objid] = onset
+                ### DEBUG -- add this to the Data dict
+                q.obj.data['onset_beats'] = onset
 
         return onsets
 
@@ -1749,6 +1780,59 @@ class OnsetsInferenceEngine(object):
         that have class in ``clsnames``."""
         return [self._cdict[i] for i in c.inlinks
                 if self._cdict[i].clsname in clsnames]
+
+    def process_ties(self, cropobjects, durations, onsets):
+        """Modifies the durations and onsets so that ties are taken into
+        account.
+
+        Every left-hand note in a tie gets its duration extended by the
+        right-hand note's duration. Every right-hand note's onset is removed.
+
+        :returns: the modified durations and onsets.
+        """
+        g = NotationGraph(cropobjects=cropobjects)
+
+        def _get_tie_notes(_tie, graph):
+            notes = graph.parents(_tie, classes=['notehead-full', 'notehead-empty'])
+            if len(notes) == 0:
+                raise NotationGraphError('No notes from tie {0}'.format(_tie.uid))
+            if len(notes) == 1:
+                return notes[0]
+            if len(notes) > 2:
+                raise NotationGraphError('More than two notes from tie {0}'.format(_tie.uid))
+            # Now it has to be 2
+            l, r = sorted(notes, key=lambda n: n.left)
+            return l
+
+        def _is_note_left(c, _tie, graph):
+            l, r = _get_tie_notes(_tie, graph)
+            return l.objid == c.objid
+
+        new_onsets = copy.deepcopy(onsets)
+        new_durations = copy.deepcopy(onsets)
+        # Sorting notes right to left. This means: for notes in the middle
+        # of two ties, its duration is already updated and it can be removed from
+        # the new onsets dict by the time we process the note on the left
+        # of the leftward tie (its predecessor).
+        for k in sorted(onsets, key=lambda x: onsets[x], reverse=True):
+            ties = g.children(k, classes=['tie'])
+
+            if not ties:
+                continue
+            if len(ties) > 1:
+                # Pick the rightmost tie (we're processing onsets from the right)
+                tie = max(ties, key=lambda x: x.left)
+            else:
+                tie = ties[0]
+
+            n = g[k]
+            l, r = _get_tie_notes(tie, graph=g)
+            if l.objid == n.objid:
+                new_durations[l.objid] += new_durations[r.objid]
+                del new_onsets[r.objid]
+
+        new_durations = {k: new_durations[k] for k in new_onsets}
+        return new_durations, new_onsets
 
 
 class PrecedenceGraphNode:
@@ -1782,7 +1866,7 @@ class PrecedenceGraphNode:
 
 class MIDIBuilder:
 
-    def build_midi(self, pitches, durations, onsets, tempo=120):
+    def build_midi(self, pitches, durations, onsets, selection=None, tempo=120):
         from midiutil.MidiFile import MIDIFile
 
         # create your MIDI object
@@ -1797,10 +1881,16 @@ class MIDIBuilder:
         volume = 100
 
         keys = pitches.keys()
+
+        min_onset = 0
+        if selection is not None:
+            keys = [k for k in keys if k in selection]
+            min_onset = min([onsets[k] for k in keys if k in onsets])
+
         for objid in keys:
             if (objid in onsets) and (objid in durations):
                 pitch = pitches[objid]
-                onset = onsets[objid]
+                onset = onsets[objid] - min_onset
                 duration = durations[objid]
                 mf.addNote(track, channel, pitch, onset, duration, volume)
 

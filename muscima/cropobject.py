@@ -418,6 +418,22 @@ class CropObject(object):
 
             self.mask = mask.astype('uint8')
 
+    def set_objid(self, objid):
+        """Changes the objid and updates the UID with it.
+        Do NOT use this unless you know what you're doing;
+        changing the objid should be (1) checked against objid
+        conflics within the doc, (2) reflected in the outlinks
+        and inlinks.
+        """
+        self.objid = objid
+        self._sync_objid_to_uid()
+
+    def _sync_objid_to_uid(self):
+        """Resets the UID number to reflect the objid."""
+        g_name, doc_name, num = self._parse_uid(self.uid)
+        new_uid = self.build_uid(g_name, doc_name, self.objid)
+        self.set_uid(new_uid)
+
     @property
     def dataset(self):
         """Which dataset is this CropObject coming from?

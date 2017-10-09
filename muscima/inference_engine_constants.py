@@ -32,6 +32,11 @@ class InferenceEngineConstants(object):
         'g-clef', 'c-clef', 'f-clef', 'other-clef',
     }
 
+    STYSTEM_LEVEL_CLSNAMES = {
+        'staff_grouping',
+        'measure_separator',
+    }
+
     NOTEHEAD_CLSNAMES = {
         'notehead-full',
         'notehead-empty',
@@ -177,3 +182,5 @@ class InferenceEngineConstants(object):
         output.update(self.REST_CLSNAMES)
         return output
 
+
+_CONST = InferenceEngineConstants()
