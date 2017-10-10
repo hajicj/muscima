@@ -1790,6 +1790,7 @@ class OnsetsInferenceEngine(object):
 
         :returns: the modified durations and onsets.
         """
+        logging.info('Processing ties...')
         g = NotationGraph(cropobjects=cropobjects)
 
         def _get_tie_notes(_tie, graph):
@@ -1802,32 +1803,33 @@ class OnsetsInferenceEngine(object):
                 raise NotationGraphError('More than two notes from tie {0}'.format(_tie.uid))
             # Now it has to be 2
             l, r = sorted(notes, key=lambda n: n.left)
-            return l
+            return l, r
 
         def _is_note_left(c, _tie, graph):
             l, r = _get_tie_notes(_tie, graph)
             return l.objid == c.objid
 
         new_onsets = copy.deepcopy(onsets)
-        new_durations = copy.deepcopy(onsets)
+        new_durations = copy.deepcopy(durations)
         # Sorting notes right to left. This means: for notes in the middle
         # of two ties, its duration is already updated and it can be removed from
         # the new onsets dict by the time we process the note on the left
         # of the leftward tie (its predecessor).
         for k in sorted(onsets, key=lambda x: onsets[x], reverse=True):
             ties = g.children(k, classes=['tie'])
-
-            if not ties:
+            if len(ties) == 0:
                 continue
+
             if len(ties) > 1:
                 # Pick the rightmost tie (we're processing onsets from the right)
                 tie = max(ties, key=lambda x: x.left)
             else:
                 tie = ties[0]
-
             n = g[k]
             l, r = _get_tie_notes(tie, graph=g)
             if l.objid == n.objid:
+                logging.info('Note {0} is left in tie {1}'
+                             ''.format(l.uid, tie.uid))
                 new_durations[l.objid] += new_durations[r.objid]
                 del new_onsets[r.objid]
 

@@ -9,6 +9,8 @@ import logging
 
 import numpy
 
+from muscima.utils import compute_connected_components
+
 __version__ = "1.0"
 __author__ = "Jan Hajic jr."
 
@@ -1047,6 +1049,55 @@ class CropObject(object):
 
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
+def split_cropobject_on_connected_components(c, next_objid):
+    """Split the CropObject into one object per connected component
+    of the mask. All inlinks/outlinks are retained in all the newly
+    created CropObjects, and the old object is not changed. (If there
+    is only one connected component, the object is returned unchanged
+    in a list of length 1.)
+
+    An ``objid`` must be provided at which to start numbering the newly
+    created CropObjects.
+
+    The ``data`` attribute is also retained.
+    """
+    mask = c.mask
+
+    # "Safety margin"
+    canvas = numpy.zeros((mask.shape[0] + 2, mask.shape[1] + 2))
+    canvas[1:-1, 1:-1] = mask
+    cc, labels, bboxes = compute_connected_components(canvas)
+
+    if len(bboxes) == 1:
+        return [c]
+
+    output = []
+
+    _next_objid = next_objid
+    for label, (t, l, b, r) in bboxes.items():
+        # Background in compute_connected_components() doesn't work?
+        if label == 0:
+            continue
+        h = b - t
+        w = r - l
+        m_label = (canvas == label).astype('uint8')
+        m = m_label[t:b, l:r]
+        top = t + c.top - 1
+        left = l + c.left - 1
+        objid = _next_objid
+        inlinks = copy.deepcopy(c.inlinks)
+        outlinks = copy.deepcopy(c.outlinks)
+        data = copy.deepcopy(c.data)
+
+        new_c = CropObject(objid, c.clsname, top, left, w, h,
+                           inlinks=inlinks, outlinks=outlinks,
+                           mask=m, data=data)
+        output.append(new_c)
+
+        _next_objid += 1
+
+    return output
+
 
 def cropobjects_merge(fr, to, clsname, objid):
     """Merge the given CropObjects with respect to the other.
