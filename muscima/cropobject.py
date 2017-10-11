@@ -1068,6 +1068,8 @@ def split_cropobject_on_connected_components(c, next_objid):
     canvas[1:-1, 1:-1] = mask
     cc, labels, bboxes = compute_connected_components(canvas)
 
+    logging.info('CropObject.split(): {0} ccs, bboxes: {1}'.format(cc, bboxes))
+
     if len(bboxes) == 1:
         return [c]
 
@@ -1078,9 +1080,10 @@ def split_cropobject_on_connected_components(c, next_objid):
         # Background in compute_connected_components() doesn't work?
         if label == 0:
             continue
+
         h = b - t
         w = r - l
-        m_label = (canvas == label).astype('uint8')
+        m_label = (labels == label).astype('uint8')
         m = m_label[t:b, l:r]
         top = t + c.top - 1
         left = l + c.left - 1
