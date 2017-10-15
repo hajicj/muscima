@@ -879,7 +879,7 @@ class OnsetsInferenceEngine(object):
             tuple_number = int(''.join([num.clsname[-1] for num in numerals]))
 
             # Last note in tuple should get complementary duration
-            # to sum to a whole. Otherwise, playing brings trouble.
+            # to sum to a whole. Otherwise, playing brings slight trouble.
 
             if tuple_number == 2:
                 # Duola makes notes *longer*

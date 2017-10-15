@@ -3,15 +3,21 @@ functions for manipulating notation graphs."""
 from __future__ import print_function, unicode_literals
 
 import copy
+import logging
 
 from muscima.cropobject import CropObject
 from muscima.inference_engine_constants import _CONST
+from muscima.stafflines import resolve_notehead_wrt_staffline
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
 
 class NotationGraphError(ValueError):
+    pass
+
+
+class NotationGraphUnsupportedError(NotImplementedError):
     pass
 
 
@@ -106,6 +112,83 @@ class NotationGraph(object):
         """Returns a CropObject based on its objid."""
         return self._cdict[objid]
 
+    def is_stem_direction_above(self, notehead, stem):
+        """Determines whether the given stem of the given notehead
+        is above it or below. This is not trivial due to chords.
+        """
+        if notehead.objid not in self._cdict:
+            raise NotationGraphError('Asking for notehead which is not'
+                                     ' in graph: {0}'.format(notehead.uid))
+
+        # This works even if there is just one. There should always be one.
+        sibling_noteheads = self.parents(stem, classes=_CONST.NOTEHEAD_CLSNAMES)
+        if notehead not in sibling_noteheads:
+            raise ValueError('Asked for stem direction, but notehead {0} is'
+                             ' unrelated to given stem {1}!'
+                             ''.format(notehead.uid, stem.uid))
+
+        topmost_notehead = min(sibling_noteheads, key=lambda x: x.top)
+        bottom_notehead = max(sibling_noteheads, key=lambda x: x.bottom)
+
+        d_top = topmost_notehead.top - stem.top
+        d_bottom = stem.bottom - bottom_notehead.bottom
+
+        return d_top > d_bottom
+
+    def is_symbol_above_notehead(self, notehead, other, compare_on_intersect=False):
+        """Determines whether the given other symbol is above
+        the given notehead.
+
+        This is non-trivial because the other may reach above *and* below
+        the given notehead, if it is long and slanted (beam, slur, ...).
+        A horizontally intersecting subset of the mask of the other symbol
+        is used to determine its vertical bounds relevant to the given object.
+        """
+        # if other not in self.children(notehead, [other.clsname]):
+        #     raise NotationGraphUnsupportedError('Resolving other direction:'
+        #                                         ' assumes other {0} child of'
+        #                                         ' notehead {1}.'
+        #                                         ''.format(other.uid,
+        #                                                   notehead.uid))
+
+        if notehead.right <= other.left:
+            # No horizontal overlap, notehead to the left
+            beam_submask = other.mask[:, :1]
+        elif notehead.left >= other.right:
+            # No horizontal overlap, notehead to the right
+            beam_submask = other.mask[:, -1:]
+        else:
+            h_bounds = (max(notehead.left, other.left),
+                        min(notehead.right, other.right))
+
+            beam_submask = other.mask[:,
+                           (h_bounds[0] - other.left):(h_bounds[1] - other.left)]
+
+        # Get vertical bounds of beam submask
+        other_submask_hsum = beam_submask.sum(axis=1)
+        other_submask_top = min([i for i in range(beam_submask.shape[0])
+                                if other_submask_hsum[i] != 0]) + other.top
+        other_submask_bottom = max([i for i in range(beam_submask.shape[0])
+                                   if other_submask_hsum[i] != 0]) + other.top
+        if (notehead.top <= other_submask_top <= notehead.bottom) \
+                or (other_submask_bottom <= notehead.top <= other_submask_bottom):
+            if compare_on_intersect:
+                logging.warn('Notehead {0} intersecting other.'
+                             ' Returning false.'
+                             ''.format(notehead.uid))
+                return False
+
+        if notehead.bottom < other_submask_top:
+            return False
+
+        elif notehead.top > other_submask_bottom:
+            return True
+
+        else:
+            raise NotationGraphError('Weird relative position of notehead'
+                                     ' {0} and other {1}.'.format(notehead.uid,
+                                                                 other.uid))
+
 
 def group_staffs_into_systems(cropobjects):
     """Returns a list of lists of ``staff`` CropObjects
@@ -174,3 +257,151 @@ def group_by_staff(cropobjects):
 
     return objects_per_staff
 
+
+##############################################################################
+# Graph validation/fixing
+
+
+def find_beams_incoherent_with_stems(cropobjects):
+    """Searches the graph for edges where a notehead is connected to a stem
+    in one direction, but is connected to beams that are in the
+    other direction.
+
+    If a notehead has zero or more than one stem, it is ignored.
+
+    :returns: A list of (notehead, beam) pairs such that the beam
+        is not coherent with the stem direction for the notehead.
+    """
+    graph = NotationGraph(cropobjects)
+    noteheads = [c for c in cropobjects if c.clsname in _CONST.NOTEHEAD_CLSNAMES]
+
+    incoherent_pairs = []
+    for n in noteheads:
+        stems = graph.children(n, classes=['stem'])
+        if len(stems) != 1:
+            continue
+        stem = stems[0]
+
+        beams = graph.children(n, classes=['beam'])
+        if len(beams) == 0:
+            continue
+
+        # Is the stem above the notehead, or not?
+        # This is not trivial because of chords.
+        is_stem_above = graph.is_stem_direction_above(n, stem)
+        logging.info('IncoherentBeams: stem of {0} is above'.format(n.objid))
+
+        for b in beams:
+            is_beam_above = graph.is_symbol_above_notehead(n, b)
+            logging.info('IncoherentBeams: beam {0} of {1} is above'.format(b.objid, n.objid))
+            if is_stem_above != is_beam_above:
+                incoherent_pairs.append([n, b])
+
+    return incoherent_pairs
+
+
+# Ledger lines often cause problems with autoparser.
+# They should be always linked from noteheads in a consistent
+# direction (from outside inwards to the staff).
+# Also, no notehead should be connected to both a staffline/staffspace
+# *AND* a ledger line.
+
+def find_ledger_lines_with_noteheads_from_both_directions(cropobjects):
+    """Looks for ledger lines that have inlinks from noteheads
+    on both sides. Returns a list of ledger line CropObjects."""
+    graph = NotationGraph(cropobjects)
+
+    problem_ledger_lines = []
+
+    for c in cropobjects:
+        if c.clsname != 'ledger_line':
+            continue
+
+        noteheads = graph.parents(c, classes=_CONST.NOTEHEAD_CLSNAMES)
+
+        if len(noteheads) < 2:
+            continue
+
+        positions = [resolve_notehead_wrt_staffline(n, c) for n in noteheads]
+        positions_not_on_staffline = [p for p in positions if p != 0]
+        unique_positions = set(positions_not_on_staffline)
+        if len(unique_positions) > 1:
+            problem_ledger_lines.append(c)
+
+    return problem_ledger_lines
+
+
+def find_noteheads_with_ledger_line_and_staff_conflict(cropobjects):
+    """Find all noteheads that have a relationship both to a staffline
+    or staffspace and to a ledger line.
+
+    Assumes (obviously) that staffline relationships have already been
+    resolved. Useful in a workflow where autoparsing is applied *after*
+    staff inference.
+    """
+    graph = NotationGraph(cropobjects)
+
+    problem_noteheads = []
+
+    for c in cropobjects:
+        if c.clsname not in _CONST.NOTEHEAD_CLSNAMES:
+            continue
+
+        lls = graph.children(c, ['ledger_line'])
+        staff_objs = graph.children(c, _CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+        if lls and staff_objs:
+            problem_noteheads.append(c)
+
+    return problem_noteheads
+
+
+def find_misdirected_ledger_line_edges(cropobjects):
+    """Finds all edges that connect to ledger lines, but do not
+    lead in the direction of the staff.
+
+    Silently assumes that all noteheads are connected to the correct staff.
+    """
+    graph = NotationGraph(cropobjects)
+
+    misdirected_object_pairs = []
+
+    for c in cropobjects:
+        if c.clsname not in _CONST.NOTEHEAD_CLSNAMES:
+            continue
+
+        lls = graph.children(c, ['ledger_line'])
+        if not lls:
+            continue
+
+        staffs = graph.children(c, ['staff'])
+        if not staffs:
+            logging.warn('Notehead {0} not connected to any staff!'
+                         ''.format(c.uid))
+            continue
+        staff = staffs[0]
+
+        # Determine whether notehead is above or below staff.
+        # Because of mistakes in notehead-ll edges, can actually be
+        # *on* the staff. (If it is on a staffline, then the edge is
+        # definitely wrong.)
+        stafflines = sorted(graph.children(staff, [_CONST.STAFFLINE_CLSNAME]),
+                            key=lambda x: x.top)
+        p_top = resolve_notehead_wrt_staffline(c, stafflines[0])
+        p_bottom = resolve_notehead_wrt_staffline(c, stafflines[-1])
+        # Notehead actually located on the staff somewhere:
+        # all of the LL rels. are false.
+        if (p_top != p_bottom) or (p_top == 0) or (p_bottom == 0):
+            for ll in lls:
+                misdirected_object_pairs.append([c, ll])
+            continue
+
+        notehead_staff_direction = 1
+        if p_bottom == -1:
+            notehead_staff_direction = -1
+
+        for ll in lls:
+            ll_direction = resolve_notehead_wrt_staffline(c, ll)
+            if (ll_direction != 0) and (ll_direction != notehead_staff_direction):
+                misdirected_object_pairs.append([c, ll])
+
+    return misdirected_object_pairs

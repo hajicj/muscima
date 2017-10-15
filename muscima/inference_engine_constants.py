@@ -24,6 +24,8 @@ class InferenceEngineConstants(object):
 
     STAFFLINE_CROPOBJECT_CLSNAMES = ['staff_line', 'staff_space']
 
+    STAFFLINE_LIKE_CROPOBJECT_CLSNAMES = ['staff_line', 'ledger_line']
+
     STAFF_RELATED_CLSNAMES = {
         'staff_grouping',
         'measure_separator',
