@@ -508,6 +508,14 @@ class CropObject(object):
 
         return self.mask.sum() == 0
 
+    @property
+    def outlink_uids(self):
+        return [self.build_uid(self.dataset, self.doc, o) for o in self.outlinks]
+
+    @property
+    def inlink_uids(self):
+        return [self.build_uid(self.dataset, self.doc, i) for i in self.inlinks]
+
     @staticmethod
     def bbox_to_integer_bounds(ftop, fleft, fbottom, fright):
         """Rounds off the CropObject bounds to the nearest integer
@@ -1360,3 +1368,4 @@ def cropobjects_on_canvas(cropobjects, margin=10):
     canvas[canvas != 0] = 1
 
     return canvas, (_t, _l)
+
