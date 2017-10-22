@@ -936,7 +936,8 @@ class CropObject(object):
     @staticmethod
     def decode_mask_rle(mask_string, shape):
         """Decodes the mask array from the RLE-encoded form
-        to the 2D numpy array."""
+        to the 2D numpy array.
+        """
         if mask_string == 'None':
             return None
 

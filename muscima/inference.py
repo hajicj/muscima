@@ -726,7 +726,12 @@ class PitchInferenceEngine(object):
         self.staff_to_clef_map = collections.defaultdict(list)
         for c in self.clefs:
             # Assuming one staff per clef
-            s = self.__children(c, ['staff'])[0]
+            try:
+                s = self.__children(c, ['staff'])[0]
+            except KeyError:
+                logging.warn('Clef {0} has no staff attached! Will not be'
+                             ' part of pitch inference.'.format(c.uid))
+                continue
             self.clef_to_staff_map[c.objid] = s
             self.staff_to_clef_map[s.objid].append(c)
 
@@ -734,7 +739,12 @@ class PitchInferenceEngine(object):
         # There may be more than one key signature per staff.
         self.staff_to_key_map = collections.defaultdict(list)
         for k in self.key_signatures:
-            s = self.__children(k, ['staff'])[0]
+            try:
+                s = self.__children(k, ['staff'])[0]
+            except KeyError:
+                logging.warn('Key signature {0} has no staff attached! Will not be'
+                             ' part of pitch inference.'.format(k.uid))
+                continue
             self.key_to_staff_map[k.objid] = s
             self.staff_to_key_map[s.objid].append(k)
 

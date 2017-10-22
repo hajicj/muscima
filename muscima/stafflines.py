@@ -296,11 +296,13 @@ def resolve_notehead_wrt_staffline(notehead, staffline_or_ledger_line):
             output_position = -1
 
         else:
-            raise ValueError('Strange notehead {0} vs. ledger line {1}'
-                             ' situation: bbox notehead {2}, LL {3}'
-                             ''.format(notehead.uid, ll.uid,
-                                       notehead.bounding_box,
-                                       ll.bounding_box))
+            logging.warn('Strange notehead {0} vs. ledger line {1}'
+                         ' situation: bbox notehead {2}, LL {3}.'
+                         ' Note that the output position is unusable;'
+                         ' pleasre re-do this attachment manually.'
+                         ''.format(notehead.uid, ll.uid,
+                                   notehead.bounding_box,
+                                   ll.bounding_box))
     return output_position
 
 
