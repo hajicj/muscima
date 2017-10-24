@@ -7,16 +7,46 @@ import pprint
 
 import numpy
 
-from skimage.measure import label
 from skimage.morphology import watershed
 from skimage.filters import gaussian
 
-from muscima.cropobject import cropobjects_merge_bbox, CropObject, cropobjects_on_canvas, link_cropobjects
+from muscima.cropobject import CropObject, cropobjects_on_canvas, link_cropobjects
 from muscima.inference_engine_constants import InferenceEngineConstants as _CONST
-from muscima.utils import connected_components2bboxes, compute_connected_components
+from muscima.utils import compute_connected_components
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
+
+
+##############################################################################
+
+
+def __has_parent_staff(c, cropobjects):
+    _cdict = {c.objid: c for c in cropobjects}
+    staff_inlinks = [_cdict[i] for i in c.inlinks
+                     if _cdict[i].clsname == _CONST.STAFF_CLSNAME]
+    return len(staff_inlinks) > 0
+
+
+def __has_child_staffspace(staff, cropobjects):
+    _cdict = {c.objid: c for c in cropobjects}
+    staffline_outlinks = [_cdict[i] for i in staff.outlinks
+                          if _cdict[i].clsname == _CONST.STAFFSPACE_CLSNAME]
+    return len(staffline_outlinks) > 0
+
+
+def __has_neighbor_staffspace(staffline, cropobjects):
+    _cdict = {c.objid: c for c in cropobjects}
+    # Find parent staff
+    if not __has_parent_staff(staffline, cropobjects):
+        return False
+    parent_staffs = [_cdict[i] for i in staffline.inlinks
+                     if _cdict[i].clsname == _CONST.STAFF_CLSNAME]
+    if len(parent_staffs) > 1:
+        raise ValueError('More than one parent staff for staffline {0}!'
+                         ''.format(staffline.uid))
+    staff = parent_staffs[0]
+    return __has_child_staffspace(staff, cropobjects)
 
 
 ##############################################################################
@@ -39,10 +69,14 @@ def merge_staffline_segments(cropobjects, margin=10):
         symbols are replaced by the merged ones. If the original stafflines
         had any inlinks, they are preserved (mapped to the new staffline).
     """
+    already_processed_stafflines = [c for c in cropobjects
+                                    if (c.clsname == _CONST.STAFFLINE_CLSNAME) and
+                                        __has_parent_staff(c, cropobjects)]
     # margin is used to avoid the stafflines touching the edges,
     # which could perhaps break some assumptions down the line.
     old_staffline_cropobjects = [c for c in cropobjects
-                             if c.clsname == _CONST.STAFFLINE_CLSNAME]
+                                 if (c.clsname == _CONST.STAFFLINE_CLSNAME) and
+                                 not __has_parent_staff(c, cropobjects)]
     canvas, (_t, _l) = cropobjects_on_canvas(old_staffline_cropobjects)
 
     _staffline_bboxes, staffline_masks = staffline_bboxes_and_masks_from_horizontal_merge(canvas)
@@ -87,7 +121,7 @@ def merge_staffline_segments(cropobjects, margin=10):
             else:
                 new_outlinks.append(o)
 
-    output = non_staffline_cropobjects + staffline_cropobjects
+    output = non_staffline_cropobjects + staffline_cropobjects + already_processed_stafflines
     return output
 
 
@@ -326,7 +360,10 @@ def build_staff_cropobjects(cropobjects):
     Assumes each staff has 5 stafflines.
 
     Assumes the stafflines have already been merged."""
-    stafflines = [c for c in cropobjects if c.clsname == _CONST.STAFFLINE_CLSNAME]
+    stafflines = [c for c in cropobjects
+                  if c.clsname == _CONST.STAFFLINE_CLSNAME and
+                    not __has_parent_staff(c, cropobjects)]
+
     staffline_bboxes = [c.bounding_box for c in stafflines]
     canvas, (_t, _l) = cropobjects_on_canvas(stafflines)
 
@@ -382,7 +419,9 @@ def build_staffspace_cropobjects(cropobjects):
     with the standard G-clef).
 
     Note that staffspaces do not assume anything about the number
-    of stafflines per staff.
+    of stafflines per staff. However, single-staffline staffs will
+    not have the outer staffspaces generated (there is nothing to derive
+    their size from), for now.
 
     :param cropobjects: A list of CropObjects that must contain
         all the relevant stafflines and staffs.
@@ -394,9 +433,11 @@ def build_staffspace_cropobjects(cropobjects):
     docname = cropobjects[0].doc
 
     staff_cropobjects = [c for c in cropobjects
-                         if c.clsname == _CONST.STAFF_CLSNAME]
+                         if c.clsname == _CONST.STAFF_CLSNAME
+                         and not __has_child_staffspace(c, cropobjects)]
     staffline_cropobjects = [c for c in cropobjects
-                             if c.clsname == _CONST.STAFFLINE_CLSNAME]
+                             if c.clsname == _CONST.STAFFLINE_CLSNAME
+                             and not __has_neighbor_staffspace(c, cropobjects)]
 
     staffspace_cropobjects = []
 
@@ -717,7 +758,7 @@ def add_staff_relationships(cropobjects,
                                                         (ll_max_dist.top - ss.bottom) ** 2))
                 distance_of_closest_staff = (ll_max_dist.top + ll_max_dist.bottom) / 2 \
                                     - (staff_min_dist.top + staff_min_dist.bottom) / 2
-                if numpy.abs(distance_of_closest_staff) > 50:
+                if numpy.abs(distance_of_closest_staff) > (50 + 0.5 * staff_min_dist.height):
                     logging.debug('Trying to join notehead with ledger line to staff,'
                                   ' but the distance is larger than 50. Notehead: {0},'
                                   ' ledger line: {1}, staff: {2}, distance: {3}'
