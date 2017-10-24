@@ -708,9 +708,12 @@ class PitchInferenceEngine(object):
     def process_clef(self, clef):
         self.pitch_state.init_base_pitch(clef=clef)
 
-    def _collect_symbols_for_pitch_inference(self, cropobjects):
+    def _collect_symbols_for_pitch_inference(self, cropobjects,
+                                             ignore_nonstaff=True):
         """Extract all symbols from the document relevant for pitch
         inference and index them in the Engine's temp data structures."""
+        graph = NotationGraph(cropobjects)
+
         # Collect staves.
         self.staves = [c for c in cropobjects if c.clsname == 'staff']
         logging.info('We have {0} staves.'.format(len(self.staves)))
@@ -718,8 +721,14 @@ class PitchInferenceEngine(object):
         # Collect clefs and key signatures per staff.
         self.clefs = [c for c in cropobjects
                       if c.clsname in self._CONST.CLEF_CLSNAMES]
+        if ignore_nonstaff:
+            self.clefs = [c for c in self.clefs if graph.has_child(c, ['staff'])]
+
         self.key_signatures = [c for c in cropobjects
-                          if c.clsname == 'key_signature']
+                               if c.clsname == 'key_signature']
+        if ignore_nonstaff:
+            self.key_signatures = [c for c in self.key_signatures
+                                   if graph.has_child(c, ['staff'])]
 
         self.clef_to_staff_map = {}
         # There may be more than one clef per staff.
@@ -728,7 +737,7 @@ class PitchInferenceEngine(object):
             # Assuming one staff per clef
             try:
                 s = self.__children(c, ['staff'])[0]
-            except KeyError:
+            except (KeyError, ValueError):
                 logging.warn('Clef {0} has no staff attached! Will not be'
                              ' part of pitch inference.'.format(c.uid))
                 continue
@@ -751,6 +760,10 @@ class PitchInferenceEngine(object):
         # Collect measure separators.
         self.measure_separators = [c for c in cropobjects
                               if c.clsname == 'measure_separator']
+        if ignore_nonstaff:
+            self.measure_separators = [c for c in self.measure_separators
+                                       if graph.has_child(c, ['staff'])]
+
         self.staff_to_msep_map = collections.defaultdict(list)
         for m in self.measure_separators:
             _m_staves = self.__children(m, ['staff'])
@@ -762,6 +775,10 @@ class PitchInferenceEngine(object):
         # Collect noteheads.
         self.noteheads = [c for c in cropobjects
                           if c.clsname in self._CONST.NOTEHEAD_CLSNAMES]
+        if ignore_nonstaff:
+            self.noteheads = [c for c in self.noteheads
+                              if graph.has_child(c, ['staff'])]
+
         self.staff_to_noteheads_map = collections.defaultdict(list)
         for n in self.noteheads:
             s = self.__children(n, ['staff'])[0]

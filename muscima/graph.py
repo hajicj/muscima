@@ -108,6 +108,14 @@ class NotationGraph(object):
 
         return [self._cdict[objid] for objid in ancestor_objids]
 
+    def has_child(self, cropobject_or_objid, classes=None):
+        children = self.children(cropobject_or_objid, classes=classes)
+        return len(children) > 0
+
+    def has_parent(self, cropobject_or_objid, classes=None):
+        parents = self.parents(cropobject_or_objid, classes=classes)
+        return len(parents) > 0
+
     def __getitem__(self, objid):
         """Returns a CropObject based on its objid."""
         return self._cdict[objid]
@@ -259,7 +267,10 @@ def group_by_staff(cropobjects):
 
 
 ##############################################################################
-# Graph validation/fixing
+# Graph validation/fixing.
+# An invariant of these methods should be that they never remove a correct
+# edge. There is a known problem in this if a second stem is marked across
+# staves: the beam orientation misfires.
 
 
 def find_beams_incoherent_with_stems(cropobjects):
@@ -405,3 +416,43 @@ def find_misdirected_ledger_line_edges(cropobjects):
                 misdirected_object_pairs.append([c, ll])
 
     return misdirected_object_pairs
+
+
+def resolve_ledger_line_or_staffline_object(cropobjects):
+    """If staff relationships are created before notehead to ledger line
+    relationships, then there will be noteheads on ledger lines that
+    are nevertheless connected to staffspaces. This function should be
+    applied after both staffspace and ledger line relationships have been
+    inferred, to guess whether the notehead's relationship to the staff
+    object should be discarded.
+
+    Has no dependence on misdirected edge detection (handles this as a part
+    of the conflict resolution).
+    """
+    graph = NotationGraph(cropobjects)
+
+    problem_object_pairs = []
+
+    for c in cropobjects:
+        if c.clsname not in _CONST.NOTEHEAD_CLSNAMES:
+            continue
+
+        lls = graph.children(c, ['ledger_line'])
+        stafflines = graph.children(c, _CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+        staff = graph.children(c, _CONST.STAFF_CLSNAME)
+
+        if len(lls) == 0:
+            continue
+        if len(stafflines) == 0:
+            continue
+
+        if len(staff) == 0:
+            logging.warn('Notehead {0} not connected to any staff!'
+                         ' Unable to resolve ll/staffline.'.format(c.uid))
+            continue
+
+        # Multiple LLs: must check direction
+        # Multiple stafflines: ???
+        if len(stafflines) > 1:
+            logging.warn('Notehead {0} is connected to multiple staffline'
+                         ' objects!'.format(c.uid))

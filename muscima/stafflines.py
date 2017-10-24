@@ -715,7 +715,16 @@ def add_staff_relationships(cropobjects,
                 staff_min_dist = min(staves,
                                      key=lambda ss: min((ll_max_dist.bottom - ss.top) ** 2,
                                                         (ll_max_dist.top - ss.bottom) ** 2))
-                link_cropobjects(c, staff_min_dist, check_docname=False)
+                distance_of_closest_staff = (ll_max_dist.top + ll_max_dist.bottom) / 2 \
+                                    - (staff_min_dist.top + staff_min_dist.bottom) / 2
+                if numpy.abs(distance_of_closest_staff) > 50:
+                    logging.debug('Trying to join notehead with ledger line to staff,'
+                                  ' but the distance is larger than 50. Notehead: {0},'
+                                  ' ledger line: {1}, staff: {2}, distance: {3}'
+                                  ''.format(c.uid, ll_max_dist.uid, staff_min_dist.uid,
+                                            distance_of_closest_staff))
+                else:
+                    link_cropobjects(c, staff_min_dist, check_docname=False)
                 continue
 
             # - Find the related staffline.
