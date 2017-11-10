@@ -852,7 +852,10 @@ class OnsetsInferenceEngine(object):
         elif len(stems) > 1:
             logging.warn('Inferring duration for multi-stem notehead: {0}'
                          ''.format(notehead.uid))
-            raise NotImplementedError()
+            beat = self.process_multistem_notehead(notehead)
+            if len(beat) > 1:
+                raise NotImplementedError('Cannot deal with multi-stem notehead'
+                                          ' where multiple durations apply.')
 
         elif len(stems) == 0:
             if notehead.clsname == 'notehead-full':
@@ -983,6 +986,58 @@ class OnsetsInferenceEngine(object):
                             ''.format(rest.uid, beat))
         return beat[0]
 
+    def process_multistem_notehead(self, notehead):
+        """Attempts to recover the duration options of a multi-stem note."""
+        stems = self.__children(notehead, ['stem'])
+        flags_and_beams = self.__children(
+            notehead,
+            InferenceEngineConstants.FLAGS_AND_BEAMS)
+
+        if len(flags_and_beams) == 0:
+            if notehead.clsname == 'notehead-full':
+                return [1]
+            elif notehead.clsname == 'notehead-empty':
+                return [2]
+
+        if notehead.clsname == 'notehead-empty':
+            raise NotationGraphError('Empty notehead with flags and beams: {0}'
+                                     ''.format(notehead.uid))
+
+        n_avg_x = notehead.top + (notehead.bottom - notehead.top) / 2.0
+        print('Notehead {0}: avg_x = {1}'.format(notehead.uid, n_avg_x))
+        f_and_b_above = []
+        f_and_b_below = []
+        for c in flags_and_beams:
+            c_avg_x = c.top + (c.bottom - c.top) / 2.0
+            print('Beam/flag {0}: avg_x = {1}'.format(c.uid, c_avg_x))
+            if c_avg_x < n_avg_x:
+                f_and_b_above.append(c)
+                print('Appending above')
+            else:
+                f_and_b_below.append(c)
+                print('Appending below')
+
+        beat_above = 0.5**len(f_and_b_above)
+        beat_below = 0.5**len(f_and_b_below)
+
+        if beat_above != beat_below:
+            raise NotImplementedError('Cannot deal with multi-stem note'
+                                      ' that has different pre-modification'
+                                      ' durations: {0} vs {1}'
+                                      '{2}'.format(beat_above, beat_below, notehead.uid))
+
+        beat = [beat_above]
+
+        tuples = self.__children(notehead, ['tuple'])
+        if len(tuples) % 2 != 0:
+            raise NotImplementedError('Cannot deal with multi-stem note'
+                                      ' that has an uneven number of tuples:'
+                                      ' {0}'.format(notehead.uid))
+
+        duration_modifier = self.compute_duration_modifier(notehead)
+        beat = [b * duration_modifier for b in beat]
+
+        return beat
 
     ##########################################################################
     # Onsets inference
