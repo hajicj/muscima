@@ -157,6 +157,12 @@ class InferenceEngineConstants(object):
         'multi-measure_rest',
     }
 
+    MEAUSURE_LASTING_CLSNAMES = {
+        'whole_rest',
+        'multi-measure_rest',
+        'repeat-measure',
+    }
+
     TIME_SIGNATURES = {
         'time_signature',
     }

@@ -11,6 +11,8 @@ from muscima.inference_engine_constants import InferenceEngineConstants
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
+_CONST = InferenceEngineConstants()
+
 
 class PitchInferenceEngineState(object):
     """This class represents the state of the MIDI pitch inference
@@ -85,6 +87,10 @@ class PitchInferenceEngineState(object):
         '''Holds for each staffline delta step (i.e. staffline delta mod 7)
         the MIDI pitch codes.'''
 
+        self._current_clef_delta_shift = 0
+        '''If the clef is in a non-standard position, this number is added
+        to the pitch computation delta.'''
+
         self.key_accidentals = {}
         self.inline_accidentals = {}
 
@@ -95,24 +101,37 @@ class PitchInferenceEngineState(object):
         self.key_accidentals = {}
         self.inline_accidentals = {}
 
-    def init_base_pitch(self, clef=None):
-        """Based on the clef, initialize the base pitch.
+    def init_base_pitch(self, clef=None, delta=0):
+        """Initializes the base pitch while taking into account
+        the displacement of the clef from its initial position."""
+        self.init_base_pitch_default_staffline(clef)
+        self._current_clef_delta_shift = -1 * delta
+
+    def init_base_pitch_default_staffline(self, clef=None):
+        """Based solely on the clef class name and assuming
+        default stafflines, initialize the base pitch.
         By default, initializes as though given a g-clef."""
+
+        # There should be a mechanism for clefs that are connected
+        # directly to a staffline -- in non-standard positions
+        # (mostly c-clefs, like page 03, but there is no reason
+        #  to limit this to c-clefs).
+
         if (clef is None) or (clef.clsname == 'g-clef'):
             new_base_pitch = 71
             new_delta_steps = [0, 1, 2, 2, 1, 2, 2, 2]
             new_base_pitch_step = 6  # Index into pitch steps.
-            new_base_pitch_octave = 4
-        elif clef.clsname == 'c-clef':
-            new_base_pitch = 60
-            new_delta_steps = [0, 2, 2, 1, 2, 2, 2, 1]
-            new_base_pitch_step = 0
             new_base_pitch_octave = 4
         elif clef.clsname == 'f-clef':
             new_base_pitch = 50
             new_delta_steps = [0, 2, 1, 2, 2, 2, 1, 2]
             new_base_pitch_step = 1
             new_base_pitch_octave = 3
+        elif clef.clsname == 'c-clef':
+            new_base_pitch = 60
+            new_delta_steps = [0, 2, 2, 1, 2, 2, 2, 1]
+            new_base_pitch_step = 0
+            new_base_pitch_octave = 4
         else:
             raise ValueError('Unrecognized clef clsname: {0}'
                              ''.format(clef.clsname))
@@ -122,6 +141,7 @@ class PitchInferenceEngineState(object):
         if self._current_clef is not None:
             if clef.clsname != self._current_clef.clsname:
                 # From G to C clef: everything is now +4
+                # XXX: This seems unfinished...
                 new_key_accidentals = {
                     (d + 4) % 7: v for d, v in self.key_accidentals.items()
                 }
@@ -225,6 +245,7 @@ class PitchInferenceEngineState(object):
 
         :returns: The MIDI pitch code for the given delta.
         """
+        delta += self._current_clef_delta_shift
 
         # Split this into octave and step components.
         delta_step = delta % 7
@@ -236,10 +257,20 @@ class PitchInferenceEngineState(object):
                      + (delta_octave * 12)
         accidental_pitch = self.accidental(delta)
 
-        return step_pitch + accidental_pitch
+        pitch = step_pitch + accidental_pitch
+
+        if self._current_clef_delta_shift != 0:
+            logging.info('PitchInferenceState: Applied clef-based delta {0},'
+                         ' resulting delta was {1}, pitch {2}'
+                         ''.format(self._current_clef_delta_shift,
+                                   delta, pitch))
+
+        return pitch
 
     def pitch_name(self, delta):
         """Given a staffline delta, returns the name of the corrensponding pitch."""
+        delta += self._current_clef_delta_shift
+
         output_step = InferenceEngineConstants.PITCH_STEPS[(self.base_pitch_step + delta) % 7]
         output_octave = self.base_pitch_octave + ((delta + self.base_pitch_step) // 7)
 
@@ -548,7 +579,8 @@ class PitchInferenceEngine(object):
 
     def staffline_delta(self, notehead):
         """Computes the staffline delta (distance from middle stafflines,
-        measured in stafflines and staffspaces) for the given notehead.
+        measured in stafflines and staffspaces) for the given notehead
+        (or any other symbol connected to a staffline/staffspace).
         Accounts for ledger lines.
         """
         current_staff = self.__children(notehead, ['staff'])[0]
@@ -706,7 +738,18 @@ class PitchInferenceEngine(object):
         self.pitch_state.set_key(len(sharps), len(flats))
 
     def process_clef(self, clef):
-        self.pitch_state.init_base_pitch(clef=clef)
+        # Check for staffline children
+        stafflines = self.__children(clef, clsnames=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+        if len(stafflines) == 0:
+            logging.info('Clef not connected to any staffline, assuming default'
+                         ' position: {0}'.format(clef.uid))
+            self.pitch_state.init_base_pitch(clef=clef)
+        else:
+            # Compute clef staffline delta from middle staffline.
+            delta = self.staffline_delta(clef)
+            logging.info('Clef {0}: computed staffline delta {1}'
+                         ''.format(clef.uid, delta))
+            self.pitch_state.init_base_pitch(clef=clef, delta=delta)
 
     def _collect_symbols_for_pitch_inference(self, cropobjects,
                                              ignore_nonstaff=True):
@@ -957,7 +1000,7 @@ class OnsetsInferenceEngine(object):
         return duration_modifier
 
     def rest_beats(self, rest):
-        rest_beats_dict = {'whole_rest': 4,   # !!! We should find the TS.
+        rest_beats_dict = {'whole_rest': 4,   # !!! We should find the Time Signature.
                            'half_rest': 2,
                            'quarter_rest': 1,
                            '8th_rest': 0.5,
@@ -974,17 +1017,40 @@ class OnsetsInferenceEngine(object):
 
         try:
             base_rest_duration = rest_beats_dict[rest.clsname]
+
         except KeyError:
             raise KeyError('Symbol {0}: Unknown rest type {1}!'
                            ''.format(rest.uid, rest.clsname))
 
-        duration_modifier = self.compute_duration_modifier(rest)
+        # Process the whole rest:
+        #  - if it is the only symbol in the measure, it should take on
+        #    the duration of the current time signature.
+        #  - if it is not the only symbol in the measure, it takes 4 beats
+        #  - Theoretically, it could perhaps take e.g. 6 beats in weird situations
+        #    in a 6/2 time signature, but we don't care about this for now.
+        #
+        # If there is no leftward time signature, we need to infer the time
+        # sig from the other symbols. This necessitates two-pass processing:
+        # first get all available durations, then guess the time signatures
+        # (technically this might also be needed for each measure).
+        if rest.clsname in _CONST.MEAUSURE_LASTING_CLSNAMES:
+            base_rest_duration = self.measure_lasting_beats(rest)
+            beat = [base_rest_duration]  # Measure duration should never be ambiguous.
 
-        beat = [base_rest_duration * duration_modifier]
+        else:
+            duration_modifier = self.compute_duration_modifier(rest)
+            beat = [base_rest_duration * duration_modifier]
+
         if len(beat) > 1:
-            logging.warning('Notehead {0}: more than 1 duration: {1}, choosing first'
+            logging.warning('Rest {0}: more than 1 duration: {1}, choosing first'
                             ''.format(rest.uid, beat))
         return beat[0]
+
+    def measure_lasting_beats(self, cropobject):
+        # Find rightmost preceding time signature on the staff.
+        graph = NotationGraph(self._cdict.values())
+        logging.warn('Beats derived from measure length: not implemented, returns 4!')
+        return 4  # TODO!!!
 
     def process_multistem_notehead(self, notehead):
         """Attempts to recover the duration options of a multi-stem note."""
@@ -1748,12 +1814,6 @@ class OnsetsInferenceEngine(object):
         :returns: A objid --> onset dict for all notehead-type
             CropObjects.
         """
-
-        # TODO: Don't infer_pitches(), remove dep. on self.measure_separators
-        # Technicality, shortcut, to fill up all the internal dicts.
-        # This does not take long.
-        #self.infer_pitches(cropobjects, with_names=True)
-
         # We first find the precedence graph. (This is the hard
         # part.)
         # The precedence graph is a DAG structure of PrecedenceGraphNode

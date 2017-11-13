@@ -231,7 +231,15 @@ def group_staffs_into_systems(cropobjects):
                     if (c.clsname == 'staff') and (c.objid in sg.outlinks)]
                    for sg in outer_staff_groups]
     else:
-        systems = [[c] for c in cropobjects if c.clsname == 'staff']
+        # Do not consider staffs that have no notehead or rest children.
+        empty_staffs = [c for c in cropobjects if (c.clsname == 'staff') and
+                        (len([i for i in c.inlinks
+                              if ((_cdict[i].clsname in _CONST.NOTEHEAD_CLSNAMES) or
+                                  (_cdict[i].clsname in _CONST.REST_CLSNAMES))])
+                         == 0)]
+        print('Empty staffs: {0}'.format('\n'.join([c.uid for c in empty_staffs])))
+        systems = [[c] for c in cropobjects
+                   if (c.clsname == 'staff') and (c not in empty_staffs)]
     return systems
 
 
