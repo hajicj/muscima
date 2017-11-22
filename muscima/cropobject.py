@@ -1151,7 +1151,7 @@ def cropobjects_merge_bbox(cropobjects):
     return t, l, b, r
 
 
-def cropobjects_merge_mask(cropobjects):
+def cropobjects_merge_mask(cropobjects, intersection=False):
     """Merges the given list of cropobjects into one. Masks are combined
     by an OR operation.
 
@@ -1178,6 +1178,10 @@ def cropobjects_merge_mask(cropobjects):
     also will not have a mask.
 
     If some cropobjects have masks and some don't, fails.
+
+    :param intersection: Instead of a union, return the mask
+        intersection: only those pixels which are common to all
+        the cropobjects.
     """
     # No mask
     if len([c for c in cropobjects if c.mask is not None]) == 0:
@@ -1201,7 +1205,11 @@ def cropobjects_merge_mask(cropobjects):
         #logging.debug('Mask shape: {0}, curr. shape: {1}'.format(c.mask.shape, (cb - ct, cr - cl)))
         output_mask[ct:cb, cl:cr] += c.mask
 
-    output_mask[output_mask > 0] = 1
+    if intersection:
+        output_mask[output_mask < len(cropobjects)] = 0
+        output_mask[output_mask != 0] = 1
+    else:
+        output_mask[output_mask > 0] = 1
     return output_mask
 
 
@@ -1315,6 +1323,47 @@ def bbox_intersection(bbox_this, bbox_other):
                out_right - tl
     else:
         return None
+
+
+def bbox_dice(bbox_this, bbox_other, vertical=False, horizontal=False):
+    """Compute the Dice coefficient (intersection over union)
+    for the given two bounding boxes.
+
+    :param vertical: If set, will only return vertical IoU.
+
+    :param horizontal: If set, will only return horizontal IoU.
+        If both vertical and horizontal are set, will return
+        normal IoU, as if they were both false.
+    """
+    t_t, t_l, t_b, t_r = bbox_this
+    o_t, o_l, o_b, o_r = bbox_other
+
+    u_t, i_t = min(t_t, o_t), max(t_t, o_t)
+    u_l, i_l = min(t_l, o_l), max(t_l, o_l)
+    u_b, i_b = max(t_b, o_b), min(t_b, o_b)
+    u_r, i_r = max(t_r, o_r), min(t_r, o_r)
+
+    u_vertical = max(0, u_b - u_t)
+    u_horizontal = max(0, u_r - u_l)
+
+    i_vertical = max(0, i_b - i_t)
+    i_horizontal = max(0, i_r - i_l)
+
+    if vertical and not horizontal:
+        if u_vertical == 0:
+            return 0
+        else:
+            return i_vertical / u_vertical
+    elif horizontal and not vertical:
+        if u_horizontal == 0:
+            return 0
+        else:
+            return i_horizontal / u_horizontal
+    else:
+        if (u_horizontal == 0) or (u_vertical == 0):
+            return 0
+        else:
+            return (i_horizontal * i_vertical) / (u_horizontal * u_vertical)
 
 
 def cropobject_distance(c, d):

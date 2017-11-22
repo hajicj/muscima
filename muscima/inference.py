@@ -5,6 +5,9 @@ import copy
 import logging
 import os
 
+import operator
+
+from muscima.cropobject import bbox_dice
 from muscima.graph import group_staffs_into_systems, NotationGraph, NotationGraphError
 from muscima.inference_engine_constants import InferenceEngineConstants
 
@@ -1047,10 +1050,46 @@ class OnsetsInferenceEngine(object):
         return beat[0]
 
     def measure_lasting_beats(self, cropobject):
+        """Find the duration of an object that lasts for an entire measure
+        by interpreting the time signature valid for the given point in
+        the score.
+
+        If any assumption is broken, will return the default measure duration:
+        4 beats."""
         # Find rightmost preceding time signature on the staff.
         graph = NotationGraph(self._cdict.values())
-        logging.warn('Beats derived from measure length: not implemented, returns 4!')
-        return 4  # TODO!!!
+
+        # Find current time signature
+        staffs = graph.children(cropobject, classes=[_CONST.STAFF_CLSNAME])
+
+        if len(staffs) == 0:
+            logging.warning('Interpreting object {0} as measure-lasting, but'
+                            ' it is not attached to any staff! Returning default: 4'
+                            ''.format(cropobject.uid))
+            return 4
+
+        if len(staffs) > 1:
+            logging.warning('Interpreting object {0} as measure-lasting, but'
+                            ' it is connected to more than 1 staff: {1}'
+                            ' Returning default: 4'
+                            ''.format(cropobject.uid, [s.uid for s in staffs]))
+            return 4
+
+        staff = staffs[0]
+        time_signatures = graph.ancestors(staff, classes=[_CONST.TIME_SIGNATURES])
+        applicable_time_signatures = sorted([t for t in time_signatures
+                                             if t.left < cropobject.left],
+                                            key=operator.itemgetter('left'))
+
+        if len(applicable_time_signatures) == 0:
+            logging.warning('Interpreting object {0} as measure-lasting, but'
+                            ' there is no applicable time signature. Returnig'
+                            ' default: 4'.format(cropobject.uid))
+            return 4
+
+        valid_time_signature = applicable_time_signatures[-1]
+        beats = self.interpret_time_signature(valid_time_signature)
+        return beats
 
     def process_multistem_notehead(self, notehead):
         """Attempts to recover the duration options of a multi-stem note."""
@@ -1214,6 +1253,16 @@ class OnsetsInferenceEngine(object):
                 staff = self.__children(node.obj, ['staff'])[0]
                 sink_nodes2staff[node.obj.objid] = staff.objid
                 staff2sink_nodes[staff.objid].append(node)
+
+        # Note that this means you should never have a sink node
+        # unless it's at the end of the staff. All notes have to lead
+        # somewhere. This is suboptimal; we should filter out non-maximal
+        # sink nodes. But since we do not know whether the sink nodes
+        # are maximal until we are done inferring onsets, we have to stick
+        # with this.
+        # The alternative is to only connect to the next staff the *rightmost*
+        # sink node. This risks *not* failing if the sink nodes of a staff
+        # are not synchronized properly.
 
         # - Assign staffs to source nodes
         source_nodes2staff = {}
@@ -1783,7 +1832,8 @@ class OnsetsInferenceEngine(object):
                               staff.bottom, measure_separator.right - _dr
         return output_bbox
 
-    def interpret_time_signature(self, time_signature):
+    def interpret_time_signature(self, time_signature,
+                                 FRACTIONAL_VERTICAL_IOU_THRESHOLD=0.8):
         """Converts the time signature into the beat count (in quarter
         notes) it assigns to its following measures.
 
@@ -1791,6 +1841,21 @@ class OnsetsInferenceEngine(object):
         ------------------------------------
 
         * Is there both a numerator and a denominator?
+          (Is the time sig. "fractional"?)
+           * If there is a letter_other child, then yes; use the letter_other
+             symbol to separate time signature into numerator (top, left) and
+             denominator regions.
+           * If there is no letter_other child, then check if there is sufficient
+             vertical separation between some groups of symbols. Given that it
+             is much more likely that ther will be the "fractional" structure,
+             we say:
+
+               If the minimum vertical IoU between two symbols is more than
+               0.8, we consider the time signature non-fractional.
+
+             (The threshold can be controlled through the
+             FRACTIONAL_VERTICAL_IOU_THRESHOLD parameter.)
+
         * If yes: assign numerals to either num. (top), or denom. (bottom)
         * If not: assume the number is no. of beats. (In some scores, the
           base indicator may be attached in form of a note instead of a
@@ -1801,10 +1866,97 @@ class OnsetsInferenceEngine(object):
         ----------------------------------------
 
         * whole-time mark is interpreted as 4/4
-        * alla breve mark is interpreted as 2/4
+        * alla breve mark is interpreted as 4/4
 
+
+        :returns: The denoted duration of a measure in beats.
         """
-        raise NotImplementedError()
+        members = self.__children(time_signature, clsnames=_CONST.TIME_SIGNATURE_MEMBERS)
+        logging.info('Interpreting time signature {0}'.format(time_signature.uid))
+        logging.info('... Members {1}'.format([m.clsname for m in members]))
+
+        # Whole-time mark? Alla breve?
+        if len(members) == 0:
+            raise NotationGraphError('Time signature has no members: {0}'
+                                     ''.format(time_signature.uid))
+
+        is_whole = False
+        is_alla_breve = False
+        for m in members:
+            if m.clsname == 'whole-time_mark':
+                is_whole = True
+            if m.clsname == 'alla_breve':
+                is_alla_breve = True
+
+        if is_whole or is_alla_breve:
+            logging.info('Time signature {0}: whole or alla breve, returning 4.0'
+                         ''.format(time_signature.uid))
+            return 4.0
+
+        # Process numerals
+        logging.info('... Found numeric time signature, determining whether'
+                     ' it is fractional.')
+
+        # Does the time signature have a fraction-like format?
+        is_fraction_like = True
+        has_letter_other = (len([m for m in members if m.clsname == 'letter_other']) > 0)
+        #  - Does it have a separator slash?
+        if has_letter_other:
+            logging.info('... Has fraction slash')
+            is_fraction_like = True
+        #  - Does it have less than 2 members?
+        elif len(members) < 2:
+            logging.info('... Just one member')
+            is_fraction_like = False
+        #  - If it has 2 or more members, determine minimal IoU and compare
+        #    against FRACTIONAL_VERTICAL_IOU_THRESHOLD. If the minimal IoU
+        #    is under the threshold, then consider the numerals far apart
+        #    vertically so that they constitute a fraction.
+        else:
+            logging.info('... Must check for min. vertical overlap')
+            vertical_overlaps = []
+            for _i_m, m1 in enumerate(members[:-1]):
+                for m2 in members[_i_m:]:
+                    vertical_overlaps.append(bbox_dice(m1, m2))
+            logging.info('... Vertical overlaps found: {0}'.format(vertical_overlaps))
+            if min(vertical_overlaps) < FRACTIONAL_VERTICAL_IOU_THRESHOLD:
+                is_fraction_like = True
+            else:
+                is_fraction_like = False
+
+        numerals = self.__children(time_signature, _CONST.NUMERALS)
+        if not is_fraction_like:
+            logging.info('... Non-fractional numeric time sig.')
+            # Read numeral left to right, this is the beat count
+            if len(numerals) == 0:
+                raise NotationGraphError('Time signature has no numerals, but is'
+                                         ' not fraction-like! {0}'
+                                         ''.format(time_signature.uid))
+            beats = _CONST.interpret_numerals(numerals)
+            logging.info('... Beats: {0}'.format(beats))
+            return beats
+
+        else:
+            logging.info('... Fractional time sig.')
+            # Split into numerator and denominator
+            #  - Sort numerals top to bottom
+            #  - Find largest gap
+            #  - Everything above largest gap is numerator, everything below
+            #    is denominator.
+            numerals_topdown = sorted(numerals, key=lambda c: (c.top + c.bottom) / 2)
+            gaps = [((c2.bottom + c2.top) / 2) - ((c1.bottom + c2.top) / 2)
+                    for c1, c2 in zip(numerals_topdown[:-1], numerals_topdown[1:])]
+            largest_gap_idx = max(range(len(gaps)), key=lambda i: gaps[i]) + 1
+            numerator = numerals[:largest_gap_idx]
+            denominator = numerals[largest_gap_idx:]
+            beat_count = _CONST.interpret_numerals(numerator)
+            beat_units = _CONST.interpret_numerals(denominator)
+
+            beats = beat_count / (beat_units / 4)
+            logging.info('...signature : {0} / {1}, beats: {2}'
+                         ''.format(beat_count, beat_units, beats))
+
+            return beats
 
     def onsets(self, cropobjects):
         """Infers the onsets of notes in the given cropobjects.

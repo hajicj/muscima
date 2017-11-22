@@ -2,6 +2,8 @@
 duration and onset inference algorithm."""
 from __future__ import print_function, unicode_literals, division
 
+import operator
+
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
@@ -167,6 +169,35 @@ class InferenceEngineConstants(object):
         'time_signature',
     }
 
+    TIME_SIGNATURE_MEMBERS = {
+        'whole-time_mark',
+        'alla_breve',
+        'numeral_0',
+        'numeral_1',
+        'numeral_2',
+        'numeral_3',
+        'numeral_4',
+        'numeral_5',
+        'numeral_6',
+        'numeral_7',
+        'numeral_8',
+        'numeral_9',
+        'letter_other',
+    }
+
+    NUMERALS = {
+        'numeral_0',
+        'numeral_1',
+        'numeral_2',
+        'numeral_3',
+        'numeral_4',
+        'numeral_5',
+        'numeral_6',
+        'numeral_7',
+        'numeral_8',
+        'numeral_9',
+    }
+
     @property
     def clsnames_affecting_onsets(self):
         """Returns a list of CropObject class names for objects
@@ -189,6 +220,15 @@ class InferenceEngineConstants(object):
         output.update(self.NONGRACE_NOTEHEAD_CLSNAMES)
         output.update(self.REST_CLSNAMES)
         return output
+
+    @staticmethod
+    def interpret_numerals(numerals):
+        """Returns the given numeral CropObject as a number, left to right."""
+        for n in numerals:
+            if n not in InferenceEngineConstants.NUMERALS:
+                raise ValueError('Symbol {0} is not a numeral!'.format(n.uid))
+        n_str = ''.join([n[-1] for n in sorted(numerals, key=operator.itemgetter('left'))])
+        return int(n_str)
 
 
 _CONST = InferenceEngineConstants()
