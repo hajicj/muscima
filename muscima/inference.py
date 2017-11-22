@@ -1075,11 +1075,17 @@ class OnsetsInferenceEngine(object):
                             ''.format(cropobject.uid, [s.uid for s in staffs]))
             return 4
 
+        logging.info('Found staffs: {0}'.format([s.uid for s in staffs]))
+
         staff = staffs[0]
-        time_signatures = graph.ancestors(staff, classes=[_CONST.TIME_SIGNATURES])
+        time_signatures = graph.ancestors(staff, classes=_CONST.TIME_SIGNATURES)
+
+        logging.info('Time signatures: {0}'.format([t.uid for t in time_signatures]))
+
         applicable_time_signatures = sorted([t for t in time_signatures
                                              if t.left < cropobject.left],
-                                            key=operator.itemgetter('left'))
+                                            key=operator.attrgetter('left'))
+        logging.info('Applicable time signatures: {0}'.format([t.uid for t in time_signatures]))
 
         if len(applicable_time_signatures) == 0:
             logging.warning('Interpreting object {0} as measure-lasting, but'
@@ -1873,7 +1879,7 @@ class OnsetsInferenceEngine(object):
         """
         members = self.__children(time_signature, clsnames=_CONST.TIME_SIGNATURE_MEMBERS)
         logging.info('Interpreting time signature {0}'.format(time_signature.uid))
-        logging.info('... Members {1}'.format([m.clsname for m in members]))
+        logging.info('... Members {0}'.format([m.clsname for m in members]))
 
         # Whole-time mark? Alla breve?
         if len(members) == 0:
@@ -1917,7 +1923,7 @@ class OnsetsInferenceEngine(object):
             vertical_overlaps = []
             for _i_m, m1 in enumerate(members[:-1]):
                 for m2 in members[_i_m:]:
-                    vertical_overlaps.append(bbox_dice(m1, m2))
+                    vertical_overlaps.append(bbox_dice(m1.bounding_box, m2.bounding_box))
             logging.info('... Vertical overlaps found: {0}'.format(vertical_overlaps))
             if min(vertical_overlaps) < FRACTIONAL_VERTICAL_IOU_THRESHOLD:
                 is_fraction_like = True

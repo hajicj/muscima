@@ -81,8 +81,9 @@ class NotationGraph(object):
 
             if current_objid != objid:
                 descendant_objids.append(current_objid)
-            ch = self.children(current_objid, classes=classes)
-            for o in ch:
+            children = self.children(current_objid, classes=classes)
+            children_objids = [ch.objid for ch in children]
+            for o in children_objids:
                 if o not in queue:
                     queue.append(o)
 
@@ -101,8 +102,9 @@ class NotationGraph(object):
 
             if current_objid != objid:
                 ancestor_objids.append(current_objid)
-            ch = self.parents(current_objid, classes=classes)
-            for o in ch:
+            parents = self.parents(current_objid, classes=classes)
+            parent_objids = [p.objid for p in parents]
+            for o in parent_objids:
                 if o not in queue:
                     queue.append(o)
 

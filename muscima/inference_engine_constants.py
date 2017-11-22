@@ -225,9 +225,10 @@ class InferenceEngineConstants(object):
     def interpret_numerals(numerals):
         """Returns the given numeral CropObject as a number, left to right."""
         for n in numerals:
-            if n not in InferenceEngineConstants.NUMERALS:
+            if n.clsname not in InferenceEngineConstants.NUMERALS:
                 raise ValueError('Symbol {0} is not a numeral!'.format(n.uid))
-        n_str = ''.join([n[-1] for n in sorted(numerals, key=operator.itemgetter('left'))])
+        n_str = ''.join([n.clsname[-1]
+                         for n in sorted(numerals, key=operator.attrgetter('left'))])
         return int(n_str)
 
 
