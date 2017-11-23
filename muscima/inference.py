@@ -848,30 +848,45 @@ class PitchInferenceEngine(object):
 class OnsetsInferenceEngine(object):
 
     def __init__(self, cropobjects):
-
+        """Initialize the onset inference engine with the full CropObject
+        list in a document."""
         self._CONST = InferenceEngineConstants()
         self._cdict = {c.objid: c for c in cropobjects}
 
-    def durations(self, cropobjects):
+    def durations(self, cropobjects, ignore_modifiers=False):
+        """Returns a dict that contains the durations (in beats)
+        of all CropObjects that should be associated with a duration.
+        The dict keys are ``objid``.
+
+        :param ignore_modifiers: If set, will ignore duration dots,
+            tuples, and other potential duration modifiers when computing
+            the durations. Effectively, this gives you classes that
+            correspond to note(head) type: whole (4.0), half (2.0),
+            quarter (1.0), eighth (0.5), etc.
+        """
         # Generate & return the durations dictionary.
         _relevant_clsnames = self._CONST.clsnames_bearing_duration
         d_cropobjects = [c for c in cropobjects
                          if c.clsname in _relevant_clsnames]
 
-        durations = {c.objid: self.beats(c) for c in d_cropobjects}
+        durations = {c.objid: self.beats(c,
+                                         ignore_modifiers=ignore_modifiers)
+                     for c in d_cropobjects}
         return durations
 
-    def beats(self, cropobject):
+    def beats(self, cropobject, ignore_modifiers=False):
         if cropobject.clsname in self._CONST.NOTEHEAD_CLSNAMES:
-            return self.notehead_beats(cropobject)
+            return self.notehead_beats(cropobject,
+                                       ignore_modifiers=ignore_modifiers)
         elif cropobject.clsname in self._CONST.REST_CLSNAMES:
-            return self.rest_beats(cropobject)
+            return self.rest_beats(cropobject,
+                                   ignore_modifiers=ignore_modifiers)
         else:
             raise ValueError('Cannot compute beats for object {0} of class {1};'
                              ' beats only available for notes and rests.'
                              ''.format(cropobject.uid, cropobject.clsname))
 
-    def notehead_beats(self, notehead):
+    def notehead_beats(self, notehead, ignore_modifiers=False):
         """Retrieves the duration for the given notehead, in beats.
 
         It is possible that the notehead has two stems.
@@ -880,6 +895,12 @@ class OnsetsInferenceEngine(object):
         there can be up to 4 possibilities.
 
         Grace notes currently return 0 beats.
+
+        :param ignore_modifiers: If given, will ignore all duration
+            modifiers: Duration dots, tuples, and other potential duration
+            modifiers when computing the durations. Effectively, this
+            gives you classes that correspond to note(head) type:
+            whole (4.0), half (2.0), quarter (1.0), eighth (0.5), etc.
 
         :returns: A list of possible durations for the given notehead.
             Mostly its length is just 1; for multi-stem noteheads,
@@ -923,9 +944,9 @@ class OnsetsInferenceEngine(object):
             raise ValueError('Notehead {0}: unknown clsname {1}'
                              ''.format(notehead.uid, notehead.clsname))
 
-        duration_modifier = self.compute_duration_modifier(notehead)
-
-        beat = [b * duration_modifier for b in beat]
+        if not ignore_modifiers:
+            duration_modifier = self.compute_duration_modifier(notehead)
+            beat = [b * duration_modifier for b in beat]
 
         if len(beat) > 1:
             logging.warning('Notehead {0}: more than 1 duration: {1}, choosing first'
@@ -1004,7 +1025,18 @@ class OnsetsInferenceEngine(object):
 
         return duration_modifier
 
-    def rest_beats(self, rest):
+    def rest_beats(self, rest, ignore_modifiers=False):
+        """Compute the duration of the given rest in beats.
+
+        :param ignore_modifiers: If given, will ignore all duration
+            modifiers: Duration dots, tuples, and other potential duration
+            modifiers when computing the durations. Effectively, this
+            gives you classes that correspond to note(head) type:
+            whole (4.0), half (2.0), quarter (1.0), eighth (0.5), etc.
+            Also ignores deriving duration from the time signature
+            for whole rests.
+
+        """
         rest_beats_dict = {'whole_rest': 4,   # !!! We should find the Time Signature.
                            'half_rest': 2,
                            'quarter_rest': 1,
@@ -1038,13 +1070,16 @@ class OnsetsInferenceEngine(object):
         # sig from the other symbols. This necessitates two-pass processing:
         # first get all available durations, then guess the time signatures
         # (technically this might also be needed for each measure).
-        if rest.clsname in _CONST.MEAUSURE_LASTING_CLSNAMES:
+        if (rest.clsname in _CONST.MEAUSURE_LASTING_CLSNAMES) and not ignore_modifiers:
             base_rest_duration = self.measure_lasting_beats(rest)
             beat = [base_rest_duration]  # Measure duration should never be ambiguous.
 
-        else:
+        elif not ignore_modifiers:
             duration_modifier = self.compute_duration_modifier(rest)
             beat = [base_rest_duration * duration_modifier]
+
+        else:
+            beat = [base_rest_duration]
 
         if len(beat) > 1:
             logging.warning('Rest {0}: more than 1 duration: {1}, choosing first'
