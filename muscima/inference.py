@@ -104,6 +104,19 @@ class PitchInferenceEngineState(object):
         self.key_accidentals = {}
         self.inline_accidentals = {}
 
+    def __str__(self):
+        lines = list()
+        lines.append('Current pitch inference state:')
+        lines.append('\tbase_pitch: {0}'.format(self.base_pitch))
+        lines.append('\tbase_pitch_step: {0}'.format(self.base_pitch_step))
+        lines.append('\tbase_pitch_octave: {0}'.format(self.base_pitch_octave))
+        lines.append('\t_current_clef: {0}'.format(self._current_clef.uid))
+        lines.append('\t_current_delta_steps: {0}'.format(self._current_delta_steps))
+        lines.append('\t_current_clef_delta_shift: {0}'.format(self._current_clef_delta_shift))
+        lines.append('\tkey_accidentals: {0}'.format(self.key_accidentals))
+        lines.append('\tinline_accidentals: {0}'.format(self.inline_accidentals))
+        return '\n'.join(lines)
+
     def init_base_pitch(self, clef=None, delta=0):
         """Initializes the base pitch while taking into account
         the displacement of the clef from its initial position."""
@@ -142,14 +155,15 @@ class PitchInferenceEngineState(object):
         # Shift the key and inline accidental deltas
         # according to the change.
         if self._current_clef is not None:
-            if clef.clsname != self._current_clef.clsname:
-                # From G to C clef: everything is now +4
-                # XXX: This seems unfinished...
+            transposition_delta = _CONST.CLEF_CHANGE_DELTA[self._current_clef.clsname][clef.clsname]
+            if transposition_delta != 0:
                 new_key_accidentals = {
-                    (d + 4) % 7: v for d, v in self.key_accidentals.items()
+                    (d + transposition_delta) % 7: v
+                    for d, v in self.key_accidentals.items()
                 }
                 new_inline_accidentals = {
-                    d + 4: v for d, v in self.inline_accidentals.items()
+                    d + transposition_delta: v
+                    for d, v in self.inline_accidentals.items()
                 }
                 self.key_accidentals = new_key_accidentals
                 self.inline_accidentals = new_inline_accidentals
@@ -487,6 +501,12 @@ class PitchInferenceEngine(object):
                 self.pitch_names[q.objid] = pn
                 self.pitch_names_per_staff[staff.objid][q.objid] = pn
 
+                ### DEBUG
+                if q.objid in [131, 83, 89, 94]:
+                    logging.info('PitchInferenceEngine: Processing notehead {0}'
+                                 ''.format(q.uid))
+                    logging.info('{0}'.format(self.pitch_state))
+
                 # b = self.beats(q)
                 # self.durations_beats[q.objid] = b
                 # self.durations_beats_per_staff[staff.objid][q.objid] = b
@@ -575,6 +595,15 @@ class PitchInferenceEngine(object):
         # Get the actual pitch
         # --------------------
         p = self.pitch_state.pitch(delta)
+
+        ### DEBUG
+        if notehead.objid in [131, 83, 89, 94]:
+            logging.info('PitchInferenceEngine: results of pitch processing'
+                         ' for notehead {0}'.format(notehead.uid))
+            logging.info('\tties: {0}'.format(ties))
+            logging.info('\taccidentals: {0}'.format(accidentals))
+            logging.info('\tdelta: {0}'.format(delta))
+            logging.info('\tpitch: {0}'.format(p))
 
         if with_name is True:
             pn = self.pitch_state.pitch_name(delta)

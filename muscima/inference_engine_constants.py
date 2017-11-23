@@ -141,6 +141,25 @@ class InferenceEngineConstants(object):
         7: {i: -1 for i in _bs + _es + _as + _ds + _gs + _cs + _fs},
     }
 
+    # FROM clef --> TO clef. Imagine this on inline accidental delta
+    CLEF_CHANGE_DELTA = {
+        'g-clef': {
+            'g-clef': 0,
+            'c-clef': 6,
+            'f-clef': 12,
+        },
+        'c-clef': {
+            'g-clef': -6,
+            'c-clef': 0,
+            'f-clef': 6,
+        },
+        'f-clef': {
+            'g-clef': -12,
+            'c-clef': -6,
+            'f-clef': 0,
+        }
+    }
+
     PITCH_STEPS = ['C', 'D', 'E', 'F', 'G', 'A', 'B',
                    'C', 'D', 'E', 'F', 'G', 'A', 'B']
     # Wrap around twice for easier indexing.
