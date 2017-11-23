@@ -472,6 +472,8 @@ class PitchInferenceEngine(object):
                     key=lambda x: x.left)
 
         for q in queue:
+            logging.info('process_staff(): processing object {0}-{1}'
+                         ''.format(q.clsname, q.objid))
             if q.clsname in self._CONST.CLEF_CLSNAMES:
                 self.process_clef(q)
             elif q.clsname in self._CONST.KEY_SIGNATURE_CLSNAMES:
@@ -691,14 +693,14 @@ class PitchInferenceEngine(object):
                 delta *= -1
 
             ### DEBUG
-            if notehead.objid in [178]:
-                logging.info('Notehead {0}: bbox {1}'.format(notehead.objid, notehead.bounding_box))
-                logging.info('Closest LL objid: {0}'.format(closest_ll.objid))
-                logging.info('no. of LLs: {0}'.format(n_lls))
-                logging.info('Is above staff: {0}'.format(is_above_staff))
-                logging.info('On ledger line: {0}'.format(_on_ledger_line))
-                logging.info('Dtop: {0}, Dbottom: {1}'.format(dtop, dbottom))
-                logging.info('Delta: {0}'.format(delta))
+            # if notehead.objid in [178]:
+            #     logging.info('Notehead {0}: bbox {1}'.format(notehead.objid, notehead.bounding_box))
+            #     logging.info('Closest LL objid: {0}'.format(closest_ll.objid))
+            #     logging.info('no. of LLs: {0}'.format(n_lls))
+            #     logging.info('Is above staff: {0}'.format(is_above_staff))
+            #     logging.info('On ledger line: {0}'.format(_on_ledger_line))
+            #     logging.info('Dtop: {0}, Dbottom: {1}'.format(dtop, dbottom))
+            #     logging.info('Delta: {0}'.format(delta))
 
             return delta
 
@@ -1194,7 +1196,8 @@ class OnsetsInferenceEngine(object):
         # Join staves/systems!
 
         # ...systems:
-        systems = group_staffs_into_systems(cropobjects)
+        systems = group_staffs_into_systems(cropobjects,
+                                            use_fallback_measure_separators=True)
         # _cdict = {c.objid: c for c in cropobjects}
         # staff_groups = [c for c in cropobjects
         #                 if c.clsname == 'staff_grouping']
@@ -2098,7 +2101,7 @@ class OnsetsInferenceEngine(object):
             if len(notes) == 0:
                 raise NotationGraphError('No notes from tie {0}'.format(_tie.uid))
             if len(notes) == 1:
-                return notes[0]
+                return [notes[0]]
             if len(notes) > 2:
                 raise NotationGraphError('More than two notes from tie {0}'.format(_tie.uid))
             # Now it has to be 2
@@ -2106,8 +2109,12 @@ class OnsetsInferenceEngine(object):
             return l, r
 
         def _is_note_left(c, _tie, graph):
-            l, r = _get_tie_notes(_tie, graph)
-            return l.objid == c.objid
+            tie_notes = _get_tie_notes(_tie, graph)
+            if len(tie_notes) == 2:
+                l, r = tie_notes
+                return l.objid == c.objid
+            else:
+                return True
 
         new_onsets = copy.deepcopy(onsets)
         new_durations = copy.deepcopy(durations)
@@ -2126,7 +2133,11 @@ class OnsetsInferenceEngine(object):
             else:
                 tie = ties[0]
             n = g[k]
-            l, r = _get_tie_notes(tie, graph=g)
+            tie_notes = _get_tie_notes(tie, graph=g)
+            if len(tie_notes) != 2:
+                continue
+
+            l, r = tie_notes
             if l.objid == n.objid:
                 logging.info('Note {0} is left in tie {1}'
                              ''.format(l.uid, tie.uid))

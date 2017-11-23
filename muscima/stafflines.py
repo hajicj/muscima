@@ -6,13 +6,14 @@ import logging
 import pprint
 
 import numpy
-
-from skimage.morphology import watershed
 from skimage.filters import gaussian
+from skimage.morphology import watershed
 
 from muscima.cropobject import CropObject, cropobjects_on_canvas, link_cropobjects
 from muscima.inference_engine_constants import InferenceEngineConstants as _CONST
+from muscima.graph import NotationGraph
 from muscima.utils import compute_connected_components
+
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -77,6 +78,10 @@ def merge_staffline_segments(cropobjects, margin=10):
     old_staffline_cropobjects = [c for c in cropobjects
                                  if (c.clsname == _CONST.STAFFLINE_CLSNAME) and
                                  not __has_parent_staff(c, cropobjects)]
+    if len(old_staffline_cropobjects) == 0:
+        logging.info('merge_staffline_segments: nothing new to do!')
+        return cropobjects
+
     canvas, (_t, _l) = cropobjects_on_canvas(old_staffline_cropobjects)
 
     _staffline_bboxes, staffline_masks = staffline_bboxes_and_masks_from_horizontal_merge(canvas)
@@ -272,85 +277,6 @@ def staffline_surroundings_mask(staffline_cropobject):
     return bmask, tmask
 
 
-def resolve_notehead_wrt_staffline(notehead, staffline_or_ledger_line):
-    """Resolves the relative vertical position of the notehead with respect
-    to the given staff_line or ledger_line object. Returns -1 if notehead
-    is *below* staffline, 0 if notehead is *on* staffline, and 1 if notehead
-    is *above* staffline."""
-    ll = staffline_or_ledger_line
-
-    # Determining whether the notehead is on a ledger
-    # line or in the adjacent temp staffspace.
-    # This uses a magic number, ON_STAFFLINE_RATIO_THRESHOLD.
-    output_position = 0
-
-    ### DEBUG!!!
-    dtop, dbottom = 1, 1
-
-    # Weird situation with notehead vertically *inside* bbox
-    # of ledger line (could happen with slanted LLs and very small
-    # noteheads).
-    if ll.top <= notehead.top <= notehead.bottom <= ll.bottom:
-        output_position = 0
-
-    # No vertical overlap between LL and notehead
-    elif ll.top > notehead.bottom:
-        output_position = 1
-    elif notehead.top > ll.bottom:
-        output_position = -1
-
-    # Complicated situations: overlap
-    else:
-        # Notehead "around" ledger line.
-        if notehead.top < ll.top <= ll.bottom < notehead.bottom:
-            dtop = ll.top - notehead.top
-            dbottom = notehead.bottom - ll.bottom
-
-            if min(dtop, dbottom) / max(dtop, dbottom) \
-                    < _CONST.ON_STAFFLINE_RATIO_TRHESHOLD:
-                if dtop > dbottom:
-                    output_position = 1
-                else:
-                    output_position = -1
-
-        # Notehead interlaced with ledger line, notehead on top
-        elif notehead.top < ll.top <= notehead.bottom <= ll.bottom:
-            # dtop = closest_ll.top - notehead.top
-            # dbottom = max(notehead.bottom - closest_ll.top, 1)
-            # if float(dbottom) / float(dtop) \
-            #         < InferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
-            output_position = 1
-
-        # Notehead interlaced with ledger line, ledger line on top
-        elif ll.top <= notehead.top <= ll.bottom < notehead.bottom:
-            # dtop = max(closest_ll.bottom - notehead.top, 1)
-            # dbottom = notehead.bottom - closest_ll.bottom
-            # if float(dtop) / float(dbottom) \
-            #         < InferenceEngineConstants.ON_STAFFLINE_RATIO_TRHESHOLD:
-            output_position = -1
-
-        else:
-            logging.warn('Strange notehead {0} vs. ledger line {1}'
-                         ' situation: bbox notehead {2}, LL {3}.'
-                         ' Note that the output position is unusable;'
-                         ' pleasre re-do this attachment manually.'
-                         ''.format(notehead.uid, ll.uid,
-                                   notehead.bounding_box,
-                                   ll.bounding_box))
-    return output_position
-
-
-def is_notehead_on_line(notehead, line_obj):
-    """Check whether given notehead is positioned on the line object."""
-    if line_obj.clsname not in _CONST.STAFFLINE_LIKE_CROPOBJECT_CLSNAMES:
-        raise ValueError('Cannot resolve relative position of notehead'
-                         ' {0} to non-staffline-like object {1}'
-                         ''.format(notehead.uid, line_obj.uid))
-
-    position = resolve_notehead_wrt_staffline(notehead, line_obj)
-    return position == 0
-
-
 ##############################################################################
 
 
@@ -363,6 +289,8 @@ def build_staff_cropobjects(cropobjects):
     stafflines = [c for c in cropobjects
                   if c.clsname == _CONST.STAFFLINE_CLSNAME and
                     not __has_parent_staff(c, cropobjects)]
+    if len(stafflines) == 0:
+        return []
 
     staffline_bboxes = [c.bounding_box for c in stafflines]
     canvas, (_t, _l) = cropobjects_on_canvas(stafflines)
@@ -604,6 +532,7 @@ def build_staffspace_cropobjects(cropobjects):
 def add_staff_relationships(cropobjects,
                             notehead_staffspace_threshold=0.2):
 
+    graph = NotationGraph(cropobjects)
     _cropobjects_dict = {c.objid: c for c in cropobjects}
 
     ON_STAFFLINE_RATIO_TRHESHOLD = notehead_staffspace_threshold
@@ -617,11 +546,15 @@ def add_staff_relationships(cropobjects,
     rest_symbols = collections.defaultdict(list)
     for c in cropobjects:
         if c.clsname in _CONST.STAFF_RELATED_CLSNAMES:
-            staff_related_symbols[c.clsname].append(c)
+            # Check if it already has a staff link
+            if not graph.has_child(c, [_CONST.STAFF_CLSNAME]):
+                staff_related_symbols[c.clsname].append(c)
         if c.clsname in _CONST.NOTEHEAD_CLSNAMES:
-            notehead_symbols[c.clsname].append(c)
+            if not graph.has_child(c, [_CONST.STAFF_CLSNAME]):
+                notehead_symbols[c.clsname].append(c)
         if c.clsname in _CONST.REST_CLSNAMES:
-            rest_symbols[c.clsname].append(c)
+            if not graph.has_child(c, [_CONST.STAFF_CLSNAME]):
+                rest_symbols[c.clsname].append(c)
 
     ##########################################################################
     logging.info('Adding staff relationships')

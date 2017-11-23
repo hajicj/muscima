@@ -5,9 +5,11 @@ from __future__ import print_function, unicode_literals
 import copy
 import logging
 
+import operator
+
 from muscima.cropobject import CropObject
 from muscima.inference_engine_constants import _CONST
-from muscima.stafflines import resolve_notehead_wrt_staffline
+from muscima.utils import resolve_notehead_wrt_staffline
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -118,6 +120,28 @@ class NotationGraph(object):
         parents = self.parents(cropobject_or_objid, classes=classes)
         return len(parents) > 0
 
+    def is_child_of(self, cropobject_or_objid, other_cropobject_or_objid):
+        """Check whether the first symbol is a child of the second symbol."""
+        to_objid = self.__to_objid(cropobject_or_objid)
+        from_objid = self.__to_objid(other_cropobject_or_objid)
+
+        c = self._cdict[from_objid]
+        if to_objid in c.outlinks:
+            return True
+        else:
+            return False
+
+    def is_parent_of(self, cropobject_or_objid, other_cropobject_or_objid):
+        """Check whether the first symbol is a parent of the second symbol."""
+        from_objid = self.__to_objid(cropobject_or_objid)
+        to_objid = self.__to_objid(other_cropobject_or_objid)
+
+        c = self._cdict[from_objid]
+        if to_objid in c.outlinks:
+            return True
+        else:
+            return False
+
     def __getitem__(self, objid):
         """Returns a CropObject based on its objid."""
         return self._cdict[objid]
@@ -200,13 +224,56 @@ class NotationGraph(object):
                                                                  other.uid))
 
 
-def group_staffs_into_systems(cropobjects):
+def group_staffs_into_systems(cropobjects,
+                              use_fallback_measure_separators=False):
     """Returns a list of lists of ``staff`` CropObjects
     grouped into systems. Uses the outer ``staff_grouping``
-    symbols."""
+    symbols.
+
+    :param cropobjects: The complete list of CropObjects in the current
+        document.
+
+    :param use_fallback_measure_separators: If set and no staff groupings
+        are found, will use measure separators instead to group
+        staffs. The algorithm is to find the leftmost measure
+        separator for each staff and use this set instead of staff
+        groupings: measure separators also have outlinks to all
+        staffs that they are relevant for.
+
+    :returns: A list of systems, where each system is a list of ``staff``
+        CropObjects.
+    """
+    graph = NotationGraph(cropobjects)
     _cdict = {c.objid: c for c in cropobjects}
     staff_groups = [c for c in cropobjects
                     if c.clsname == 'staff_grouping']
+
+    # Do not consider staffs that have no notehead or rest children.
+    empty_staffs = [c for c in cropobjects if (c.clsname == 'staff') and
+                    (len([i for i in c.inlinks
+                          if ((_cdict[i].clsname in _CONST.NOTEHEAD_CLSNAMES) or
+                              (_cdict[i].clsname in _CONST.REST_CLSNAMES))])
+                     == 0)]
+    print('Empty staffs: {0}'.format('\n'.join([c.uid for c in empty_staffs])))
+
+    if use_fallback_measure_separators and (len(staff_groups) == 0):
+        # Collect measure separators, sort them left to right
+        measure_separators = [c for c in cropobjects
+                              if c.clsname in _CONST.MEASURE_SEPARATOR_CLSNAMES]
+        measure_separators = sorted(measure_separators,
+                                    key=operator.attrgetter('left'))
+        # Use only the leftmost measure separator for each staff.
+        staffs = [c for c in cropobjects
+                  if c.clsname in [_CONST.STAFF_CLSNAME]]
+        leftmost_measure_separators = set()
+        for s in staffs:
+            if s in empty_staffs:
+                continue
+            for m in measure_separators:
+                if graph.is_child_of(s, m):
+                    leftmost_measure_separators.add(m)
+                    break
+        staff_groups = leftmost_measure_separators
 
     if len(staff_groups) != 0:
         staffs_per_group = {c.objid: [_cdict[i] for i in c.outlinks
@@ -233,15 +300,10 @@ def group_staffs_into_systems(cropobjects):
                     if (c.clsname == 'staff') and (c.objid in sg.outlinks)]
                    for sg in outer_staff_groups]
     else:
-        # Do not consider staffs that have no notehead or rest children.
-        empty_staffs = [c for c in cropobjects if (c.clsname == 'staff') and
-                        (len([i for i in c.inlinks
-                              if ((_cdict[i].clsname in _CONST.NOTEHEAD_CLSNAMES) or
-                                  (_cdict[i].clsname in _CONST.REST_CLSNAMES))])
-                         == 0)]
-        print('Empty staffs: {0}'.format('\n'.join([c.uid for c in empty_staffs])))
+        # Here we use the empty staff fallback
         systems = [[c] for c in cropobjects
                    if (c.clsname == 'staff') and (c not in empty_staffs)]
+
     return systems
 
 
@@ -274,6 +336,56 @@ def group_by_staff(cropobjects):
         objects_per_staff[staff.objid] = list(staff_related)
 
     return objects_per_staff
+
+
+##############################################################################
+# Graph search utilities
+
+def find_related_staffs(query_cropobjects, all_cropobjects,
+                        with_stafflines=True):
+    """Find all staffs that are related to any of the cropobjects
+    in question. Ignores whether these staffs are already within
+    the list of ``query_cropobjects`` passed to the function.
+
+    Finds all staffs that are ancestors or descendants of at least
+    one of the query CropObjects, and if ``with_stafflines`` is requested,
+    all stafflines and staffspaces that are descendants of at least one
+    of the related staffs as well.
+
+    :param query_cropobjects: A list of CropObjects for which we want
+        to find related staffs. Subset of ``all_cropobjects``.
+
+    :param all_cropobjects: A list of all the CropObjects in the document
+        (or directly a NotationGraph object). Assumes that the query
+        cropobjects are a subset of ``all_cropobjects``.
+
+    :param with_stafflines: If set, will also return all stafflines
+        and staffspaces related to the discovered staffs.
+
+    :returns: List of staff (and, if requested, staffline/staffspace)
+        CropObjects that are relate to the query CropObjects.
+    """
+    if not isinstance(all_cropobjects, NotationGraph):
+        graph = NotationGraph(all_cropobjects)
+    else:
+        graph = all_cropobjects
+
+    related_staffs = set()
+    for c in query_cropobjects:
+        desc_staffs = graph.descendants(c, classes=[_CONST.STAFF_CLSNAME])
+        anc_staffs =  graph.ancestors(c, classes=[_CONST.STAFF_CLSNAME])
+        current_staffs = set(desc_staffs + anc_staffs)
+        related_staffs = related_staffs.union(current_staffs)
+
+    if with_stafflines:
+        related_stafflines = set()
+        for s in related_staffs:
+            staffline_objs = graph.descendants(s,
+                                               _CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+            related_stafflines = related_stafflines.union(set(staffline_objs))
+        related_staffs = related_staffs.union(related_stafflines)
+
+    return list(related_staffs)
 
 
 ##############################################################################

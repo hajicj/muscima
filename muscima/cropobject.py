@@ -1148,7 +1148,12 @@ def cropobjects_merge_bbox(cropobjects):
         b = max(b, c.bottom)
         r = max(r, c.right)
 
-    return t, l, b, r
+    it, il, ib, ir = int(t), int(l), int(b), int(r)
+    if (it != t) or (il != l) or (ib != b) or (ir != r):
+        logging.warn('Merged bounding box does not consist of integers!'
+                     ' {0}'.format((t, l, b, r)))
+
+    return it, il, ib, ir
 
 
 def cropobjects_merge_mask(cropobjects, intersection=False):
@@ -1405,6 +1410,7 @@ def cropobjects_on_canvas(cropobjects, margin=10):
 
     Also returns the top left corner coordinates w.r.t. CropObjects' bboxes.
     """
+
     # margin is used to avoid the stafflines touching the edges,
     # which could perhaps break some assumptions down the line.
     it, il, ib, ir = cropobjects_merge_bbox(cropobjects)
