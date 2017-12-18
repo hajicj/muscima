@@ -1,4 +1,7 @@
-"""This module implements functions for manipulating staffline symbols."""
+"""This module implements functions for manipulating staffline symbols.
+Mostly it is support for going from detected staffline fragments
+to full staff objects and relationships; this machinery is called
+e.g. by pressing "shift+s" in MUSCIMarker."""
 from __future__ import print_function, unicode_literals, division
 
 import collections

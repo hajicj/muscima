@@ -578,3 +578,38 @@ def resolve_ledger_line_or_staffline_object(cropobjects):
         if len(stafflines) > 1:
             logging.warn('Notehead {0} is connected to multiple staffline'
                          ' objects!'.format(c.uid))
+
+
+##############################################################################
+
+def group_by_measure(cropobjects):
+    """Groups the objects into measures.
+    Assumes the measures are consistent across staffs: no polytempi.
+
+    If there are objects that span multiple measures, they are assigned
+    to all the measures they intersect.
+
+    If no measure separators are found, assumes everything belongs
+    to one measure.
+
+    :returns: A list of CropObject lists corresponding to measures. The list
+        is ordered left-to-right.
+    """
+    graph = NotationGraph(cropobjects)
+    logging.debug('Find measure separators.')
+
+    measure_separators = [c for c in cropobjects
+                          if c.clsname in _CONST.MEASURE_SEPARATOR_CLSNAMES]
+
+    if len(measure_separators) == 0:
+        return cropobjects
+
+    logging.debug('Order measure separators by precedence.')
+    # Systems
+    # measure seps. by system
+    measure_separators = sorted(measure_separators, key=lambda m: m.left)
+
+    logging.debug('Denote measure areas: bounding boxes and masks.')
+    logging.debug('Assign objects to measures, based on overlap.')
+
+    raise NotImplementedError()

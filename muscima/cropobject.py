@@ -848,6 +848,17 @@ class CropObject(object):
 
         return '\n'.join(lines)
 
+    def data_display_text(self):
+        if self.data is None:
+            return '[No data]'
+        if len(self.data) == 0:
+            return '[No data]'
+
+        lines = []
+        for k, v in self.data.items():
+            lines.append('{0}:      {1}'.format(k, v))
+        return '\n'.join(lines)
+
     @staticmethod
     def encode_mask_bitmap(mask, compress=False):
         """Encodes the mask array in a compact form. Returns 'None' if mask
