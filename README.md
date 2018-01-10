@@ -1,29 +1,28 @@
+# MUSCIMA
 
-muscima
-=======
+The ``muscima`` (**Mu**sic **Sc**ore **Ima**ges) package implements a data model for the [MUSCIMA++](https://ufal.mff.cuni.cz/muscima)
+dataset of music notation.
 
-The ``muscima`` package implements a data model for the MUSCIMA++
-dataset of music notation. The dataset itself is available for download
-here:
+[![Build Status](https://travis-ci.org/apacha/muscima.svg?branch=master)](https://travis-ci.org/apacha/muscima)
+[![PyPI version](https://badge.fury.io/py/muscima.svg)](https://badge.fury.io/py/muscima)
+[![Documentation Status](https://readthedocs.org/projects/muscima/badge/?version=latest)](https://muscima.readthedocs.io/en/latest/index.html)
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE.txt)
 
-[MUSCIMA++ v0.9](https://ufal.mff.cuni.cz/jan-hajic-jr/MUSCIMA++_v0.9.zip)
-
-**Current dataset version: 0.9**
-
-**Current package version: 0.3.2**
-
-The package should work with both Python 2.7 and Python 3.5,
+This package should work with both Python 2.7 and Python 3.6,
 although the doctest-based test suite only works on Python 3.
 
-The package is distributed under the MIT license (see LICENSE file).
 
-[The documentation is online, including a tutorial, here.](https://muscima.readthedocs.io)
-
-
-Getting started
----------------
+## Getting started
 
 1. Install this package: ``pip install muscima``
 2. Download the [MUSCIMA++ dataset](https://ufal.mff.cuni.cz/jan-hajic-jr/MUSCIMA++_v0.9.zip).
-3. Run through the tutorial.
+3. Run through the [tutorial](https://muscima.readthedocs.io/en/latest/Tutorial.html#tutorial).
 
+
+
+## Dataset
+The dataset itself is available for download
+[here](https://lindat.mff.cuni.cz/repository/xmlui/handle/11372/LRT-2372) and due to its derived nature, licensed differently:
+
+[![abc](https://img.shields.io/badge/Dataset_Version-1.0-brightgreen.svg)](https://lindat.mff.cuni.cz/repository/xmlui/handle/11372/LRT-2372)
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
