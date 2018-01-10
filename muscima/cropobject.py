@@ -6,7 +6,7 @@ from __future__ import print_function, unicode_literals, division
 import copy
 import itertools
 import logging
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Union, Tuple
 
 import numpy
 
@@ -535,6 +535,7 @@ class CropObject(object):
 
     @staticmethod
     def bbox_to_integer_bounds(ftop, fleft, fbottom, fright):
+        # type: (float,float,float,float) -> (int,int,int,int)
         """Rounds off the CropObject bounds to the nearest integer
         so that no area is lost (e.g. bottom and right bounds are
         rounded up, top and left bounds are rounded down).
@@ -609,6 +610,7 @@ class CropObject(object):
         return output
 
     def render(self, img, alpha=0.3, rgb=(1.0, 0.0, 0.0)):
+        # type: (numpy.ndarray, float, Tuple[float,float,float]) -> numpy.ndarray
         """Renders itself upon the given image as a rectangle
         of the given color and transparency. Might help visualization.
 
@@ -630,6 +632,7 @@ class CropObject(object):
         return img
 
     def overlaps(self, bounding_box_or_cropobject):
+        # type: (Union[Tuple[float,float,float,float],CropObject]) -> bool
         """Check whether this CropObject overlaps the given bounding box or CropObject.
 
         >>> c = CropObject(0, 'test', 10, 100, height=20, width=10)

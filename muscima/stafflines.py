@@ -11,6 +11,7 @@ import pprint
 import numpy
 from skimage.filters import gaussian
 from skimage.morphology import watershed
+from typing import List
 
 from muscima.cropobject import CropObject, cropobjects_on_canvas, link_cropobjects
 from muscima.graph import NotationGraph, find_noteheads_on_staff_linked_to_ledger_line
@@ -25,6 +26,7 @@ __author__ = "Jan Hajic jr."
 
 
 def __has_parent_staff(c, cropobjects):
+    # type: (CropObject, List[CropObject]) -> bool
     _cdict = {c.objid: c for c in cropobjects}
     staff_inlinks = [_cdict[i] for i in c.inlinks
                      if _cdict[i].clsname == _CONST.STAFF_CLSNAME]
@@ -32,6 +34,7 @@ def __has_parent_staff(c, cropobjects):
 
 
 def __has_child_staffspace(staff, cropobjects):
+    # type: (CropObject, List[CropObject]) -> bool
     _cdict = {c.objid: c for c in cropobjects}
     staffline_outlinks = [_cdict[i] for i in staff.outlinks
                           if _cdict[i].clsname == _CONST.STAFFSPACE_CLSNAME]
@@ -39,6 +42,7 @@ def __has_child_staffspace(staff, cropobjects):
 
 
 def __has_neighbor_staffspace(staffline, cropobjects):
+    # type: (CropObject, List[CropObject]) -> bool
     _cdict = {c.objid: c for c in cropobjects}
     # Find parent staff
     if not __has_parent_staff(staffline, cropobjects):
@@ -56,6 +60,7 @@ def __has_neighbor_staffspace(staffline, cropobjects):
 
 
 def merge_staffline_segments(cropobjects, margin=10):
+    # type: (List[CropObject], int) -> List[CropObject]
     """Given a list of CropObjects that contain some staffline
     objects, generates a new list where the stafflines
     are merged based on their horizontal projections.
