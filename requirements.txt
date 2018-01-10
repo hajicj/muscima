@@ -4,3 +4,7 @@ pytest
 pytest-cov
 scikit-image
 matplotlib
+
+# Libraries to integrating code-coverage reporting
+python-coveralls
+codecov
