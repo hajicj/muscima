@@ -19,6 +19,7 @@ from __future__ import print_function, unicode_literals, division
 
 import logging
 import os
+from typing import Optional
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -28,6 +29,7 @@ __author__ = "Jan Hajic jr."
 
 
 def _get_cvc_muscima_root():
+    # type: () -> Optional[str]
     if 'CVC_MUSCIMA_ROOT' in os.environ:
         CVC_MUSCIMA_ROOT = os.environ['CVC_MUSCIMA_ROOT']
         return CVC_MUSCIMA_ROOT
@@ -35,12 +37,15 @@ def _get_cvc_muscima_root():
         logging.info('muscima.dataset: environmental variable CVC_MUSCIMA_ROOT not defined.')
         return None
 
+
 CVC_MUSCIMA_ROOT = _get_cvc_muscima_root()
+
 
 ##############################################################################
 
 
 def _get_mff_muscima_root():
+    # type: () -> Optional[str]
     if 'MUSCIMA_PLUSPLUS_ROOT' in os.environ:
         MUSCIMA_PLUSPLUS_ROOT = os.environ['MUSCIMA_PLUSPLUS_ROOT']
         return MUSCIMA_PLUSPLUS_ROOT
@@ -48,7 +53,9 @@ def _get_mff_muscima_root():
         logging.info('muscima.dataset: environmental variable MUSCIMA_PLUSPLUS_ROOT not defined.')
         return None
 
+
 MUSCIMA_PLUSPLUS_ROOT = _get_mff_muscima_root()
+
 
 ##############################################################################
 
@@ -81,6 +88,7 @@ class CVC_MUSCIMA:
     MODES = ['full', 'symbol', 'staff_only']
 
     def __init__(self, root=_get_cvc_muscima_root(), validate=False):
+        # type: (Optional[str], bool) -> None
         """The dataset is instantiated by providing the path to its root
         directory. If the ``CVC_MUSCIMA_ROOT`` variable is set, you do not
         have to provide anything."""
@@ -101,6 +109,7 @@ class CVC_MUSCIMA:
         self.root = root
 
     def imfile(self, page, writer, distortion='ideal', mode='full'):
+        # type: (int, int, str, str) -> str
         """Construct the path leading to the file of the CVC-MUSCIMA image
         with the specified page (1 - 20), writer (1 - 50), distortion
         (see ``CVC_MUSCIMA_DISTORTIONS``), and mode (``full``, ``symbol``,
@@ -129,6 +138,7 @@ class CVC_MUSCIMA:
         return fname
 
     def _number2page_file(self, n):
+        # type: (int) -> str
         if (n < 1) or (n > 20):
             raise ValueError('Invalid CVC-MUSCIMA score number {0}.'
                              ' Valid only between 1 and 20.'.format(n))
@@ -138,6 +148,7 @@ class CVC_MUSCIMA:
             return 'p0' + str(n) + '.png'
 
     def _number2writer_dir(self, n):
+        # type: (int) -> str
         if (n < 1) or (n > 50):
             raise ValueError('Invalid MUSCIMA writer number {0}.'
                              ' Valid only between 1 and 50.'.format(n))
@@ -147,6 +158,7 @@ class CVC_MUSCIMA:
             return 'w-' + str(n)
 
     def _mode2dir(self, mode):
+        # type: (str) -> str
         if mode == 'full':
             return 'image'
         elif mode == 'symbol':
@@ -155,6 +167,7 @@ class CVC_MUSCIMA:
             return 'gt'
 
     def validate(self, fail_early=True):
+        # type: (bool) -> bool
         """Checks whether the instantiated CVC_MUSCIMA instance really
         corresponds to the CVC-MUSCIMA dataset: all the 12 x 1000 expected
         CVC-MUSCIMA files should be present.
