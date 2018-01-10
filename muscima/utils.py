@@ -4,7 +4,6 @@ from __future__ import print_function, unicode_literals
 import logging
 
 import numpy
-from muscima.cropobject import CropObject
 from skimage.measure import label
 from typing import Dict, List, Tuple
 
@@ -67,6 +66,7 @@ def compute_connected_components(image):
 
 
 def resolve_notehead_wrt_staffline(notehead, staffline_or_ledger_line):
+    from muscima.cropobject import CropObject
     # type: (CropObject, CropObject) -> int
     """Resolves the relative vertical position of the notehead with respect
     to the given staff_line or ledger_line object. Returns -1 if notehead
@@ -136,6 +136,7 @@ def resolve_notehead_wrt_staffline(notehead, staffline_or_ledger_line):
 
 
 def is_notehead_on_line(notehead, line_obj):
+    from muscima.cropobject import CropObject
     # type: (CropObject, CropObject) -> bool
     """Check whether given notehead is positioned on the line object."""
     if line_obj.clsname not in _CONST.STAFFLINE_LIKE_CROPOBJECT_CLSNAMES:
