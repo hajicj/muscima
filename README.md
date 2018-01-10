@@ -17,7 +17,7 @@ although the doctest-based test suite only works on Python 3.
 ## Getting started
 
 1. Install this package: ``pip install muscima``
-2. Download the [MUSCIMA++ dataset](https://ufal.mff.cuni.cz/jan-hajic-jr/MUSCIMA++_v0.9.zip).
+2. Download the [MUSCIMA++ dataset](https://lindat.mff.cuni.cz/repository/xmlui/handle/11372/LRT-2372).
 3. Run through the [tutorial](https://muscima.readthedocs.io/en/latest/Tutorial.html#tutorial).
 
 
