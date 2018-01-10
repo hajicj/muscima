@@ -49,6 +49,57 @@ The CropObjects are themselves kept as a list::
 Parsing is only implemented for files that consist of a single
 ``<CropObjectList>``.
 
+Additional information
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. caution::
+
+    This part may easily be deprecated.
+
+Arbitrary data can be added to the CropObject using the optional
+``<Data>`` element. It should encode a dictionary of additional
+information about the CropObject that may only apply to a subset
+of CropObjects (this facultativeness is what distinguishes the
+purpose of the ``<Data>`` element from just subclassing ``CropObject``).
+
+For example, encoding the pitch, duration and precedence information
+about a notehead could look like this::
+
+    <CropObject>
+        ...
+        <Data>
+            <DataItem key="pitch_step" type="str">D</DataItem>
+            <DataItem key="pitch_modification" type="int">1</DataItem>
+            <DataItem key="pitch_octave" type="int">4</DataItem>
+            <DataItem key="midi_pitch_code" type="int">63</DataItem>
+            <DataItem key="midi_duration" type="int">128</DataItem>
+            <DataItem key="precedence_inlinks" type="list[int]">23 24 25</DataItem>
+            <DataItem key="precedence_outlinks" type="list[int]">27</DataItem>
+        </Data>
+    </CropObject
+
+The ``CropObject`` will then contain in its ``data`` attribute
+the dictionary::
+
+    self.data = {'pitch_step': 'D',
+                 'pitch_modification': 1,
+                 'pitch_octave': 4,
+                 'midi_pitch_code': 63,
+                 'midi_pitch_duration': 128,
+                 'precedence_inlinks': [23, 24, 25],
+                 'precedence_outlinks': [27]}
+
+
+This is also a basic mechanism to allow you to subclass
+CropObject with extra attributes without having to re-implement
+parsing and export.
+
+.. warning::
+
+    Do not misuse this! The ``<Data>`` mechanism is primarily
+    intended to encode extra information for MUSCIMarker to
+    display.
+
 Unique identification of a CropObject
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -96,6 +147,14 @@ Individual elements of a ``<CropObject>``
   CropObjects from multiple scopes (e.g., multiple CropObjectLists)!
   If you are using CropObjects from multiple CropObjectLists at the same
   time, make sure to check against the ``uid``s.
+* ``<Data>``: a list of ``<DataItem>`` elements. The elements have
+  two attributes: ``key``, and ``type``. The ``key`` is what the item
+  should be called in the ``data`` dict of the loaded CropObject.
+  The ``type`` attribute encodes the Python type of the item and gets
+  applied to the text of the ``<DataItem>`` to produce the value.
+  Currently supported types are ``int``, ``float``, and ``str``,
+  and ``list[int]``, ``list[float]`` and ``list[str]``. The lists
+  are whitespace-separated.
 
 The parser function provided for CropObjects does *not* check against
 the presence of other elements. You can extend CropObjects for your
@@ -245,6 +304,17 @@ def parse_cropobject_list(filename):
     Note that what is Y in the data gets translated to cropobj.x (vertical),
     what is X gets translated to cropobj.y (horizontal).
 
+    Let's also test the ``data`` attribute:
+
+    >>> clfile_data = os.path.join(test_data_dir, '..', '01_basic_binary.xml')
+    >>> cropobjects = parse_cropobject_list(clfile_data)
+    >>> cropobjects[0].data['pitch_step']
+    'G'
+    >>> cropobjects[0].data['midi_pitch_code']
+    79
+    >>> cropobjects[0].data['precedence_outlinks']
+    [8, 17]
+
     :returns: A list of ``CropObject``s.
     """
     tree = etree.parse(filename)
@@ -297,6 +367,7 @@ def parse_cropobject_list(filename):
             xs = cropobject.findall('Y')
             ys = cropobject.findall('X')
             return (len(xs) > 0) and (len(ys) > 0)
+
         def _uses_topleft(cropobject):
             xs = cropobject.findall('Top')
             ys = cropobject.findall('Left')
@@ -339,6 +410,36 @@ def parse_cropobject_list(filename):
             if o_s_text is not None:
                 outlinks = list(map(int, o_s_text.split(' ')))
 
+
+        #################################
+        # Decode the data.
+        data = cropobject.findall('Data')
+        data_dict = None
+        if len(data) > 0:
+            data = data[0]
+            data_dict = {}
+            for data_item in data.findall('DataItem'):
+                key = data_item.get('key')
+                value_type = data_item.get('type')
+                value = data_item.text
+
+                #logging.debug('Creating data entry: key={0}, type={1},'
+                #              ' value={2}'.format(key, value_type, value))
+
+                if value_type == 'int':
+                    value = int(value)
+                elif value_type == 'float':
+                    value = float(value)
+                elif value_type.startswith('list'):
+                    vt_factory = str
+                    if value_type.endswith('[int]'):
+                        vt_factory = int
+                    elif value_type.endswith('[float]'):
+                        vt_factory = float
+                    value = list(map(vt_factory, value.split()))
+
+                data_dict[key] = value
+
         #################################
         # Create the object.
         obj = CropObject(objid=objid,
@@ -349,7 +450,8 @@ def parse_cropobject_list(filename):
                          width=width,
                          height=height,
                          inlinks=inlinks,
-                         outlinks=outlinks)
+                         outlinks=outlinks,
+                         data=data_dict)
 
         #################################
         # Add mask.
@@ -362,7 +464,7 @@ def parse_cropobject_list(filename):
             mask = obj.decode_mask(cropobject.findall('Mask')[0].text,
                                    shape=(obj.height, obj.width))
         obj.set_mask(mask)
-        logging.debug('Created CropObject with ID {0}'.format(obj.objid))
+        # logging.debug('Created CropObject with ID {0}'.format(obj.objid))
 
         cropobject_list.append(obj)
 

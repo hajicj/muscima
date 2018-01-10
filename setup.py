@@ -53,7 +53,10 @@ setup(
     scripts=['scripts/analyze_agreement.py',
              'scripts/analyze_annotations.py',
              'scripts/analyze_tracking_log.py',
-             'scripts/get_images_from_muscima.py'],
+             'scripts/get_images_from_muscima.py',
+             'scripts/add_staffline_symbols.py',
+             'scripts/add_staff_relationships.py',
+             'scripts/strip_staffline_symbols.py'],
     platforms='any',
     test_suite='test.test_muscima',
     classifiers = [

@@ -103,6 +103,7 @@ def build_argument_parser():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('-i', '--input', action='store', nargs='+',
+                        required=True,
                         help='List of input CropObjectList files.')
     parser.add_argument('-e', '--emit', action='store', default='print',
                         choices=['print', 'latex', 'json'],

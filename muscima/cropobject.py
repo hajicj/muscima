@@ -9,6 +9,8 @@ import logging
 
 import numpy
 
+from muscima.utils import compute_connected_components
+
 __version__ = "1.0"
 __author__ = "Jan Hajic jr."
 
@@ -45,6 +47,8 @@ class CropObject(object):
       CropObject's bounding box (specified by ``top``, ``left``, ``height``
       and ``width``) that the CropObject actually occupies. If the mask is
       ``None``, the object is understood to occupy the entire bounding box.
+    * ``data``: a dictionary that can be empty, or can contain anything. It is
+      generated from the optional ``<Data>`` element of a CropObject.
 
     Constructing a simple CropObject that consists of the "b"-like flat music
     notation symbol (never mind the ``uid`` for now):
@@ -241,10 +245,11 @@ class CropObject(object):
     def __init__(self, objid, clsname, top, left, width, height,
                  outlinks=None, inlinks=None,
                  mask=None,
-                 uid=None):
-        logging.debug('Initializing CropObject with objid {0}, uid {5}, x={1},'
-                     ' y={2}, h={3}, w={4}'
-                      ''.format(objid, top, left, height, width, uid))
+                 uid=None,
+                 data=None):
+        # logging.debug('Initializing CropObject with objid {0}, uid {5}, x={1},'
+        #              ' y={2}, h={3}, w={4}'
+        #               ''.format(objid, top, left, height, width, uid))
         self.objid = objid
 
         self.clsname = clsname
@@ -275,6 +280,10 @@ class CropObject(object):
 
         self.is_selected = False
         #logging.debug('...done!')
+
+        if data is None:
+            data = dict()
+        self.data = data
 
     ##########################################################################
     # Dealing with unique identification of a CropObject, also across
@@ -411,6 +420,22 @@ class CropObject(object):
 
             self.mask = mask.astype('uint8')
 
+    def set_objid(self, objid):
+        """Changes the objid and updates the UID with it.
+        Do NOT use this unless you know what you're doing;
+        changing the objid should be (1) checked against objid
+        conflics within the doc, (2) reflected in the outlinks
+        and inlinks.
+        """
+        self.objid = objid
+        self._sync_objid_to_uid()
+
+    def _sync_objid_to_uid(self):
+        """Resets the UID number to reflect the objid."""
+        g_name, doc_name, num = self._parse_uid(self.uid)
+        new_uid = self.build_uid(g_name, doc_name, self.objid)
+        self.set_uid(new_uid)
+
     @property
     def dataset(self):
         """Which dataset is this CropObject coming from?
@@ -482,6 +507,14 @@ class CropObject(object):
             return False
 
         return self.mask.sum() == 0
+
+    @property
+    def outlink_uids(self):
+        return [self.build_uid(self.dataset, self.doc, o) for o in self.outlinks]
+
+    @property
+    def inlink_uids(self):
+        return [self.build_uid(self.dataset, self.doc, i) for i in self.inlinks]
 
     @staticmethod
     def bbox_to_integer_bounds(ftop, fleft, fbottom, fright):
@@ -579,8 +612,8 @@ class CropObject(object):
         img[self.top:self.bottom, self.left:self.right] = mix
         return img
 
-    def overlaps(self, bounding_box):
-        """Check whether this CropObject overlaps the given bounding box.
+    def overlaps(self, bounding_box_or_cropobject):
+        """Check whether this CropObject overlaps the given bounding box or CropObject.
 
         >>> c = CropObject(0, 'test', 10, 100, height=20, width=10)
         >>> c.bounding_box
@@ -611,7 +644,10 @@ class CropObject(object):
         True
 
         """
-        t, l, b, r = bounding_box
+        if isinstance(bounding_box_or_cropobject, CropObject):
+            t, l, b, r = bounding_box_or_cropobject.bounding_box
+        else:
+            t, l, b, r = bounding_box_or_cropobject
         # Does it overlap vertically? Includes situations where the CropObject is
         # inside the bounding box.
         # Note that the bottom is +1 (fencepost), so the checks bottom vs. top need to be "less than",
@@ -767,6 +803,10 @@ class CropObject(object):
             outlinks_string = ' '.join(list(map(str, self.outlinks)))
             lines.append('\t<Outlinks>{0}</Outlinks>'.format(outlinks_string))
 
+        data_string = self.encode_data(self.data)
+        if data_string is not None:
+            lines.append('\t<Data>\n{0}\n\t</Data>'.format(data_string))
+
         lines.append('</CropObject>')
         return '\n'.join(lines)
 
@@ -778,6 +818,35 @@ class CropObject(object):
             return self.encode_mask_rle(mask, compress=compress)
         elif mode == 'bitmap':
             return self.encode_mask_bitmap(mask, compress=compress)
+
+    def encode_data(self, data):
+        if self.data is None:
+            return None
+        if len(self.data) == 0:
+            return None
+
+        lines = []
+        for k, v in self.data.items():
+            vtype = 'str'
+            vval = v
+            if isinstance(v, int):
+                vtype = 'int'
+                vval = str(v)
+            elif isinstance(v, float):
+                vtype = 'float'
+                vval = str(v)
+            elif isinstance(v, list):
+                vtype = 'list[str]'
+                if len(v) > 0:
+                    if isinstance(v[0], int): vtype='list[int]'
+                    elif isinstance(v[0], float): vtype='list[float]'
+                vval = ' '.join([str(vv) for vv in v])
+
+            line = '\t\t<DataItem key="{0}" type="{1}">{2}</DataItem>' \
+                   ''.format(k, vtype, vval)
+            lines.append(line)
+
+        return '\n'.join(lines)
 
     @staticmethod
     def encode_mask_bitmap(mask, compress=False):
@@ -867,7 +936,8 @@ class CropObject(object):
     @staticmethod
     def decode_mask_rle(mask_string, shape):
         """Decodes the mask array from the RLE-encoded form
-        to the 2D numpy array."""
+        to the 2D numpy array.
+        """
         if mask_string == 'None':
             return None
 
@@ -980,9 +1050,91 @@ class CropObject(object):
                 break
         return output
 
+    def translate(self, down=0, right=0):
+        """Move the cropobject down and right by the given amount of pixels."""
+        self.x += down
+        self.y += right
+
 
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
+def split_cropobject_on_connected_components(c, next_objid):
+    """Split the CropObject into one object per connected component
+    of the mask. All inlinks/outlinks are retained in all the newly
+    created CropObjects, and the old object is not changed. (If there
+    is only one connected component, the object is returned unchanged
+    in a list of length 1.)
+
+    An ``objid`` must be provided at which to start numbering the newly
+    created CropObjects.
+
+    The ``data`` attribute is also retained.
+    """
+    mask = c.mask
+
+    # "Safety margin"
+    canvas = numpy.zeros((mask.shape[0] + 2, mask.shape[1] + 2))
+    canvas[1:-1, 1:-1] = mask
+    cc, labels, bboxes = compute_connected_components(canvas)
+
+    logging.info('CropObject.split(): {0} ccs, bboxes: {1}'.format(cc, bboxes))
+
+    if len(bboxes) == 1:
+        return [c]
+
+    output = []
+
+    _next_objid = next_objid
+    for label, (t, l, b, r) in bboxes.items():
+        # Background in compute_connected_components() doesn't work?
+        if label == 0:
+            continue
+
+        h = b - t
+        w = r - l
+        m_label = (labels == label).astype('uint8')
+        m = m_label[t:b, l:r]
+        top = t + c.top - 1
+        left = l + c.left - 1
+        objid = _next_objid
+        inlinks = copy.deepcopy(c.inlinks)
+        outlinks = copy.deepcopy(c.outlinks)
+        data = copy.deepcopy(c.data)
+
+        new_c = CropObject(objid, c.clsname, top, left, w, h,
+                           inlinks=inlinks, outlinks=outlinks,
+                           mask=m, data=data)
+        output.append(new_c)
+
+        _next_objid += 1
+
+    return output
+
+
+def cropobjects_merge(fr, to, clsname, objid):
+    """Merge the given CropObjects with respect to the other.
+    Returns the new CropObject (without modifying any of the inputs)."""
+    if fr.doc != to.doc:
+        raise ValueError('Cannot merge CropObjects from different documents!'
+                         ' fr: {0}, to: {1}'.format(fr.doc, to.doc))
+
+    mt, ml, mb, mr = cropobjects_merge_bbox([fr, to])
+    mh = mb - mt
+    mw = mr - ml
+    mmask = cropobjects_merge_mask([fr, to])
+    m_inlinks, m_outlinks = cropobjects_merge_links([fr, to])
+
+    m_doc = fr.doc
+    m_dataset = fr.dataset
+    m_uid = CropObject.build_uid(m_dataset, m_doc, objid)
+
+    output = CropObject(objid, clsname,
+                        top=mt, left=ml, height=mh, width=mw,
+                        mask=mmask,
+                        inlinks=m_inlinks, outlinks=m_outlinks,
+                        uid=m_uid)
+    return output
+
 
 def cropobjects_merge_bbox(cropobjects):
     """Computes the bounding box of a CropObject that would
@@ -996,10 +1148,15 @@ def cropobjects_merge_bbox(cropobjects):
         b = max(b, c.bottom)
         r = max(r, c.right)
 
-    return t, l, b, r
+    it, il, ib, ir = int(t), int(l), int(b), int(r)
+    if (it != t) or (il != l) or (ib != b) or (ir != r):
+        logging.warn('Merged bounding box does not consist of integers!'
+                     ' {0}'.format((t, l, b, r)))
+
+    return it, il, ib, ir
 
 
-def cropobjects_merge_mask(cropobjects):
+def cropobjects_merge_mask(cropobjects, intersection=False):
     """Merges the given list of cropobjects into one. Masks are combined
     by an OR operation.
 
@@ -1026,6 +1183,10 @@ def cropobjects_merge_mask(cropobjects):
     also will not have a mask.
 
     If some cropobjects have masks and some don't, fails.
+
+    :param intersection: Instead of a union, return the mask
+        intersection: only those pixels which are common to all
+        the cropobjects.
     """
     # No mask
     if len([c for c in cropobjects if c.mask is not None]) == 0:
@@ -1049,7 +1210,11 @@ def cropobjects_merge_mask(cropobjects):
         #logging.debug('Mask shape: {0}, curr. shape: {1}'.format(c.mask.shape, (cb - ct, cr - cl)))
         output_mask[ct:cb, cl:cr] += c.mask
 
-    output_mask[output_mask > 0] = 1
+    if intersection:
+        output_mask[output_mask < len(cropobjects)] = 0
+        output_mask[output_mask != 0] = 1
+    else:
+        output_mask[output_mask > 0] = 1
     return output_mask
 
 
@@ -1141,3 +1306,122 @@ def link_cropobjects(fr, to, check_docname=True):
                             ''.format(fr.doc, fr.objid, to.objid))
     fr.outlinks.append(to.objid)
     to.inlinks.append(fr.objid)
+
+
+def bbox_intersection(bbox_this, bbox_other):
+    """Returns the t, l, b, r coordinates of the sub-bounding box
+    of bbox_this that is also inside bbox_other.
+    If the bounding boxes do not overlap, returns None."""
+    t, l, b, r = bbox_other
+
+    tt, tl, tb, tr = bbox_this
+
+    out_top = max(t, tt)
+    out_bottom = min(b, tb)
+    out_left = max(l, tl)
+    out_right = min(r, tr)
+
+    if (out_top < out_bottom) and (out_left < out_right):
+        return out_top - tt, \
+               out_left - tl, \
+               out_bottom - tt, \
+               out_right - tl
+    else:
+        return None
+
+
+def bbox_dice(bbox_this, bbox_other, vertical=False, horizontal=False):
+    """Compute the Dice coefficient (intersection over union)
+    for the given two bounding boxes.
+
+    :param vertical: If set, will only return vertical IoU.
+
+    :param horizontal: If set, will only return horizontal IoU.
+        If both vertical and horizontal are set, will return
+        normal IoU, as if they were both false.
+    """
+    t_t, t_l, t_b, t_r = bbox_this
+    o_t, o_l, o_b, o_r = bbox_other
+
+    u_t, i_t = min(t_t, o_t), max(t_t, o_t)
+    u_l, i_l = min(t_l, o_l), max(t_l, o_l)
+    u_b, i_b = max(t_b, o_b), min(t_b, o_b)
+    u_r, i_r = max(t_r, o_r), min(t_r, o_r)
+
+    u_vertical = max(0, u_b - u_t)
+    u_horizontal = max(0, u_r - u_l)
+
+    i_vertical = max(0, i_b - i_t)
+    i_horizontal = max(0, i_r - i_l)
+
+    if vertical and not horizontal:
+        if u_vertical == 0:
+            return 0
+        else:
+            return i_vertical / u_vertical
+    elif horizontal and not vertical:
+        if u_horizontal == 0:
+            return 0
+        else:
+            return i_horizontal / u_horizontal
+    else:
+        if (u_horizontal == 0) or (u_vertical == 0):
+            return 0
+        else:
+            return (i_horizontal * i_vertical) / (u_horizontal * u_vertical)
+
+
+def cropobject_distance(c, d):
+    """Computes the distance between two CropObjects.
+    Their minimum vertical and horizontal distances are each taken
+    separately, and the euclidean norm is computed from them."""
+    if c.doc != d.doc:
+        logging.warning('Cannot compute distances between CropObjects'
+                         ' from different documents! ({0} vs. {1})'
+                         ''.format(c.doc, d.doc))
+
+    c_t, c_l, c_b, c_r = c.bounding_box
+    d_t, d_l, d_b, d_r = d.bounding_box
+
+    delta_vert = 0
+    delta_horz = 0
+
+    if (c_t <= d_t <= c_b) or (d_t <= c_t <= d_b):
+        delta_vert = 0
+    elif c_t < d_t:
+        delta_vert = d_t - c_b
+    else:
+        delta_vert = c_t - d_b
+
+    if (c_l <= d_l <= c_r) or (d_l <= c_l <= d_r):
+        delta_horz = 0
+    elif c_l < d_l:
+        delta_horz = d_l - c_r
+    else:
+        delta_horz = c_l - d_r
+
+    return numpy.sqrt(delta_vert ** 2 + delta_horz ** 2)
+
+
+def cropobjects_on_canvas(cropobjects, margin=10):
+    """Draws all the given CropObjects onto a zero background.
+    The size of the canvas adapts to the CropObjects, with the
+    given margin.
+
+    Also returns the top left corner coordinates w.r.t. CropObjects' bboxes.
+    """
+
+    # margin is used to avoid the stafflines touching the edges,
+    # which could perhaps break some assumptions down the line.
+    it, il, ib, ir = cropobjects_merge_bbox(cropobjects)
+    _t, _l, _b, _r = max(0, it - margin), max(0, il - margin), ib + margin, ir + margin
+
+    canvas = numpy.zeros((_b - _t, _r - _l))
+
+    for c in cropobjects:
+        canvas[c.top - _t:c.bottom - _t, c.left - _l:c.right - _l] = c.mask * 1
+
+    canvas[canvas != 0] = 1
+
+    return canvas, (_t, _l)
+

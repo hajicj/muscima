@@ -3,8 +3,10 @@
 for which MUSCIMA++ provides symbol annotations from a download
 of the CVC-MUSCIMA staff removal dataset.
 
-You have to download the dataset first and provide a path to its
-root directory to this script. Either supply it directly using the ``-r`` option,
+You have to download this dataset first and provide a path to its
+root directory (meaning the directory which contains subdirs for
+the individual CVC-MUSCIMA distortions)
+to this script. Either supply it directly using the ``-r`` option,
 or set a ``CVC_MUSCIMA_ROOT`` environmental variable.
 
 Example invocation::
@@ -12,7 +14,10 @@ Example invocation::
     get_images_from_muscima.py -o ./images -i 4:10 17:8 5:12 21:10 34:3
 
 MUSCIMA++ 0.9 provides a file with the writer:number pairs for its 140
-annotated images in this format.
+annotated images in this format, which you can feed to the script
+with::
+
+    get_images_from_muscima.py [...] -i `cat path/to/MUSCIMA++/specifications/cvc-muscima-image-list.txt
 
 For an overview of all command-line options, call::
 
@@ -39,7 +44,9 @@ def build_argument_parser():
 
     parser.add_argument('-r', '--root', action='store',
                         default=muscima.dataset.CVC_MUSCIMA_ROOT,
-                        help='CVC-MUSCIMA dataset root directory.')
+                        help='CVC-MUSCIMA dataset root directory (should'
+                             ' contain subdirectories named after the'
+                             ' CVC-MUSCIMA distortions).')
     parser.add_argument('-o', '--outdir', action='store',
                         help='Output directory for the copied files.'
                              ' If it does not exist, it will be created.')

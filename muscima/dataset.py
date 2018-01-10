@@ -8,9 +8,9 @@ Environmental variables
 -----------------------
 
 * ``CVC_MUSCIMA_ROOT``
-* ``MFF_MUSCIMA_ROOT``
+* ``MUSCIMA_PLUSPLUS_ROOT``
 
-The dataset root environmental variables are used as defaults
+The dataset root environmental variables are used as default roots
 for retrieving the dataset files. If they are not set, you will
 have to supply the roots to the respective functions that manipulate
 these layers of MUSCIMA++.
@@ -32,7 +32,7 @@ def _get_cvc_muscima_root():
         CVC_MUSCIMA_ROOT = os.environ['CVC_MUSCIMA_ROOT']
         return CVC_MUSCIMA_ROOT
     else:
-        logging.warning('muscima.dataset: environmental variable CVC_MUSCIMA_ROOT not defined.')
+        logging.info('muscima.dataset: environmental variable CVC_MUSCIMA_ROOT not defined.')
         return None
 
 CVC_MUSCIMA_ROOT = _get_cvc_muscima_root()
@@ -41,14 +41,14 @@ CVC_MUSCIMA_ROOT = _get_cvc_muscima_root()
 
 
 def _get_mff_muscima_root():
-    if 'MFF_MUSCIMA_ROOT' in os.environ:
-        MFF_MUSCIMA_ROOT = os.environ['MFF_MUSCIMA_ROOT']
-        return MFF_MUSCIMA_ROOT
+    if 'MUSCIMA_PLUSPLUS_ROOT' in os.environ:
+        MUSCIMA_PLUSPLUS_ROOT = os.environ['MUSCIMA_PLUSPLUS_ROOT']
+        return MUSCIMA_PLUSPLUS_ROOT
     else:
-        logging.warning('muscima.dataset: environmental variable MFF_MUSCIMA_ROOT not defined.')
+        logging.info('muscima.dataset: environmental variable MUSCIMA_PLUSPLUS_ROOT not defined.')
         return None
 
-MFF_MUSCIMA_ROOT = _get_mff_muscima_root()
+MUSCIMA_PLUSPLUS_ROOT = _get_mff_muscima_root()
 
 ##############################################################################
 

@@ -27,13 +27,14 @@ The package author is Jan Hajič jr. You can contact him at::
 Questions and comments are welcome! This package is also hosted on github,
 so if you find a bug, submit an issue (or a pull request!) there:
 
-`<htts://github.com/hajicj/muscima>`_
+`<https://github.com/hajicj/muscima>`_
 
 
 Requirements
 ------------
 
 Python 3.5, otherwise nothing beyond the ``requirements.txt`` file: ``lxml`` and ``numpy``.
+If you want to apply pitch inference, you should also get ``music21``.
 
 Installation
 ------------
