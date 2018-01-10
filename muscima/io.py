@@ -631,6 +631,7 @@ def export_cropobject_list(cropobjects, docname=None, dataset_name=None):
 # Parsing CropObjectClass lists, mostly for grammars.
 
 def parse_cropobject_class_list(filename):
+    # type: (str) -> List[CropObjectClass]
     """From a xml file with a MLClassList as the top element,
     extract the list of :class:`CropObjectClass` objects. Use
     this
@@ -648,12 +649,12 @@ def parse_cropobject_class_list(filename):
 
 
 def export_cropobject_class_list(cropobject_classes):
+    # type: (List[CropObjectClass]) -> str
     """Writes the CropObject data as a XML string. Does not write
     to a file -- use ``with open(output_file) as out_stream:`` etc.
 
-    :param cropobjects: A list of CropObject instances.
+    :param cropobject_classes: A list of CropObjectClass instances.
     """
-    # This is the data string, the rest is formalities
     cropobject_classes_string = '\n'.join([str(c) for c in cropobject_classes])
 
     lines = list()
