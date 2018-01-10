@@ -11,43 +11,14 @@ matrix:
   - python: "3.6"
 
 install:
-  # # code below is taken from http://conda.pydata.org/docs/travis.html
-  # - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-  # - bash miniconda.sh -b -p $HOME/miniconda
-  # - export PATH="$HOME/miniconda/bin:$PATH"
-  # - hash -r
-  # - conda config --set always_yes yes --set changeps1 no
-  # - conda update -q conda
-  # # Useful for debugging any issues with conda
-  # - conda info -a
-
-  # - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib pytest h5py scikit-image
-  # - source activate test-environment
-
   # Display the Python version we are running now
   - python --version
-
-  # # install Pillow for processing images
-  # - conda install Pillow;
-  # - conda install -c anaconda lxml
-  # - conda install -c anaconda libxslt
-  # - conda install -c anaconda libxml2
-  # - conda install -c anaconda cython==0.23
 
   # Install additional requirements (Keras and Tensorflow CPU-Version)
   - pip install -r requirements.txt
 
   # List installed packages for debuggin purposes
   - pip list
-
-  # # Install Kivy 1.9.1, see https://kivy.org/docs/installation/installation-linux.html#installation-in-a-virtual-environment
-  # - sudo add-apt-repository ppa:kivy-team/kivy -y
-  # # Ignore errors from the next command
-  # - sudo apt-get update -q || true
-  #
-  # - sudo apt-get install libegl1-mesa-dev libgles2-mesa-dev -y
-  # - sudo apt-get install python-kivy libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev  libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev -y
-  # - pip install kivy==1.9.1
 
 script:
   - pytest --cov=muscima test/
