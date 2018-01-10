@@ -14,3 +14,7 @@ typing
 # Libraries to integrating code-coverage reporting
 python-coveralls
 codecov
+
+# For inference and playing pieces
+midi2audio
+midiutil
