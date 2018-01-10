@@ -2,3 +2,5 @@
 *.pyc
 .idea
 muscima.egg-info
+.cache
+.coverage
