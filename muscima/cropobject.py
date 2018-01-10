@@ -11,6 +11,7 @@ from builtins import object
 import copy
 import itertools
 import logging
+from typing import Any, Optional, List
 
 import numpy
 
@@ -19,8 +20,9 @@ from muscima.utils import compute_connected_components
 __version__ = "1.0"
 __author__ = "Jan Hajic jr."
 
-
 CROPOBJECT_MASK_ORDER = 'C'
+
+
 #: The CropObject mask uses this numpy ordering when flattening the data.
 
 ##############################################################################
@@ -247,11 +249,21 @@ class CropObject(object):
     (Also, the numpy array needs to be made C-contiguous for that, which
     explains the ``order='C'`` hack in ``set_mask()``.)
     """
-    def __init__(self, objid, clsname, top, left, width, height,
-                 outlinks=None, inlinks=None,
-                 mask=None,
-                 uid=None,
-                 data=None):
+
+    def __init__(self,
+                 objid,  # type: int
+                 clsname,  # type: str
+                 top,  # type: int
+                 left,  # type: int
+                 width,  # type: int
+                 height,  # type: int
+                 outlinks=None, # type: Optional[List[int]]
+                 inlinks=None,# type: Optional[List[int]]
+                 mask=None,  # type: numpy.ndarray
+                 uid=None, # type: str
+                 data=None
+                 ):
+        # type: (...) -> None
         # logging.debug('Initializing CropObject with objid {0}, uid {5}, x={1},'
         #              ' y={2}, h={3}, w={4}'
         #               ''.format(objid, top, left, height, width, uid))
@@ -284,7 +296,7 @@ class CropObject(object):
         self.set_uid(uid)
 
         self.is_selected = False
-        #logging.debug('...done!')
+        # logging.debug('...done!')
 
         if data is None:
             data = dict()
@@ -301,10 +313,12 @@ class CropObject(object):
     #: Default dataset name for CropObjects.
 
     UID_DEFAULT_DOCUMENT_NAMESPACE = 'default-document'
+
     #: Default document name for CropObjects.
 
     @property
     def default_uid(self):
+        # type: () -> str
         """Constructs the default ``uid`` that the CropObject would
         have, unless one was supplied at initialization.
 
@@ -316,6 +330,7 @@ class CropObject(object):
                                         str(self.objid)])
 
     def parse_uid(self):
+        # type: () -> (str, str, int)
         """Parse the unique identifier of the CropObject. This
         breaks down the UID into the global namespace, document
         namespace (ie. CropObjectList name -- usually per image),
@@ -326,26 +341,27 @@ class CropObject(object):
         the MUSCIMarker annotation app.
 
         See :meth:`_parse_uid` for format & test. Compared
-        to :meth:`_parse_uid`, this method checks the parsed ``num``
+        to :meth:`_parse_uid`, this method checks the parsed ``object_id``
         in the ``uid`` against this CropObject's ``objid``,
         to verify that the UID is really valid for this object.
 
         The delimiter is expected to be ``___``
         (kept as ``CropObject.UID_DELIMITER``)
         """
-        gn, dn, num = self._parse_uid(self.uid)
+        global_name, document_name, object_id = self._parse_uid(self.uid)
         # Dealing with missing uid
-        if num is None:
-            num = self.objid
+        if object_id is None:
+            object_id = self.objid
 
-        if num != self.objid:
+        if object_id != self.objid:
             raise ValueError('Got CropObject with different numeric ID'
                              ' in UID and technical objid. UID record:'
-                             ' {0}, objid: {1}'.format(num, self.objid))
-        return gn, dn, num
+                             ' {0}, objid: {1}'.format(object_id, self.objid))
+        return global_name, document_name, object_id
 
     @staticmethod
     def _parse_uid(uid):
+        # type: (Optional[str]) -> (str, str, int)
         """Parse the unique identifier of the CropObject. This
         breaks down the UID into the global namespace, document
         namespace (ie. CropObjectList name -- usually per image),
@@ -365,11 +381,11 @@ class CropObject(object):
         if uid is None:
             global_name = CropObject.UID_DEFAULT_DATASET_NAMESPACE
             document_name = CropObject.UID_DEFAULT_DOCUMENT_NAMESPACE
-            numid = None
+            object_id = None
         else:
             global_name, document_name, numid_str = uid.split(CropObject.UID_DELIMITER)
-            numid = int(numid_str)
-        return global_name, document_name, numid
+            object_id = int(numid_str)
+        return global_name, document_name, object_id
 
     @staticmethod
     def build_uid(global_name, document_name, numid):
@@ -414,7 +430,7 @@ class CropObject(object):
             t, l, b, r = self.bbox_to_integer_bounds(self.top,
                                                      self.left,
                                                      self.bottom,
-                                                     self.right)#.count()
+                                                     self.right)  # .count()
             if mask.shape != (b - t, r - l):
                 raise ValueError('Mask shape {0} does not correspond'
                                  ' to integer shape {1} of CropObject.'
@@ -746,31 +762,31 @@ class CropObject(object):
         # How many rows/columns to trim from top, bottom, etc.
         trim_top = -1
         for i in range(self.mask.shape[0]):
-            if self.mask[i,:].sum() != 0:
+            if self.mask[i, :].sum() != 0:
                 trim_top = i
                 break
 
         trim_left = -1
         for j in range(self.mask.shape[1]):
-            if self.mask[:,j].sum() != 0:
+            if self.mask[:, j].sum() != 0:
                 trim_left = j
                 break
 
         trim_bottom = -1
         for k in range(self.mask.shape[0]):
-            if self.mask[-(k+1),:].sum() != 0:
+            if self.mask[-(k + 1), :].sum() != 0:
                 trim_bottom = k
                 break
 
         trim_right = -1
         for l in range(self.mask.shape[1]):
-            if self.mask[:,-(l+1)].sum() != 0:
+            if self.mask[:, -(l + 1)].sum() != 0:
                 trim_right = l
                 break
 
         logging.debug('Cropobject.crop: Trimming top={0}, left={1},'
-                     'bottom={2}, right={3}'
-                     ''.format(trim_top, trim_left, trim_bottom, trim_right))
+                      'bottom={2}, right={3}'
+                      ''.format(trim_top, trim_left, trim_bottom, trim_right))
 
         # new bounding box relative to the current bounding box -- used to trim
         # the mask
@@ -782,7 +798,7 @@ class CropObject(object):
         new_mask = self.mask[rel_t:rel_b, rel_l:rel_r] * 1
 
         logging.debug('Cropobject.crop: Old mask shape {0}, new mask shape {1}'
-                     ''.format(self.mask.shape, new_mask.shape))
+                      ''.format(self.mask.shape, new_mask.shape))
 
         # new bounding box, relative to image -- used to compute the CropObject's
         # new position and size
@@ -856,8 +872,10 @@ class CropObject(object):
             elif isinstance(v, list):
                 vtype = 'list[str]'
                 if len(v) > 0:
-                    if isinstance(v[0], int): vtype='list[int]'
-                    elif isinstance(v[0], float): vtype='list[float]'
+                    if isinstance(v[0], int):
+                        vtype = 'list[int]'
+                    elif isinstance(v[0], float):
+                        vtype = 'list[float]'
                 vval = ' '.join([str(vv) for vv in v])
 
             line = '\t\t<DataItem key="{0}" type="{1}">{2}</DataItem>' \
@@ -957,9 +975,9 @@ class CropObject(object):
             logging.info('CropObject.decode_mask(): Cannot decode mask values:\n{0}'.format(mask_string))
             raise
         mask = numpy.array(values).reshape(shape)
-        #s = base64.decodestring(mask_string)
-        #mask = numpy.frombuffer(s)
-        #logging.info('CropObject.decode_mask(): shape={0}\nmask={1}'.format(mask.shape, mask))
+        # s = base64.decodestring(mask_string)
+        # mask = numpy.frombuffer(s)
+        # logging.info('CropObject.decode_mask(): shape={0}\nmask={1}'.format(mask.shape, mask))
         return mask
 
     @staticmethod
@@ -1016,8 +1034,8 @@ class CropObject(object):
         opl = other.left - nl
 
         # Paste the masks into these places
-        new_mask[spt:spt+self.height, spl:spl+self.width] += self.mask
-        new_mask[opt:opt+other.height, opl:opl+other.width] += other.mask
+        new_mask[spt:spt + self.height, spl:spl + self.width] += self.mask
+        new_mask[opt:opt + other.height, opl:opl + other.width] += other.mask
 
         # Normalize mask value
         new_mask[new_mask != 0] = 1
@@ -1272,12 +1290,12 @@ def cropobjects_merge_mask(cropobjects, intersection=False):
     h = b - t
     w = r - l
     output_mask = numpy.zeros((h, w), dtype=cropobjects[0].mask.dtype)
-    #logging.warn('Output mask shape: {0}'.format(output_mask.shape))
+    # logging.warn('Output mask shape: {0}'.format(output_mask.shape))
     for c in cropobjects:
-        #logging.debug('C. shape: {0}'.format(c.bounding_box))
-        #logging.debug('TLBR: {0}'.format((t, l, b, r)))
+        # logging.debug('C. shape: {0}'.format(c.bounding_box))
+        # logging.debug('TLBR: {0}'.format((t, l, b, r)))
         ct, cl, cb, cr = c.top - t, c.left - l, h - (b - c.bottom), w - (r - c.right)
-        #logging.debug('Mask shape: {0}, curr. shape: {1}'.format(c.mask.shape, (cb - ct, cr - cl)))
+        # logging.debug('Mask shape: {0}, curr. shape: {1}'.format(c.mask.shape, (cb - ct, cr - cl)))
         output_mask[ct:cb, cl:cr] += c.mask
 
     if intersection:
@@ -1385,10 +1403,10 @@ def link_cropobjects(fr, to, check_docname=True):
                             ''.format(fr.doc, to.doc))
 
     if (to.objid not in fr.outlinks) and (fr.objid in to.inlinks):
-            logging.warning('Malformed object graph in document {0}:'
-                            ' Relationship {1} --> {2} already exists as inlink,'
-                            ' but not as outlink!.'
-                            ''.format(fr.doc, fr.objid, to.objid))
+        logging.warning('Malformed object graph in document {0}:'
+                        ' Relationship {1} --> {2} already exists as inlink,'
+                        ' but not as outlink!.'
+                        ''.format(fr.doc, fr.objid, to.objid))
     fr.outlinks.append(to.objid)
     to.inlinks.append(fr.objid)
 
@@ -1462,8 +1480,8 @@ def cropobject_distance(c, d):
     separately, and the euclidean norm is computed from them."""
     if c.doc != d.doc:
         logging.warning('Cannot compute distances between CropObjects'
-                         ' from different documents! ({0} vs. {1})'
-                         ''.format(c.doc, d.doc))
+                        ' from different documents! ({0} vs. {1})'
+                        ''.format(c.doc, d.doc))
 
     c_t, c_l, c_b, c_r = c.bounding_box
     d_t, d_l, d_b, d_r = d.bounding_box
