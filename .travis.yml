@@ -27,7 +27,7 @@ install:
 
   # Display the Python version we are running now
   - python --version
-  
+
   # # install Pillow for processing images
   # - conda install Pillow;
   # - conda install -c anaconda lxml
@@ -51,8 +51,7 @@ install:
   # - pip install kivy==1.9.1
 
 script:
-  #pytest
-  - echo "There are no tests here to run yet, so we are done"
+  pytest
   #travis_wait pytest --cov=./ ./
 
 # after_success:

@@ -21,7 +21,6 @@ def load_tests(loader, tests, ignore):
     tests.addTests(doctest.DocTestSuite(muscima.dataset))
     tests.addTests(doctest.DocTestSuite(muscima.grammar))
     tests.addTests(doctest.DocTestSuite(muscima.io))
-    logging.warning('Loading tests from doctests')
     return tests
 
 
