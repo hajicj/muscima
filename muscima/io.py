@@ -257,7 +257,7 @@ import logging
 import os
 
 import collections
-from typing import List
+from typing import List, Tuple, Optional
 
 from lxml import etree
 
@@ -485,6 +485,7 @@ def parse_cropobject_list(filename):
 
 
 def validate_cropobjects_graph_structure(cropobjects):
+    # type: (List[CropObject]) -> bool
     """Check that the graph defined by the ``inlinks`` and ``outlinks``
     in the given list of CropObjects is valid: no relationships
     leading from or to objects with non-existent ``objid``s.
@@ -513,6 +514,7 @@ def validate_cropobjects_graph_structure(cropobjects):
 
 
 def validate_document_graph_structure(cropobjects):
+    # type: (List[CropObject]) -> bool
     """Check that the graph defined by the ``inlinks`` and ``outlinks``
     in the given list of CropObjects is valid: no relationships
     leading from or to objects with non-existent ``objid``s.
@@ -551,6 +553,7 @@ def validate_document_graph_structure(cropobjects):
 
 
 def export_cropobject_graph(cropobjects, validate=True):
+    # type: (List[CropObject], bool) -> List[Tuple[int, int]]
     """Collects the inlink/outlink CropObject graph
     and returns it as a list of ``(from, to)`` edges.
 
@@ -575,6 +578,7 @@ def export_cropobject_graph(cropobjects, validate=True):
 
 
 def export_cropobject_list(cropobjects, docname=None, dataset_name=None):
+    # type: (List[CropObject], Optional[str], Optional[str]) -> str
     """Writes the CropObject data as a XML string. Does not write
     to a file -- use ``with open(output_file) as out_stream:`` etc.
 
