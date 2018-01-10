@@ -255,6 +255,8 @@ import logging
 import os
 
 import collections
+from typing import List
+
 from lxml import etree
 
 from muscima.cropobject import CropObject
@@ -268,6 +270,7 @@ __author__ = "Jan Hajic jr."
 
 
 def parse_cropobject_list(filename):
+    # type: (str) -> List[CropObject]
     """From a xml file with a CropObjectList as the top element, parse
     a list of CropObjects. (See ``CropObject`` class documentation
     for a description of the XMl format.)
@@ -410,7 +413,6 @@ def parse_cropobject_list(filename):
             if o_s_text is not None:
                 outlinks = list(map(int, o_s_text.split(' ')))
 
-
         #################################
         # Decode the data.
         data = cropobject.findall('Data')
@@ -423,7 +425,7 @@ def parse_cropobject_list(filename):
                 value_type = data_item.get('type')
                 value = data_item.text
 
-                #logging.debug('Creating data entry: key={0}, type={1},'
+                # logging.debug('Creating data entry: key={0}, type={1},'
                 #              ' value={2}'.format(key, value_type, value))
 
                 if value_type == 'int':
