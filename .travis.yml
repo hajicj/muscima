@@ -51,8 +51,8 @@ install:
   # - pip install kivy==1.9.1
 
 script:
-  pytest
-  #travis_wait pytest --cov=./ ./
+  - pytest --cov=muscima test/
+  - pytest --doctest-modules --ignore setup.py
 
-# after_success:
-  # - codecov
+after_success:
+  - codecov
