@@ -253,14 +253,14 @@ class CropObject(object):
     def __init__(self,
                  objid,  # type: int
                  clsname,  # type: str
-                 top,  # type: int
-                 left,  # type: int
-                 width,  # type: int
-                 height,  # type: int
-                 outlinks=None, # type: Optional[List[int]]
-                 inlinks=None,# type: Optional[List[int]]
+                 top,  # type: float
+                 left,  # type: float
+                 width,  # type: float
+                 height,  # type: float
+                 outlinks=None,  # type: Optional[List[int]]
+                 inlinks=None,  # type: Optional[List[int]]
                  mask=None,  # type: numpy.ndarray
-                 uid=None, # type: str
+                 uid=None,  # type: str
                  data=None
                  ):
         # type: (...) -> None
@@ -409,6 +409,7 @@ class CropObject(object):
             self.parse_uid()
 
     def set_doc(self, docname):
+        # type: (str) -> None
         new_uid = self.UID_DELIMITER.join([self._dataset_namespace,
                                            docname,
                                            str(self._instance)])
