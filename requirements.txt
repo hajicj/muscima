@@ -2,3 +2,5 @@ numpy>=1.11.1
 lxml>=3.6.4
 pytest
 pytest-cov
+scikit-image
+matplotlib
