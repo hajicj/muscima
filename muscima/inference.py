@@ -83,6 +83,7 @@ class PitchInferenceEngineState(object):
     Iterate through the relevant objects on a staff, sorted left-to-right
     by left edge.
     """
+
     def __init__(self):
 
         self.base_pitch = None
@@ -285,7 +286,7 @@ class PitchInferenceEngineState(object):
 
         # From the base pitch and clef:
         step_pitch = self.base_pitch \
-                     + sum(self._current_delta_steps[:delta_step+1]) \
+                     + sum(self._current_delta_steps[:delta_step + 1]) \
                      + (delta_octave * 12)
         accidental_pitch = self.accidental(delta)
 
@@ -369,7 +370,12 @@ class PitchInferenceEngine(object):
     * Staff groupings are correct, and systems are read top-down.
 
     """
+<<<<<<< HEAD
     def __init__(self, strategy=PitchInferenceStrategy()):
+=======
+
+    def __init__(self):
+>>>>>>> Auto-formatted inference.py
         # Inference engine constants
         self._CONST = InferenceEngineConstants()
 
@@ -496,11 +502,11 @@ class PitchInferenceEngine(object):
         self.pitch_state.init_base_pitch()
 
         queue = sorted(
-                    self.staff_to_clef_map[staff.objid]
-                    + self.staff_to_key_map[staff.objid]
-                    + self.staff_to_msep_map[staff.objid]
-                    + self.staff_to_noteheads_map[staff.objid],
-                    key=lambda x: x.left)
+            self.staff_to_clef_map[staff.objid]
+            + self.staff_to_key_map[staff.objid]
+            + self.staff_to_msep_map[staff.objid]
+            + self.staff_to_noteheads_map[staff.objid],
+            key=lambda x: x.left)
 
         for q in queue:
             logging.info('process_staff(): processing object {0}-{1}'
@@ -662,7 +668,7 @@ class PitchInferenceEngine(object):
             #    then it would be weird to find out it is in the
             #    mini-staffspace *below* the closest ledger line,
             #    signalling a mistake in the data.
-            closest_ll = min(lls, key=lambda x: (x.top - notehead.top)**2 + (x.bottom - notehead.bottom)**2)
+            closest_ll = min(lls, key=lambda x: (x.top - notehead.top) ** 2 + (x.bottom - notehead.bottom) ** 2)
 
             # Determining whether the notehead is on a ledger
             # line or in the adjacent temp staffspace.
@@ -855,7 +861,7 @@ class PitchInferenceEngine(object):
 
         # Collect measure separators.
         self.measure_separators = [c for c in cropobjects
-                              if c.clsname == 'measure_separator']
+                                   if c.clsname == 'measure_separator']
         if ignore_nonstaff:
             self.measure_separators = [c for c in self.measure_separators
                                        if graph.has_child(c, ['staff'])]
@@ -997,7 +1003,7 @@ class OnsetsInferenceEngine(object):
             if len(stems) == 0:
                 self.__warning_or_error('Full notehead {0} has no stem!'.format(notehead.uid))
 
-            beat = [0.5**len(flags_and_beams)]
+            beat = [0.5 ** len(flags_and_beams)]
 
         else:
             raise ValueError('Notehead {0}: unknown clsname {1}'
@@ -1096,7 +1102,7 @@ class OnsetsInferenceEngine(object):
             for whole rests.
 
         """
-        rest_beats_dict = {'whole_rest': 4,   # !!! We should find the Time Signature.
+        rest_beats_dict = {'whole_rest': 4,  # !!! We should find the Time Signature.
                            'half_rest': 2,
                            'quarter_rest': 1,
                            '8th_rest': 0.5,
@@ -1224,8 +1230,8 @@ class OnsetsInferenceEngine(object):
                 f_and_b_below.append(c)
                 print('Appending below')
 
-        beat_above = 0.5**len(f_and_b_above)
-        beat_below = 0.5**len(f_and_b_below)
+        beat_above = 0.5 ** len(f_and_b_above)
+        beat_below = 0.5 ** len(f_and_b_below)
 
         if beat_above != beat_below:
             raise NotImplementedError('Cannot deal with multi-stem note'
@@ -1615,7 +1621,7 @@ class OnsetsInferenceEngine(object):
 
         # Create measure bins. i-th measure ENDS at i-th ordered msep.
         # We assume that every measure has a rightward separator.
-        measures = [(None, ordered_mseps[0])] + [(ordered_mseps[i], ordered_mseps[i+1])
+        measures = [(None, ordered_mseps[0])] + [(ordered_mseps[i], ordered_mseps[i + 1])
                                                  for i in range(len(ordered_mseps) - 1)]
         measure_nodes = [PrecedenceGraphNode(objid=None,
                                              cropobject=None,
@@ -1625,8 +1631,8 @@ class OnsetsInferenceEngine(object):
                                              onset=None)] + \
                         [PrecedenceGraphNode(objid=None,
                                              cropobject=None,
-                                             inlinks=[ordered_msep_nodes[i+1]],
-                                             outlinks=[ordered_msep_nodes[i+2]],
+                                             inlinks=[ordered_msep_nodes[i + 1]],
+                                             outlinks=[ordered_msep_nodes[i + 2]],
                                              duration=0,  # Durations will be filled in
                                              onset=None)
                          for i in range(len(ordered_msep_nodes) - 2)]
@@ -1773,7 +1779,7 @@ class OnsetsInferenceEngine(object):
                 msep_to_staff_projections[msep.objid][s.objid] = intersection_bbox
 
         staff_and_measure_to_objs_map = collections.defaultdict(
-                                            collections.defaultdict(list))
+            collections.defaultdict(list))
         #: Per staff (indexed by objid) and measure (by order no.), keeps a list of
         #  CropObjects from that staff that fall within that measure.
 
@@ -1784,7 +1790,7 @@ class OnsetsInferenceEngine(object):
         for s_objid, objs in ordered_objs_per_staff.items():
             # Vertically, we don't care -- the attachment to staff takes
             # care of that, we only need horizontal placement.
-            _c_m_idx = 0   # Index of current measure
+            _c_m_idx = 0  # Index of current measure
             _c_msep_right = measure_nodes[_c_m_idx].outlinks[0]
             # Left bound of current measure's right measure separator
             _c_m_right = msep_to_staff_projections[_c_msep_right.objid][s_objid][1]
@@ -2273,6 +2279,7 @@ class PrecedenceGraphNode:
     The ``inlinks`` and ``outlinks`` attributes are lists
     of other ``PrecedenceGraphNode`` instances.
     """
+
     def __init__(self, objid=None, cropobject=None, inlinks=None, outlinks=None,
                  onset=None, duration=0):
         # Optional link to CropObjects, or just a placeholder ID.
@@ -2386,10 +2393,10 @@ class MIDIBuilder:
         from midiutil.MidiFile import MIDIFile
 
         # create your MIDI object
-        mf = MIDIFile(1)     # only 1 track
-        track = 0   # the only track
+        mf = MIDIFile(1)  # only 1 track
+        track = 0  # the only track
 
-        time = 0    # start at the beginning
+        time = 0  # start at the beginning
         mf.addTrackName(track, time, "Sample Track")
         mf.addTempo(track, time, tempo)
 
@@ -2441,6 +2448,7 @@ def play_midi(midi,
     fs.play_midi(tmp_midi_path)
     # Here's hoping it's a blocking call. Otherwise, just leave the MIDI;
     # MUSCIMarker cleans its tmp dir whenever it exits.
+<<<<<<< HEAD
     if cleanup:
         os.unlink(tmp_midi_path)
 
@@ -2481,3 +2489,6 @@ def align_mung_with_midi(cropobjects, midi_file):
     # Alignment algorithm:
     # - find in MIDI events list the closest corresponding
     #   object for each notehead.
+=======
+    os.unlink(tmp_midi_path)
+>>>>>>> Auto-formatted inference.py
