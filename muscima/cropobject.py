@@ -253,17 +253,16 @@ class CropObject(object):
     def __init__(self,
                  objid,  # type: int
                  clsname,  # type: str
-                 top,  # type: float
-                 left,  # type: float
-                 width,  # type: float
-                 height,  # type: float
+                 top,  # type: int
+                 left,  # type: int
+                 width,  # type: int
+                 height,  # type: int
                  outlinks=None,  # type: Optional[List[int]]
                  inlinks=None,  # type: Optional[List[int]]
                  mask=None,  # type: numpy.ndarray
                  uid=None,  # type: str
                  data=None
                  ):
-        # type: (...) -> None
         # logging.debug('Initializing CropObject with objid {0}, uid {5}, x={1},'
         #              ' y={2}, h={3}, w={4}'
         #               ''.format(objid, top, left, height, width, uid))
@@ -389,11 +388,13 @@ class CropObject(object):
 
     @staticmethod
     def build_uid(global_name, document_name, numid):
+        # type: (Any, Any, Any) -> str
         return CropObject.UID_DELIMITER.join([str(global_name),
                                               str(document_name),
                                               str(numid)])
 
     def set_uid(self, uid):
+        # type: (str) -> None
         """Assigns the given ``uid`` to the CropObject. This is the way
         to do it, do not assign directly to ``cropobject.uid``! You need
         to update other things (and perform integrity checks) when changing
@@ -416,12 +417,14 @@ class CropObject(object):
         self.set_uid(new_uid)
 
     def set_dataset(self, dataset_name):
+        # type: (str) -> None
         new_uid = self.UID_DELIMITER.join([dataset_name,
                                            self._document_namespace,
                                            str(self._instance)])
         self.set_uid(new_uid)
 
     def set_mask(self, mask):
+        # type: (numpy.ndarray) -> None
         """Sets the CropObject's mask to the given array. Performs
         some compatibilty checks: size, dtype (converts to ``uint8``)."""
         if mask is None:
@@ -443,6 +446,7 @@ class CropObject(object):
             self.mask = mask.astype('uint8')
 
     def set_objid(self, objid):
+        # type: (int) -> None
         """Changes the objid and updates the UID with it.
         Do NOT use this unless you know what you're doing;
         changing the objid should be (1) checked against objid
@@ -453,6 +457,7 @@ class CropObject(object):
         self._sync_objid_to_uid()
 
     def _sync_objid_to_uid(self):
+        # type: () -> None
         """Resets the UID number to reflect the objid."""
         g_name, doc_name, num = self._parse_uid(self.uid)
         new_uid = self.build_uid(g_name, doc_name, self.objid)
@@ -460,6 +465,7 @@ class CropObject(object):
 
     @property
     def dataset(self):
+        # type: () -> str
         """Which dataset is this CropObject coming from?
         For bookkeeping."""
         # The ``_dataset_namespace`` is set during initialization.
@@ -467,6 +473,7 @@ class CropObject(object):
 
     @property
     def doc(self):
+        # type: () -> str
         """Which document within the dataset is this CropObject
         coming from? The ``_document_namespace``
 
@@ -483,34 +490,40 @@ class CropObject(object):
 
     @property
     def top(self):
+        # type: () -> int
         """Row coordinate of upper left corner."""
         return self.x
 
     @property
     def bottom(self):
+        # type: () -> int
         """Row coordinate 1 beyond bottom right corner, so that indexing
         in the form ``img[c.top:c.bottom]`` is possible."""
         return self.x + self.height
 
     @property
     def left(self):
+        # type: () -> int
         """Column coordinate of upper left corner."""
         return self.y
 
     @property
     def right(self):
+        # type: () -> int
         """Column coordinate 1 beyond bottom right corner, so that indexing
         in the form ``img[:, c.left:c.right]`` is possible."""
         return self.y + self.width
 
     @property
     def bounding_box(self):
+        # type: () -> (int, int, int, int)
         """The ``top, left, bottom, right`` tuple of the CropObject's
         coordinates."""
         return self.top, self.left, self.bottom, self.right
 
     @property
     def middle(self):
+        # type: () -> (int, int)
         """Returns the integer representation of where the middle
         of the CropObject lies, as a ``(m_vert, m_horz)`` tuple.
 
@@ -522,6 +535,7 @@ class CropObject(object):
 
     @property
     def is_empty(self):
+        # type: () -> bool
         """A CropObject is empty if it is composed of zero pixels.
         This is measured through the mask. CropObjects without
         a mask are assumed to be non-empty."""
@@ -532,10 +546,12 @@ class CropObject(object):
 
     @property
     def outlink_uids(self):
+        # type: () -> List[str]
         return [self.build_uid(self.dataset, self.doc, o) for o in self.outlinks]
 
     @property
     def inlink_uids(self):
+        # type: () -> List[str]
         return [self.build_uid(self.dataset, self.doc, i) for i in self.inlinks]
 
     @staticmethod
@@ -577,6 +593,7 @@ class CropObject(object):
         return int(top), int(left), int(bottom), int(right)
 
     def to_integer_bounds(self):
+        # type: () -> None
         """Ensures that the CropObject has an integer position and size.
         (This is important whenever you want to use a mask, and reasonable
         whenever you do not need sub-pixel resolution...)
@@ -592,6 +609,7 @@ class CropObject(object):
         self.width = width
 
     def project_to(self, img):
+        # type: (numpy.ndarray) -> numpy.ndarray
         """This function returns the *crop* of the input image
         corresponding to the CropObject (incl. masking).
         Assumes zeros are background."""
@@ -603,6 +621,7 @@ class CropObject(object):
         return crop
 
     def project_on(self, img):
+        # type: (numpy.ndarray) -> numpy.ndarray
         """This function returns only those parts of the input image
         that correspond to the CropObject and masks out everything else
         with zeros. The dimension of the returned array is the same
@@ -637,7 +656,7 @@ class CropObject(object):
         return img
 
     def overlaps(self, bounding_box_or_cropobject):
-        # type: (Union[Tuple[float,float,float,float],CropObject]) -> bool
+        # type: (Union[Tuple[int,int,int,int],CropObject]) -> bool
         """Check whether this CropObject overlaps the given bounding box or CropObject.
 
         >>> c = CropObject(0, 'test', 10, 100, height=20, width=10)
@@ -697,6 +716,7 @@ class CropObject(object):
         return False
 
     def bbox_intersection(self, bounding_box):
+        # type: (Tuple[int,int, int, int]) -> Optional[Tuple[int,int, int, int]]
         """Returns the sub-bounding box of this CropObject, relative to its size (so: 0,0
         is the CropObject's upper left corner), that intersects the given bounding box.
         If the intersection is empty, returns None.
@@ -734,6 +754,7 @@ class CropObject(object):
             return None
 
     def crop_to_mask(self):
+        # type: () -> None
         """Crops itself to the minimum bounding box that contains all
         its pixels, as determined by its mask.
 
@@ -849,6 +870,7 @@ class CropObject(object):
         return '\n'.join(lines)
 
     def encode_mask(self, mask, compress=False, mode='rle'):
+        # type: (numpy.ndarray, bool, str) -> str
         """Encode a binary array ``mask`` as a string, compliant
         with the CropObject format specification in :mod:`muscima.io`.
         """
@@ -858,6 +880,7 @@ class CropObject(object):
             return self.encode_mask_bitmap(mask, compress=compress)
 
     def encode_data(self, data):
+        # type: () -> Optional[str]
         if self.data is None:
             return None
         if len(self.data) == 0:
@@ -901,6 +924,7 @@ class CropObject(object):
 
     @staticmethod
     def encode_mask_bitmap(mask, compress=False):
+        # type: (numpy.ndarray, bool) -> str
         """Encodes the mask array in a compact form. Returns 'None' if mask
         is None. If the mask is not None, uses the following algorithm:
 
@@ -920,6 +944,7 @@ class CropObject(object):
 
     @staticmethod
     def encode_mask_rle(mask, compress=False):
+        # type: (numpy.ndarray, bool) -> str
         """Encodes the mask array in Run-Length Encoding. Instead of
         having the bitmap ``0 0 1 1 1 0 0 0 1 1``, the RLE encodes
         the mask as ``0:2 1:3 0:3 1:2``. This is much more compact.
@@ -950,6 +975,7 @@ class CropObject(object):
         return output
 
     def decode_mask(self, mask_string, shape):
+        # type: (str, Tuple[Any, ...]) -> Optional[numpy.ndarray]
         """Decodes a CropObject mask string into a binary
         numpy array of the given shape."""
         mode = self._determine_mask_mode(mask_string)
@@ -959,6 +985,7 @@ class CropObject(object):
             return self.decode_mask_bitmap(mask_string, shape=shape)
 
     def _determine_mask_mode(self, mask_string):
+        # type: (str) -> str
         """If the mask string starts with '0:' or '1:', or generally
         if it contains a non-0 or 1 symbol, assume it is RLE."""
         mode = 'bitmap'
@@ -970,6 +997,7 @@ class CropObject(object):
 
     @staticmethod
     def decode_mask_bitmap(mask_string, shape):
+        # type: (str, Tuple[Any, ...]) -> Optional[numpy.ndarray]
         """Decodes the mask array from the encoded form to the 2D numpy array."""
         if mask_string == 'None':
             return None
@@ -986,6 +1014,7 @@ class CropObject(object):
 
     @staticmethod
     def decode_mask_rle(mask_string, shape):
+        # type: (str, Tuple[Any, ...]) -> Optional[numpy.ndarray]
         """Decodes the mask array from the RLE-encoded form
         to the 2D numpy array.
         """
@@ -1003,6 +1032,7 @@ class CropObject(object):
         return mask
 
     def join(self, other):
+        # type: (CropObject) -> None
         """CropObject "addition": performs an OR on this
         and the ``other`` CropObjects' masks and bounding boxes,
         and assigns to this CropObject the result. Merges
@@ -1060,6 +1090,7 @@ class CropObject(object):
                 self.inlinks.append(i)
 
     def get_outlink_objects(self, cropobjects):
+        # type: (List[CropObject]) -> List[CropObject]
         """Out of the given ``cropobject`` list, return a list
         of those to which this CropObject has outlinks.
 
@@ -1081,6 +1112,7 @@ class CropObject(object):
         return output
 
     def get_inlink_objects(self, cropobjects):
+        # type: (List[CropObject]) -> List[CropObject]
         """Out of the given ``cropobject`` list, return a list
         of those from which this CropObject has inlinks.
 
@@ -1102,6 +1134,7 @@ class CropObject(object):
         return output
 
     def translate(self, down=0, right=0):
+        # type: (int, int) -> None
         """Move the cropobject down and right by the given amount of pixels."""
         self.x += down
         self.y += right
@@ -1131,6 +1164,7 @@ class CropObject(object):
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
 def split_cropobject_on_connected_components(c, next_objid):
+    # type: (CropObject, int) -> List[CropObject]
     """Split the CropObject into one object per connected component
     of the mask. All inlinks/outlinks are retained in all the newly
     created CropObjects, and the old object is not changed. (If there
@@ -1184,6 +1218,7 @@ def split_cropobject_on_connected_components(c, next_objid):
 
 
 def cropobjects_merge(fr, to, clsname, objid):
+    # type: (CropObject, CropObject, str, int) -> CropObject
     """Merge the given CropObjects with respect to the other.
     Returns the new CropObject (without modifying any of the inputs)."""
     if fr.doc != to.doc:
@@ -1230,6 +1265,7 @@ def cropobjects_merge_multiple(cropobjects, clsname, objid):
 
 
 def cropobjects_merge_bbox(cropobjects):
+    # type: (List[CropObject]) -> (int, int, int, int)
     """Computes the bounding box of a CropObject that would
     result from merging the given list of CropObjects.
     """
@@ -1250,6 +1286,7 @@ def cropobjects_merge_bbox(cropobjects):
 
 
 def cropobjects_merge_mask(cropobjects, intersection=False):
+    # type: (List[CropObject], bool) -> Optional[numpy.ndarray]
     """Merges the given list of cropobjects into one. Masks are combined
     by an OR operation.
 
@@ -1312,6 +1349,7 @@ def cropobjects_merge_mask(cropobjects, intersection=False):
 
 
 def cropobjects_merge_links(cropobjects):
+    # type: (List[CropObject]) -> (List[CropObject], List[CropObject])
     """Collect all inlinks and outlinks of the given set of CropObjects
     to CropObjects outside of this set. The rationale for this is that
     these given ``cropobjects`` will be merged into one, so relationships
@@ -1336,6 +1374,7 @@ def cropobjects_merge_links(cropobjects):
 
 
 def merge_cropobject_lists(*cropobject_lists):
+    # type: (List[List[CropObject]]) -> List[CropObject]
     """Combines the CropObject lists from different documents
     into one list, so that inlink/outlink references still work.
     This is useful only if you want to merge two documents
@@ -1389,6 +1428,7 @@ def merge_cropobject_lists(*cropobject_lists):
 
 
 def link_cropobjects(fr, to, check_docname=True):
+    # type: (CropObject, CropObject, bool) -> None
     """Add a relationship from the ``fr`` CropObject
     to the ``to`` CropObject. Modifies the CropObjects
     in-place.
@@ -1417,6 +1457,7 @@ def link_cropobjects(fr, to, check_docname=True):
 
 
 def bbox_intersection(bbox_this, bbox_other):
+    # type: (Tuple[int, int, int, int],Tuple[int, int, int, int]) -> Optional[Tuple[int, int, int, int]]
     """Returns the t, l, b, r coordinates of the sub-bounding box
     of bbox_this that is also inside bbox_other.
     If the bounding boxes do not overlap, returns None."""
@@ -1439,6 +1480,7 @@ def bbox_intersection(bbox_this, bbox_other):
 
 
 def bbox_dice(bbox_this, bbox_other, vertical=False, horizontal=False):
+    # type: (Tuple[int, int, int, int], Tuple[int, int, int, int], bool, bool) -> float
     """Compute the Dice coefficient (intersection over union)
     for the given two bounding boxes.
 
@@ -1480,6 +1522,7 @@ def bbox_dice(bbox_this, bbox_other, vertical=False, horizontal=False):
 
 
 def cropobject_distance(c, d):
+    # type: (CropObject, CropObject) -> numpy.ndarray
     """Computes the distance between two CropObjects.
     Their minimum vertical and horizontal distances are each taken
     separately, and the euclidean norm is computed from them."""
@@ -1512,6 +1555,7 @@ def cropobject_distance(c, d):
 
 
 def cropobjects_on_canvas(cropobjects, margin=10):
+    # type: (List[CropObject], int) -> (numpy.ndarray, Tuple[int, int])
     """Draws all the given CropObjects onto a zero background.
     The size of the canvas adapts to the CropObjects, with the
     given margin.
