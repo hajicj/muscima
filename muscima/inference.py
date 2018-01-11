@@ -6,8 +6,11 @@ import logging
 import os
 
 import operator
+from typing import Optional, Any, Dict, Union, List, Tuple
 
-from muscima.cropobject import bbox_dice
+from midiutil import MIDIFile
+
+from muscima.cropobject import bbox_dice, CropObject
 from muscima.graph import group_staffs_into_systems, NotationGraph, NotationGraphError
 from muscima.inference_engine_constants import InferenceEngineConstants
 
@@ -107,10 +110,11 @@ class PitchInferenceEngineState(object):
         '''If the clef is in a non-standard position, this number is added
         to the pitch computation delta.'''
 
-        self.key_accidentals = {}
-        self.inline_accidentals = {}
+        self.key_accidentals = {}  # type: Dict[int, str]
+        self.inline_accidentals = {}  # type: Dict[int, str]
 
     def reset(self):
+        # type: () -> None
         self.base_pitch = None
         self._current_clef = None
         self._current_delta_steps = None
@@ -134,12 +138,14 @@ class PitchInferenceEngineState(object):
         return '\n'.join(lines)
 
     def init_base_pitch(self, clef=None, delta=0):
+        # type: (Optional[CropObject], int) -> None
         """Initializes the base pitch while taking into account
         the displacement of the clef from its initial position."""
         self.init_base_pitch_default_staffline(clef)
         self._current_clef_delta_shift = -1 * delta
 
     def init_base_pitch_default_staffline(self, clef=None):
+        # type: (Optional[CropObject]) -> None
         """Based solely on the clef class name and assuming
         default stafflines, initialize the base pitch.
         By default, initializes as though given a g-clef."""
@@ -191,6 +197,7 @@ class PitchInferenceEngineState(object):
         self._current_delta_steps = new_delta_steps
 
     def set_key(self, n_sharps=0, n_flats=0):
+        # type: (int, int) -> None
         """Initialize the staffline delta --> key accidental map.
         Currently works only on standard key signatures, where
         there are no repeating accidentals, no double sharps/flats,
@@ -232,18 +239,21 @@ class PitchInferenceEngineState(object):
         self.key_accidentals = new_key_accidentals
 
     def set_inline_accidental(self, delta, accidental):
+        # type: (int, CropObject) -> None
         self.inline_accidentals[delta] = accidental.clsname
 
     def reset_inline_accidentals(self):
+        # type: () -> None
         self.inline_accidentals = {}
 
     def accidental(self, delta):
+        # type: (int) -> int
         """Returns the modification, in MIDI code, corresponding
         to the staffline given by the delta."""
         pitch_mod = 0
 
         step_delta = delta % 7
-        if step_delta in self.key_accidentals:
+        if step_delta in self.key_accidentals:  # type: int
             if self.key_accidentals[step_delta] == 'sharp':
                 pitch_mod = 1
             elif self.key_accidentals[step_delta] == 'double_sharp':
@@ -269,6 +279,7 @@ class PitchInferenceEngineState(object):
         return pitch_mod
 
     def pitch(self, delta):
+        # type: (int) -> int
         """Given a staffline delta, returns the current MIDI pitch code.
 
         (This method is the main interface of the PitchInferenceEngineState.)
@@ -301,6 +312,7 @@ class PitchInferenceEngineState(object):
         return pitch
 
     def pitch_name(self, delta):
+        # type: (int) -> (str, int)
         """Given a staffline delta, returns the name of the corrensponding pitch."""
         delta += self._current_clef_delta_shift
 
@@ -417,6 +429,7 @@ class PitchInferenceEngine(object):
         self.__init__()
 
     def infer_pitches(self, cropobjects, with_names=False):
+        # type: (List[CropObject], bool) -> Union[Dict, Tuple[Dict, Dict]]
         """The main workhorse for pitch inference.
         Gets a list of CropObjects and for each notehead-type
         symbol, outputs a MIDI code corresponding to the pitch
@@ -482,7 +495,7 @@ class PitchInferenceEngine(object):
         # self.durations_beats = {}
         # self.durations_beats_per_staff = {}
 
-        for staff in self.staves:
+        for staff in self.staves: # type: CropObject
             self.process_staff(staff)
             self.pitches.update(self.pitches_per_staff[staff.objid])
 
@@ -492,7 +505,7 @@ class PitchInferenceEngine(object):
             return copy.deepcopy(self.pitches)
 
     def process_staff(self, staff):
-
+        #type: (CropObject) -> Any
         self.pitches_per_staff[staff.objid] = {}
         self.pitch_names_per_staff[staff.objid] = {}
 
@@ -817,7 +830,7 @@ class PitchInferenceEngine(object):
         graph = NotationGraph(cropobjects)
 
         # Collect staves.
-        self.staves = [c for c in cropobjects if c.clsname == 'staff']
+        self.staves = [c for c in cropobjects if c.clsname == 'staff'] # type: List[CropObject]
         logging.info('We have {0} staves.'.format(len(self.staves)))
 
         # Collect clefs and key signatures per staff.
@@ -2424,11 +2437,10 @@ def play_midi(midi,
               tmp_dir,
               soundfont='~/.fluidsynth/FluidR3_GM.sf2',
               cleanup=False):
+    # type: (MIDIFile, str, str, bool) -> None
     """Plays (or attempts to play) the given MIDIFile object.
-
     :param midi: A ``midiutils.MidiFile.MIDIFile`` object
         containing the data that you wish to play.
-
     :param tmp_dir: A writeable directory where the MIDI will be
         exported into a temporary file.
 
@@ -2448,7 +2460,6 @@ def play_midi(midi,
     fs.play_midi(tmp_midi_path)
     # Here's hoping it's a blocking call. Otherwise, just leave the MIDI;
     # MUSCIMarker cleans its tmp dir whenever it exits.
-<<<<<<< HEAD
     if cleanup:
         os.unlink(tmp_midi_path)
 
@@ -2489,6 +2500,3 @@ def align_mung_with_midi(cropobjects, midi_file):
     # Alignment algorithm:
     # - find in MIDI events list the closest corresponding
     #   object for each notehead.
-=======
-    os.unlink(tmp_midi_path)
->>>>>>> Auto-formatted inference.py

@@ -7,6 +7,9 @@ import logging
 
 import operator
 
+from typing import Union, List, Optional, Dict, Tuple
+
+from muscima.cropobject import CropObject
 from muscima.cropobject import CropObject, cropobject_mask_rpf
 from muscima.inference_engine_constants import _CONST
 from muscima.utils import resolve_notehead_wrt_staffline
@@ -35,6 +38,7 @@ class NotationGraph(object):
         return len(self.cropobjects)
 
     def __to_objid(self, cropobject_or_objid):
+        # type: (Union[CropObject, int]) -> int
         if isinstance(cropobject_or_objid, CropObject):
             objid = cropobject_or_objid.objid
         else:
@@ -51,6 +55,7 @@ class NotationGraph(object):
         return edges
 
     def children(self, cropobject_or_objid, classes=None):
+        # type: (Union[CropObject, int], Optional[List[str]]) -> List[CropObject]
         """Find all children of the given node."""
         objid = self.__to_objid(cropobject_or_objid)
         if objid not in self._cdict:
@@ -67,6 +72,7 @@ class NotationGraph(object):
         return output
 
     def parents(self, cropobject_or_objid, classes=None):
+        # type: (Union[CropObject, int], Optional[List[str]]) -> List[CropObject]
         """Find all parents of the given node."""
         objid = self.__to_objid(cropobject_or_objid)
         if objid not in self._cdict:
@@ -83,6 +89,7 @@ class NotationGraph(object):
         return output
 
     def descendants(self, cropobject_or_objid, classes=None):
+        # type: (Union[CropObject, int], Optional[List[str]]) -> List[CropObject]
         """Find all descendants of the given node."""
         objid = self.__to_objid(cropobject_or_objid)
 
@@ -104,6 +111,7 @@ class NotationGraph(object):
         return [self._cdict[o] for o in descendant_objids]
 
     def ancestors(self, cropobject_or_objid, classes=None):
+        # type: (Union[CropObject, int], Optional[List[str]]) -> List[CropObject]
         """Find all ancestors of the given node."""
         objid = self.__to_objid(cropobject_or_objid)
 
@@ -125,14 +133,17 @@ class NotationGraph(object):
         return [self._cdict[objid] for objid in ancestor_objids]
 
     def has_child(self, cropobject_or_objid, classes=None):
+        # type: (Union[CropObject, int], Optional[List[str]]) -> bool
         children = self.children(cropobject_or_objid, classes=classes)
         return len(children) > 0
 
     def has_parent(self, cropobject_or_objid, classes=None):
+        # type: (Union[CropObject, int], Optional[List[str]]) -> bool
         parents = self.parents(cropobject_or_objid, classes=classes)
         return len(parents) > 0
 
     def is_child_of(self, cropobject_or_objid, other_cropobject_or_objid):
+        # type: (Union[CropObject, int], Union[CropObject,int]) -> bool
         """Check whether the first symbol is a child of the second symbol."""
         to_objid = self.__to_objid(cropobject_or_objid)
         from_objid = self.__to_objid(other_cropobject_or_objid)
@@ -144,6 +155,7 @@ class NotationGraph(object):
             return False
 
     def is_parent_of(self, cropobject_or_objid, other_cropobject_or_objid):
+        # type: (Union[CropObject, int], Union[CropObject,int]) -> bool
         """Check whether the first symbol is a parent of the second symbol."""
         from_objid = self.__to_objid(cropobject_or_objid)
         to_objid = self.__to_objid(other_cropobject_or_objid)
@@ -155,10 +167,12 @@ class NotationGraph(object):
             return False
 
     def __getitem__(self, objid):
+        # type: (int) -> CropObject
         """Returns a CropObject based on its objid."""
         return self._cdict[objid]
 
     def is_stem_direction_above(self, notehead, stem):
+        # type: (CropObject, CropObject) -> bool
         """Determines whether the given stem of the given notehead
         is above it or below. This is not trivial due to chords.
         """
@@ -182,6 +196,7 @@ class NotationGraph(object):
         return d_top > d_bottom
 
     def is_symbol_above_notehead(self, notehead, other, compare_on_intersect=False):
+        # type: (CropObject, CropObject, bool) -> bool
         """Determines whether the given other symbol is above
         the given notehead.
 
@@ -213,9 +228,9 @@ class NotationGraph(object):
         # Get vertical bounds of beam submask
         other_submask_hsum = beam_submask.sum(axis=1)
         other_submask_top = min([i for i in range(beam_submask.shape[0])
-                                if other_submask_hsum[i] != 0]) + other.top
+                                 if other_submask_hsum[i] != 0]) + other.top
         other_submask_bottom = max([i for i in range(beam_submask.shape[0])
-                                   if other_submask_hsum[i] != 0]) + other.top
+                                    if other_submask_hsum[i] != 0]) + other.top
         if (notehead.top <= other_submask_top <= notehead.bottom) \
                 or (other_submask_bottom <= notehead.top <= other_submask_bottom):
             if compare_on_intersect:
@@ -350,6 +365,7 @@ class NotationGraph(object):
 def group_staffs_into_systems(cropobjects,
                               use_fallback_measure_separators=True,
                               leftmost_measure_separators_only=False):
+    # type: (List[CropObject], bool, bool) -> List[List[CropObject]]
     """Returns a list of lists of ``staff`` CropObjects
     grouped into systems. Uses the outer ``staff_grouping``
     symbols (or ``measure_separator``) symbols.
@@ -452,6 +468,7 @@ def group_staffs_into_systems(cropobjects,
 
 
 def group_by_staff(cropobjects):
+    # type: (List[CropObject]) -> Dict[int, List[CropObject]]
     """Returns one NotationGraph instance for each staff and its associated
     CropObjects. "Associated" means:
 
@@ -487,6 +504,7 @@ def group_by_staff(cropobjects):
 
 def find_related_staffs(query_cropobjects, all_cropobjects,
                         with_stafflines=True):
+    # type: (List[CropObject], List[CropObject], bool) -> List[CropObject]
     """Find all staffs that are related to any of the cropobjects
     in question. Ignores whether these staffs are already within
     the list of ``query_cropobjects`` passed to the function.
@@ -517,7 +535,7 @@ def find_related_staffs(query_cropobjects, all_cropobjects,
     related_staffs = set()
     for c in query_cropobjects:
         desc_staffs = graph.descendants(c, classes=[_CONST.STAFF_CLSNAME])
-        anc_staffs =  graph.ancestors(c, classes=[_CONST.STAFF_CLSNAME])
+        anc_staffs = graph.ancestors(c, classes=[_CONST.STAFF_CLSNAME])
         current_staffs = set(desc_staffs + anc_staffs)
         related_staffs = related_staffs.union(current_staffs)
 
@@ -540,6 +558,7 @@ def find_related_staffs(query_cropobjects, all_cropobjects,
 
 
 def find_beams_incoherent_with_stems(cropobjects):
+    # type: (List[CropObject]) -> List[Tuple[CropObject,CropObject]]
     """Searches the graph for edges where a notehead is connected to a stem
     in one direction, but is connected to beams that are in the
     other direction.
@@ -590,6 +609,7 @@ def find_beams_incoherent_with_stems(cropobjects):
 # *AND* a ledger line.
 
 def find_ledger_lines_with_noteheads_from_both_directions(cropobjects):
+    # type: (List[CropObject]) -> List[CropObject]
     """Looks for ledger lines that have inlinks from noteheads
     on both sides. Returns a list of ledger line CropObjects."""
     graph = NotationGraph(cropobjects)
@@ -615,6 +635,7 @@ def find_ledger_lines_with_noteheads_from_both_directions(cropobjects):
 
 
 def find_noteheads_with_ledger_line_and_staff_conflict(cropobjects):
+    # type: (List[CropObject]) -> List[CropObject]
     """Find all noteheads that have a relationship both to a staffline
     or staffspace and to a ledger line.
 
@@ -639,6 +660,7 @@ def find_noteheads_with_ledger_line_and_staff_conflict(cropobjects):
 
 
 def find_noteheads_on_staff_linked_to_ledger_line(cropobjects):
+    # type: (List[CropObject]) -> List[Tuple[CropObject, CropObject]]
     """Find all noteheads that are linked to a ledger line,
     but at the same time intersect a staffline or lie
     entirely within a staffspace. These should be fixed
@@ -707,8 +729,8 @@ def find_misdirected_ledger_line_edges(cropobjects,
 
         staffs = graph.children(c, ['staff'])
         if not staffs:
-            logging.warn('Notehead {0} not connected to any staff!'
-                         ''.format(c.uid))
+            logging.warning('Notehead {0} not connected to any staff!'
+                            ''.format(c.uid))
             continue
         staff = staffs[0]
 
@@ -749,6 +771,7 @@ def find_misdirected_ledger_line_edges(cropobjects,
 
 
 def resolve_ledger_line_or_staffline_object(cropobjects):
+    # type: (List[CropObject]) -> None
     """If staff relationships are created before notehead to ledger line
     relationships, then there will be noteheads on ledger lines that
     are nevertheless connected to staffspaces. This function should be
@@ -777,15 +800,15 @@ def resolve_ledger_line_or_staffline_object(cropobjects):
             continue
 
         if len(staff) == 0:
-            logging.warn('Notehead {0} not connected to any staff!'
-                         ' Unable to resolve ll/staffline.'.format(c.uid))
+            logging.warning('Notehead {0} not connected to any staff!'
+                            ' Unable to resolve ll/staffline.'.format(c.uid))
             continue
 
         # Multiple LLs: must check direction
         # Multiple stafflines: ???
         if len(stafflines) > 1:
-            logging.warn('Notehead {0} is connected to multiple staffline'
-                         ' objects!'.format(c.uid))
+            logging.warning('Notehead {0} is connected to multiple staffline'
+                            ' objects!'.format(c.uid))
 
 
 ##############################################################################

@@ -11,7 +11,7 @@ import pprint
 import numpy
 from skimage.filters import gaussian
 from skimage.morphology import watershed
-from typing import List
+from typing import List, Tuple
 
 from muscima.cropobject import CropObject, cropobjects_on_canvas, link_cropobjects
 from muscima.graph import NotationGraph, find_noteheads_on_staff_linked_to_ledger_line
@@ -138,6 +138,7 @@ def merge_staffline_segments(cropobjects, margin=10):
 
 
 def staffline_bboxes_and_masks_from_horizontal_merge(mask):
+    # type: (numpy.ndarray) -> (List[Tuple[int,int,int,int]],List[numpy.ndarray])
     """Returns a list of staff_line bboxes and masks
      computed from the input mask, with
     each set of connected components in the mask that has at least
@@ -234,7 +235,9 @@ def staffline_bboxes_and_masks_from_horizontal_merge(mask):
     return staffline_bboxes, staffline_masks
 
 
-def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mask):
+def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, image):
+    # type: (List[Tuple[int,int,int,int]],numpy.ndarray) -> (List[Tuple[int,int,int,int]], List[numpy.ndarray])
+
     logging.warning('Creating staff bboxes and masks.')
 
     #  - Go top-down and group the stafflines by five to get staves.
@@ -250,7 +253,7 @@ def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mas
         _sb = max([bb[2] for bb in _sbb])
         _sr = max([bb[3] for bb in _sbb])
         staff_bboxes.append((_st, _sl, _sb, _sr))
-        staff_masks.append(mask[_st:_sb, _sl:_sr])
+        staff_masks.append(image[_st:_sb, _sl:_sr])
 
     logging.warning('Total staffs: {0}'.format(len(staff_bboxes)))
 
@@ -258,6 +261,7 @@ def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mas
 
 
 def staffline_surroundings_mask(staffline_cropobject):
+    # type: (CropObject) -> (numpy.ndarray, numpy.ndarray)
     """Find the parts of the staffline's bounding box which lie
     above or below the actual staffline.
 
@@ -288,7 +292,8 @@ def staffline_surroundings_mask(staffline_cropobject):
 
 
 def build_staff_cropobjects(cropobjects):
-    """Derives staff objects from staffline objcets.
+    # type: (List[CropObject]) -> List[CropObject]
+    """Derives staff objects from staffline objects.
 
     Assumes each staff has 5 stafflines.
 
@@ -347,6 +352,7 @@ def build_staff_cropobjects(cropobjects):
 
 
 def build_staffspace_cropobjects(cropobjects):
+    # type: (List[CropObject]) -> List[CropObject]
     """Creates the staffspace objects based on stafflines
     and staffs. There is a staffspace between each two stafflines,
     one on the top side of each staff, and one on the bottom
@@ -539,6 +545,7 @@ def build_staffspace_cropobjects(cropobjects):
 def add_staff_relationships(cropobjects,
                             notehead_staffspace_threshold=0.2,
                             reprocess_noteheads_inside_staff_with_lls=True):
+    # type: (List[CropObject], float, bool) -> List[CropObject]
     """Adds the relationships from various symbols to staff objects:
     stafflines, staffspaces, and staffs.
 

@@ -58,6 +58,7 @@ class CropObjectClass(object):
     out in the appropriate XML format.
     """
     def __init__(self, clsid, name, group_name, color):
+        # type: (int, str, str, str) -> None
         self.clsid = clsid
         self.name = name
         self.group_name = group_name

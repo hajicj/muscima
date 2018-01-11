@@ -31,6 +31,8 @@ import pprint
 
 import collections
 
+from typing import Union, Set, List
+
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
@@ -252,6 +254,7 @@ class DependencyGrammar(object):
     _MAX_CARD = 10000
 
     def __init__(self, grammar_filename, alphabet):
+        # type: (str, Union[Set[str], List[str]]) -> None
         """Initialize the Grammar: fill in alphabet and parse rules.
 
         :param grammar_filename: Path to a file that contains deprules

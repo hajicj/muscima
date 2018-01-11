@@ -4,6 +4,8 @@ from __future__ import print_function, unicode_literals, division
 
 import operator
 
+from typing import List, Set
+
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
@@ -12,11 +14,11 @@ class InferenceEngineConstants(object):
     """This class stores the constants used for pitch inference."""
 
     ON_STAFFLINE_RATIO_TRHESHOLD = 0.2
-    '''Magic number for determining whether a notehead is *on* a ledger
+    """Magic number for determining whether a notehead is *on* a ledger
     line, or *next* to a ledger line: if the ratio between the smaller
     and larger vertical difference of (top, bottom) vs. l.l. (top, bottom)
     is smaller than this, it means the notehead is most probably *NOT*
-    on the l.l. and is next to it.'''
+    on the l.l. and is next to it."""
 
     STAFFLINE_CLSNAME = 'staff_line'
     STAFFSPACE_CLSNAME = 'staff_space'
@@ -80,7 +82,7 @@ class InferenceEngineConstants(object):
         'beam',
     }
 
-    FLAGS_AND_BEAMS ={
+    FLAGS_AND_BEAMS = {
         '8th_flag',
         '16th_flag',
         '32th_flag',
@@ -110,7 +112,7 @@ class InferenceEngineConstants(object):
         10: 'Bb',
         11: 'B',
     }
-    '''Simplified pitch naming.'''
+    """Simplified pitch naming."""
 
     # The individual MIDI codes for for the unmodified steps.
     _fs = list(range(5, 114, 12))
@@ -221,6 +223,7 @@ class InferenceEngineConstants(object):
 
     @property
     def clsnames_affecting_onsets(self):
+        # type: () -> Set[str]
         """Returns a list of CropObject class names for objects
         that affect onsets. Assumes notehead and rest durations
         have already been given."""
@@ -234,6 +237,7 @@ class InferenceEngineConstants(object):
 
     @property
     def clsnames_bearing_duration(self):
+        # type: () -> Set[str]
         """Returns the list of classes that actually bear duration,
         i.e. contribute to onsets of their descendants in the precedence
         graph."""
@@ -244,8 +248,10 @@ class InferenceEngineConstants(object):
 
     @staticmethod
     def interpret_numerals(numerals):
+        from muscima.cropobject import CropObject
+        # type: (List[CropObject]) -> int
         """Returns the given numeral CropObject as a number, left to right."""
-        for n in numerals:
+        for n in numerals:  # type: CropObject
             if n.clsname not in InferenceEngineConstants.NUMERALS:
                 raise ValueError('Symbol {0} is not a numeral!'.format(n.uid))
         n_str = ''.join([n.clsname[-1]
