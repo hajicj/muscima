@@ -1,0 +1,6 @@
+/__pycache__/
+*.pyc
+.idea
+muscima.egg-info
+.cache
+.coverage
