@@ -225,10 +225,14 @@ class NotationGraph(object):
 
 
 def group_staffs_into_systems(cropobjects,
-                              use_fallback_measure_separators=False):
+                              use_fallback_measure_separators=True):
     """Returns a list of lists of ``staff`` CropObjects
     grouped into systems. Uses the outer ``staff_grouping``
-    symbols.
+    symbols (or ``measure_separator``) symbols.
+
+    Currently cannot deal with a situation where a system consists of
+    interlocking staff groupings and measure separators, and cannot deal
+    with system separator markings.
 
     :param cropobjects: The complete list of CropObjects in the current
         document.
@@ -256,7 +260,10 @@ def group_staffs_into_systems(cropobjects,
                      == 0)]
     print('Empty staffs: {0}'.format('\n'.join([c.uid for c in empty_staffs])))
 
-    if use_fallback_measure_separators and (len(staff_groups) == 0):
+    # There might also be non-empty staffs that are nevertheless
+    # not covered by a staff grouping, only measure separators.
+
+    if use_fallback_measure_separators: # and (len(staff_groups) == 0):
         # Collect measure separators, sort them left to right
         measure_separators = [c for c in cropobjects
                               if c.clsname in _CONST.MEASURE_SEPARATOR_CLSNAMES]
@@ -273,23 +280,32 @@ def group_staffs_into_systems(cropobjects,
                 if graph.is_child_of(s, m):
                     leftmost_measure_separators.add(m)
                     break
-        staff_groups = leftmost_measure_separators
+        staff_groups += leftmost_measure_separators
 
     if len(staff_groups) != 0:
-        staffs_per_group = {c.objid: [_cdict[i] for i in c.outlinks
+        staffs_per_group = {c.objid: [_cdict[i] for i in sorted(c.outlinks)
                                       if _cdict[i].clsname == 'staff']
                             for c in staff_groups}
-        # Build hierarchy of staff_grouping based on inclusion.
+        # Build hierarchy of staff_grouping based on inclusion
+        # between grouped staff sets.
         outer_staff_groups = []
-        for sg in staff_groups:
+        for sg in sorted(staff_groups, key=lambda c: c.left):
             sg_staffs = staffs_per_group[sg.objid]
             is_outer = True
             for other_sg in staff_groups:
-                if sg.objid == other_sg.objid: continue
+                if sg.objid == other_sg.objid:
+                    continue
                 other_sg_staffs = staffs_per_group[other_sg.objid]
                 if len([s for s in sg_staffs
                         if s not in other_sg_staffs]) == 0:
-                    is_outer = False
+                    # If the staff groups are equal (can happen with
+                    # a mixture of measure-separators and staff-groupings),
+                    # only the leftmost should be an outer grouping.
+                    if set(sg_staffs) == set(other_sg_staffs):
+                        if other_sg in outer_staff_groups:
+                            is_outer = False
+                    else:
+                        is_outer = False
             if is_outer:
                 outer_staff_groups.append(sg)
         #
