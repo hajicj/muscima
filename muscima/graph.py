@@ -31,6 +31,9 @@ class NotationGraph(object):
         self.cropobjects = cropobjects
         self._cdict = {c.objid: c for c in self.cropobjects}
 
+    def __len__(self):
+        return len(self.cropobjects)
+
     def __to_objid(self, cropobject_or_objid):
         if isinstance(cropobject_or_objid, CropObject):
             objid = cropobject_or_objid.objid
@@ -222,6 +225,54 @@ class NotationGraph(object):
             raise NotationGraphError('Weird relative position of notehead'
                                      ' {0} and other {1}.'.format(notehead.uid,
                                                                  other.uid))
+
+    def remove_vertex(self, objid):
+
+        self.remove_edges_for_vertex(objid)
+
+        c = self._cdict[objid]
+        self.cropobjects.remove(c)
+        del self._cdict[objid]
+
+    def remove_edge(self, fr, to):
+        if fr not in self._cdict:
+            raise ValueError('Cannot remove edge from objid {0}: not in graph!'
+                             ''.format(fr))
+        if to not in self._cdict:
+            raise ValueError('Cannot remove edge to objid {0}: not in graph!'
+                             ''.format(to))
+
+        # print('removing edge {0}'.format((fr, to)))
+        f = self._cdict[fr]
+        # print('\tf outlinks before: {0}'.format(f.outlinks))
+        f.outlinks.remove(to)
+        # print('\tf outlinks after: {0}'.format(f.outlinks))
+        t = self._cdict[to]
+        # print('\tt outlinks before: {0}'.format(t.outlinks))
+        t.inlinks.remove(fr)
+        # print('\tt outlinks after: {0}'.format(t.outlinks))
+
+    def remove_edges_for_vertex(self, objid):
+        if objid not in self._cdict:
+            raise ValueError('Cannot remove vertex with objid {0}: not in graph!'
+                             ''.format(objid))
+        c = self._cdict[objid]
+
+        # print('Removing edges for vertex: {0}.'.format(objid))
+        # print('\tInlinks: {0}'.format(c.inlinks))
+        # print('\tOutlinks: {0}'.format(c.outlinks))
+
+        # Remove from inlinks and outlinks:
+        for o in copy.deepcopy(c.outlinks):
+            self.remove_edge(objid, o)
+        for i in copy.deepcopy(c.inlinks):
+            self.remove_edge(i, objid)
+
+    def remove_classes(self, clsnames):
+        """Remove all vertices with these clsnames."""
+        to_remove = [c.objid for c in self.cropobjects if c.clsname in clsnames]
+        for objid in to_remove:
+            self.remove_vertex(objid)
 
 
 def group_staffs_into_systems(cropobjects,
