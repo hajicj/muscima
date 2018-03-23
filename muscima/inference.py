@@ -16,6 +16,10 @@ __author__ = "Jan Hajic jr."
 
 _CONST = InferenceEngineConstants()
 
+class OnsetsInferenceStrategy(object):
+    def __init__(self):
+        self.permissive_desynchronization = True
+
 
 class PitchInferenceEngineState(object):
     """This class represents the state of the MIDI pitch inference
@@ -876,11 +880,13 @@ class PitchInferenceEngine(object):
 
 class OnsetsInferenceEngine(object):
 
-    def __init__(self, cropobjects):
+    def __init__(self, cropobjects, strategy=OnsetsInferenceStrategy()):
         """Initialize the onset inference engine with the full CropObject
         list in a document."""
         self._CONST = InferenceEngineConstants()
         self._cdict = {c.objid: c for c in cropobjects}
+
+        self.strategy = strategy
 
     def durations(self, cropobjects, ignore_modifiers=False):
         """Returns a dict that contains the durations (in beats)
@@ -1323,7 +1329,12 @@ class OnsetsInferenceEngine(object):
         staff2sink_nodes = collections.defaultdict(list)
         for node in p_nodes.values():
             if len(node.outlinks) == 0:
-                staff = self.__children(node.obj, ['staff'])[0]
+                try:
+                    staff = self.__children(node.obj, ['staff'])[0]
+                except IndexError:
+                    logging.error('Object {0} is a sink node in the precedence graph, but has no staff!'
+                                  ''.format(node.obj.objid))
+                    raise
                 sink_nodes2staff[node.obj.objid] = staff.objid
                 staff2sink_nodes[staff.objid].append(node)
 
@@ -2123,10 +2134,18 @@ class OnsetsInferenceEngine(object):
 
             onset_proposals = [o + d for o, d in zip(prec_onsets, prec_durations)]
             if min(onset_proposals) != max(onset_proposals):
-                raise ValueError('Object {0}: onsets not synchronized from'
-                                 ' predecessors: {1}'.format(q.obj.uid,
-                                                             onset_proposals))
-            onset = onset_proposals[0]
+                if self.strategy.permissive_desynchronization:
+                    logging.warning('Object {0}: onsets not synchronized from'
+                                    ' predecessors: {1}'.format(q.obj.uid,
+                                                                onset_proposals))
+                    onset = max(onset_proposals)
+                else:
+                    raise ValueError('Object {0}: onsets not synchronized from'
+                                     ' predecessors: {1}'.format(q.obj.uid,
+                                                                 onset_proposals))
+            else:
+                onset = onset_proposals[0]
+
             q.onset = onset
             # Some nodes do not have a CropObject assigned.
             if q.obj is not None:
@@ -2301,4 +2320,4 @@ def play_midi(midi,
     fs.play_midi(tmp_midi_path)
     # Here's hoping it's a blocking call. Otherwise, just leave the MIDI;
     # MUSCIMarker cleans its tmp dir whenever it exits.
-    os.unlink(tmp_midi_path)
+    # os.unlink(tmp_midi_path)
