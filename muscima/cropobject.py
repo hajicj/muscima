@@ -658,6 +658,19 @@ class CropObject(object):
                 return True
         return False
 
+    def contains(self, bounding_box_or_cropobject):
+        """Check if this CropObject entirely contains the other bounding
+        box (or, the other cropobject's bounding box)."""
+        if isinstance(bounding_box_or_cropobject, CropObject):
+            t, l, b, r = bounding_box_or_cropobject.bounding_box
+        else:
+            t, l, b, r = bounding_box_or_cropobject
+
+        if self.top <= t <= b <= self.bottom:
+            if self.left <= l <= r <= self.right:
+                return True
+        return False
+
     def bbox_intersection(self, bounding_box):
         """Returns the sub-bounding box of this CropObject, relative to its size (so: 0,0
         is the CropObject's upper left corner), that intersects the given bounding box.

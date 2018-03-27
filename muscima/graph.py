@@ -224,7 +224,7 @@ class NotationGraph(object):
         else:
             raise NotationGraphError('Weird relative position of notehead'
                                      ' {0} and other {1}.'.format(notehead.uid,
-                                                                 other.uid))
+                                                                  other.uid))
 
     def remove_vertex(self, objid):
 
@@ -492,7 +492,13 @@ def find_beams_incoherent_with_stems(cropobjects):
         logging.info('IncoherentBeams: stem of {0} is above'.format(n.objid))
 
         for b in beams:
-            is_beam_above = graph.is_symbol_above_notehead(n, b)
+            try:
+                is_beam_above = graph.is_symbol_above_notehead(n, b)
+            except NotationGraphError:
+                logging.warning('IncoherentBeams: something is wrong in beam-notehead pair'
+                                ' {0}, {1}'.format(b.objid, n.objid))
+                continue
+
             logging.info('IncoherentBeams: beam {0} of {1} is above'.format(b.objid, n.objid))
             if is_stem_above != is_beam_above:
                 incoherent_pairs.append([n, b])
@@ -555,11 +561,60 @@ def find_noteheads_with_ledger_line_and_staff_conflict(cropobjects):
     return problem_noteheads
 
 
-def find_misdirected_ledger_line_edges(cropobjects):
+def find_noteheads_on_staff_linked_to_ledger_line(cropobjects):
+    """Find all noteheads that are linked to a ledger line,
+    but at the same time intersect a staffline or lie
+    entirely within a staffspace. These should be fixed
+    by linking them to the corresponding staffline/staffspace,
+    but the fixing operation should be in infer_staffline_relationships.
+
+    This is the opposite of what ``resolve_ledger_line_or_staffline_object()``
+    is doing.
+    """
+    graph = NotationGraph(cropobjects)
+    problem_noteheads = []
+
+    stafflines = sorted([c for c in cropobjects if c.clsname == 'staff_line'],
+                        key=lambda x: x.top)
+    staffspaces = sorted([c for c in cropobjects if c.clsname == 'staff_space'],
+                         key=lambda x: x.top)
+
+    for c in cropobjects:
+        if c.clsname not in _CONST.NOTEHEAD_CLSNAMES:
+            continue
+
+        lls = graph.children(c, ['ledger_line'])
+        if len(lls) == 0:
+            continue
+
+        # Intersecting stafflines
+        overlapped_stafflines = []
+        for sl in stafflines:
+            if c.overlaps(sl):
+                overlapped_stafflines.append(sl)
+
+        container_staffspaces = []
+        for ss in staffspaces:
+            if ss.contains(c):
+                container_staffspaces.append(ss)
+
+        if (len(overlapped_stafflines) + len(container_staffspaces)) > 0:
+            problem_noteheads.append(c)
+
+    return problem_noteheads
+
+
+def find_misdirected_ledger_line_edges(cropobjects,
+                                       retain_ll_for_disconnected_noteheads=True):
     """Finds all edges that connect to ledger lines, but do not
     lead in the direction of the staff.
 
     Silently assumes that all noteheads are connected to the correct staff.
+
+    :param retain_ll_for_disconnected_noteheads:
+        If the notehead would be left disconnected from all stafflines
+        and staffspaces, retain its edges to its LLs -- it is better
+        to get imperfect inference rather than for the PLAY button to fail.
     """
     graph = NotationGraph(cropobjects)
 
@@ -599,10 +654,19 @@ def find_misdirected_ledger_line_edges(cropobjects):
         if p_bottom == -1:
             notehead_staff_direction = -1
 
+        _current_misdirected_object_pairs = []
         for ll in lls:
             ll_direction = resolve_notehead_wrt_staffline(c, ll)
             if (ll_direction != 0) and (ll_direction != notehead_staff_direction):
                 misdirected_object_pairs.append([c, ll])
+                _current_misdirected_object_pairs.append([c, ll])
+
+        if retain_ll_for_disconnected_noteheads:
+            staffline_like_children = graph.children(c, classes=['staff_line', 'staff_space', 'ledger_line'])
+            # If all the notehead's links to staffline-like objects are scheduled to be discarded:
+            if len(staffline_like_children) == len(_current_misdirected_object_pairs):
+                # Remove them from the schedule
+                misdirected_object_pairs = misdirected_object_pairs[:-len(_current_misdirected_object_pairs)]
 
     return misdirected_object_pairs
 

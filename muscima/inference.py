@@ -16,9 +16,17 @@ __author__ = "Jan Hajic jr."
 
 _CONST = InferenceEngineConstants()
 
+
 class OnsetsInferenceStrategy(object):
     def __init__(self):
         self.permissive_desynchronization = True
+        self.precedence_only_for_objects_connected_to_staff = True
+        self.permissive = True
+
+
+class PitchInferenceStrategy(object):
+    def __init__(self):
+        self.permissive = True
 
 
 class PitchInferenceEngineState(object):
@@ -358,12 +366,14 @@ class PitchInferenceEngine(object):
     * Staff groupings are correct, and systems are read top-down.
 
     """
-    def __init__(self):
+    def __init__(self, strategy=PitchInferenceStrategy()):
         # Inference engine constants
         self._CONST = InferenceEngineConstants()
 
         # Static temp data from which the pitches are inferred
         self._cdict = {}
+
+        self.strategy = strategy
 
         self.staves = None
 
@@ -578,20 +588,22 @@ class PitchInferenceEngine(object):
 
             # Sanity checks
             if len(accidentals) > 2:
-                raise ValueError('More than two accidentals attached to notehead'
-                                 ' {0}'.format(notehead.uid))
+                self.__warning_or_error('More than two accidentals attached to notehead'
+                                        ' {0}'.format(notehead.uid))
             elif len(accidentals) == 2:
                 naturals = [a for a in accidentals if a.clsname == 'natural']
                 non_naturals = [a for a in accidentals if a.clsname != 'natural']
                 if len(naturals) == 0:
-                    raise ValueError('More than one non-natural accidental'
-                                     ' attached to notehead {0}'
-                                     ''.format(notehead.uid))
-                if len(non_naturals) == 0:
-                    raise ValueError('Two naturals attached to one notehead {0}'
-                                     ''.format(notehead.uid))
+                    self.__warning_or_error('More than one non-natural accidental'
+                                            ' attached to notehead {0}'
+                                            ''.format(notehead.uid))
 
-                self.pitch_state.set_inline_accidental(delta, non_naturals[0])
+                if len(non_naturals) == 0:
+                    self.__warning_or_error('Two naturals attached to one notehead {0}'
+                                            ''.format(notehead.uid))
+                    self.pitch_state.set_inline_accidental(delta, naturals[0])
+                else:
+                    self.pitch_state.set_inline_accidental(delta, non_naturals[0])
 
             elif len(accidentals) == 1:
                 self.pitch_state.set_inline_accidental(delta, accidentals[0])
@@ -877,6 +889,12 @@ class PitchInferenceEngine(object):
         return [self._cdict[i] for i in c.inlinks
                 if self._cdict[i].clsname in clsnames]
 
+    def __warning_or_error(self, message):
+        if self.strategy.permissive:
+            logging.warn(message)
+        else:
+            raise ValueError(message)
+
 
 class OnsetsInferenceEngine(object):
 
@@ -958,21 +976,24 @@ class OnsetsInferenceEngine(object):
                          ''.format(notehead.uid))
             beat = self.process_multistem_notehead(notehead)
             if len(beat) > 1:
-                raise NotImplementedError('Cannot deal with multi-stem notehead'
-                                          ' where multiple durations apply.')
-
-        elif len(stems) == 0:
-            if notehead.clsname == 'notehead-full':
-                raise ValueError('Full notehead {0} has no stem!'.format(notehead.uid))
-            beat = [4]
+                self.__warning_or_error('Cannot deal with multi-stem notehead'
+                                        ' where multiple durations apply.')
+                beat = [max(beat)]
 
         elif notehead.clsname == 'notehead-empty':
             if len(flags_and_beams) != 0:
                 raise ValueError('Notehead {0} is empty, but has {1} flags and beams!'
                                  ''.format(notehead.uid))
-            beat = [2]
+
+            if len(stems) == 0:
+                beat = [4]
+            else:
+                beat = [2]
 
         elif notehead.clsname == 'notehead-full':
+            if len(stems) == 0:
+                self.__warning_or_error('Full notehead {0} has no stem!'.format(notehead.uid))
+
             beat = [0.5**len(flags_and_beams)]
 
         else:
@@ -1239,6 +1260,10 @@ class OnsetsInferenceEngine(object):
         _relevant_clsnames = self._CONST.clsnames_bearing_duration
         p_cropobjects = [c for c in cropobjects
                          if c.clsname in _relevant_clsnames]
+
+        if self.strategy.precedence_only_for_objects_connected_to_staff:
+            p_cropobjects = [c for c in p_cropobjects
+                             if len(self.__children(c, ['staff'])) > 0]
 
         durations = {c.objid: self.beats(c) for c in p_cropobjects}
 
@@ -1931,7 +1956,7 @@ class OnsetsInferenceEngine(object):
              denominator regions.
            * If there is no letter_other child, then check if there is sufficient
              vertical separation between some groups of symbols. Given that it
-             is much more likely that ther will be the "fractional" structure,
+             is much more likely that there will be the "fractional" structure,
              we say:
 
                If the minimum vertical IoU between two symbols is more than
@@ -1955,7 +1980,9 @@ class OnsetsInferenceEngine(object):
 
         :returns: The denoted duration of a measure in beats.
         """
-        members = self.__children(time_signature, clsnames=_CONST.TIME_SIGNATURE_MEMBERS)
+        members = sorted(self.__children(time_signature,
+                                         clsnames=_CONST.TIME_SIGNATURE_MEMBERS),
+                         key=lambda x: x.top)
         logging.info('Interpreting time signature {0}'.format(time_signature.uid))
         logging.info('... Members {0}'.format([m.clsname for m in members]))
 
@@ -2166,6 +2193,12 @@ class OnsetsInferenceEngine(object):
         that have class in ``clsnames``."""
         return [self._cdict[i] for i in c.inlinks
                 if self._cdict[i].clsname in clsnames]
+
+    def __warning_or_error(self, message):
+        if self.strategy.permissive:
+            logging.warn(message)
+        else:
+            raise ValueError(message)
 
     def process_ties(self, cropobjects, durations, onsets):
         """Modifies the durations and onsets so that ties are taken into

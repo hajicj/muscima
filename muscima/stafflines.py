@@ -13,8 +13,8 @@ from skimage.filters import gaussian
 from skimage.morphology import watershed
 
 from muscima.cropobject import CropObject, cropobjects_on_canvas, link_cropobjects
+from muscima.graph import NotationGraph, find_noteheads_on_staff_linked_to_ledger_line
 from muscima.inference_engine_constants import InferenceEngineConstants as _CONST
-from muscima.graph import NotationGraph
 from muscima.utils import compute_connected_components
 
 
@@ -533,12 +533,51 @@ def build_staffspace_cropobjects(cropobjects):
 
 
 def add_staff_relationships(cropobjects,
-                            notehead_staffspace_threshold=0.2):
+                            notehead_staffspace_threshold=0.2,
+                            reprocess_noteheads_inside_staff_with_lls=True):
+    """Adds the relationships from various symbols to staff objects:
+    stafflines, staffspaces, and staffs.
 
+    :param cropobjects: The list of cropobjects in the document. Must
+        include the staff objects.
+
+    :param notehead_staffspace_threshold: A notehead is considered to be
+        on a staffline if it intersects a staffline, and the ratio between
+        how far above the staffline and how far below the staffline it reaches
+        is at least this (default: 0.2). The ratio is computed both ways:
+        d_top / d_bottom and d_bottom / d_top, and the minimum is taken,
+        so the default in effect restricts d_top / d_bottom between 0.2 and 0.8:
+        in other words, the imbalance of the notehead's bounding box around
+        the staffline should be less than 1:4.
+
+    :param reprocess_noteheads_inside_staff_with_lls: If set to True, will check against noteheads
+        that are connected to ledger lines, but intersect a staffline. If found,
+        will remove their edges before further processing, so that the noteheads
+        will seem properly unprocessed.
+
+        Note that this handling is a bit ad-hoc for now. However, we currently
+        do not have a better place to fit this in, since the Best Practices
+        currently call for first applying the syntactic parser and then
+        adding staff relationships.
+
+    :return: The list of cropobjects corresponding to the new graph.
+    """
     graph = NotationGraph(cropobjects)
     _cropobjects_dict = {c.objid: c for c in cropobjects}
 
     ON_STAFFLINE_RATIO_TRHESHOLD = notehead_staffspace_threshold
+
+    ##########################################################################
+    if reprocess_noteheads_inside_staff_with_lls:
+        ll_noteheads_on_staff = find_noteheads_on_staff_linked_to_ledger_line(cropobjects)
+        logging.info('Reprocessing noteheads that are inside a staff, but have links'
+                     ' to ledger lines. Found {0} such noteheads.'
+                     ''.format(len(ll_noteheads_on_staff)))
+        for n in ll_noteheads_on_staff:
+            # Remove all links to ledger lines.
+            lls = graph.children(n, classes=['ledger_line'])
+            for ll in lls:
+                graph.remove_edge(n.objid, ll.objid)
 
     ##########################################################################
     logging.info('Find the staff-related symbols')
@@ -816,8 +855,15 @@ def add_staff_relationships(cropobjects,
                 link_cropobjects(c, _c_staff, check_docname=False)
 
             elif len(overlapped_stafflines) > 2:
-                raise ValueError('Really weird notehead overlapping more than 2 stafflines:'
-                                 ' {0}'.format(c.uid))
+                logging.warning('Really weird notehead overlapping more than 2 stafflines:'
+                                ' {0} (permissive: linking to middle staffline)'.format(c.uid))
+                # use the middle staffline -- this will be an error anyway,
+                # but we want to export some MIDI more or less no matter what
+                s_middle = overlapped_stafflines[len(overlapped_stafflines) // 2]
+                link_cropobjects(c, s_middle, check_docname=False)
+                # And staff:
+                _c_staff = _staff_per_ss_sl[s_middle.objid]
+                link_cropobjects(c, _c_staff, check_docname=False)
 
     ##########################################################################
     logging.info('Attaching clefs to stafflines [NOT IMPLEMENTED].')
