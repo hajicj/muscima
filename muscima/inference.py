@@ -2035,7 +2035,8 @@ class OnsetsInferenceEngine(object):
             else:
                 is_fraction_like = False
 
-        numerals = self.__children(time_signature, _CONST.NUMERALS)
+        numerals = sorted(self.__children(time_signature, _CONST.NUMERALS),
+                          key=lambda x: x.top)
         if not is_fraction_like:
             logging.info('... Non-fractional numeric time sig.')
             # Read numeral left to right, this is the beat count

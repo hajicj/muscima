@@ -1449,3 +1449,43 @@ def cropobjects_on_canvas(cropobjects, margin=10):
 
     return canvas, (_t, _l)
 
+
+def cropobject_mask_rpf(cropobject_gt, cropobject_pred):
+    """Compute the recall, precision and f-score of the predicted
+    cropobject's mask against the ground truth cropobject's mask."""
+    if bbox_intersection(cropobject_gt.bounding_box,
+                         cropobject_pred.bounding_box) is None:
+        return 0.0, 0.0, 0.0
+
+    mask_intersection = cropobjects_merge_mask([cropobject_gt,
+                                                cropobject_pred],
+                                               intersection=False)
+
+
+    gt_pasted_mask = mask_intersection * 1
+    t, l, b, r = cropobjects_merge_bbox([cropobject_gt, cropobject_pred])
+    h, w = b - t, r - l
+    ct, cl, cb, cr = cropobject_gt.top - t, \
+                     cropobject_gt.left - l, \
+                     h - (b - cropobject_gt.bottom), \
+                     w - (r - cropobject_gt.right)
+    gt_pasted_mask[ct:cb, cl:cr] += cropobject_gt.mask
+    gt_pasted_mask[gt_pasted_mask != 0] = 1
+    
+    pred_pasted_mask = mask_intersection * 1
+    t, l, b, r = cropobjects_merge_bbox([cropobject_pred, cropobject_pred])
+    h, w = b - t, r - l
+    ct, cl, cb, cr = cropobject_pred.top - t, \
+                     cropobject_pred.left - l, \
+                     h - (b - cropobject_pred.bottom), \
+                     w - (r - cropobject_pred.right)
+    pred_pasted_mask[ct:cb, cl:cr] += cropobject_pred.mask
+    pred_pasted_mask[pred_pasted_mask != 0] = 1
+
+    tp = float(mask_intersection.sum())
+    fp = pred_pasted_mask.sum() - tp
+    fn = gt_pasted_mask.sum() - tp
+    rec, prec = tp / (tp + fn), tp / (tp + fp)
+    fsc = (2 * rec * prec) / (rec + prec)
+
+    return rec, prec, fsc

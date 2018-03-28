@@ -431,12 +431,15 @@ def parse_cropobject_list(filename):
                 elif value_type == 'float':
                     value = float(value)
                 elif value_type.startswith('list'):
-                    vt_factory = str
-                    if value_type.endswith('[int]'):
-                        vt_factory = int
-                    elif value_type.endswith('[float]'):
-                        vt_factory = float
-                    value = list(map(vt_factory, value.split()))
+                    if value is None:
+                        value = []
+                    else:
+                        vt_factory = str
+                        if value_type.endswith('[int]'):
+                            vt_factory = int
+                        elif value_type.endswith('[float]'):
+                            vt_factory = float
+                        value = list(map(vt_factory, value.split()))
 
                 data_dict[key] = value
 

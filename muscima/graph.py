@@ -274,9 +274,70 @@ class NotationGraph(object):
         for objid in to_remove:
             self.remove_vertex(objid)
 
+    def remove_from_precedence(self, cropobject_or_objid):
+        """Bridge the precedence edges of the given object: each of its
+        predecessors is linked to all of its descendants.
+        If there are no predecessors or no descendants, the precedence
+        edges are simply removed."""
+        objid = self.__to_objid(cropobject_or_objid)
+        c = self._cdict[objid]
+
+        predecessors, descendants = [], []
+
+        # Check if the node has at least some predecessors or descendants
+        _has_predecessors = False
+        if 'precedence_inlinks' in c.data:
+            _has_predecessors = (len(c.data['precedence_inlinks']) > 0)
+        if _has_predecessors:
+            predecessors = copy.deepcopy(c.data['precedence_inlinks'])  # That damn iterator modification
+
+        _has_descendants = False
+        if 'precedence_outlinks' in c.data:
+            _has_descendants = (len(c.data['precedence_outlinks']) > 0)
+        if _has_descendants:
+            descendants = copy.deepcopy(c.data['precedence_outlinks'])
+
+        if (not _has_predecessors) and (not _has_descendants):
+            return
+
+        # Remove inlinks
+        for p_objid in predecessors:
+            p = self._cdict[p_objid]
+            if 'precedence_outlinks' not in p.data:
+                raise ValueError('Predecessor {} of cropobject {} does not have precedence outlinks!'
+                                 ''.format(p_objid, c.objid))
+            if c.objid not in p.data['precedence_outlinks']:
+                raise ValueError('Predecessor {} of cropobject {} does not have reciprocal outlink!'
+                                 ''.format(p_objid, c.objid))
+            p.data['precedence_outlinks'].remove(c.objid)
+            c.data['precedence_inlinks'].remove(p_objid)
+
+        # Remove outlinks
+        for d_objid in descendants:
+            d = self._cdict[d_objid]
+            if 'precedence_inlinks' not in d.data:
+                raise ValueError('Descendant {} of cropobject {} does not have precedence inlinks!'
+                                 ''.format(d_objid, c.objid))
+            if c.objid not in d.data['precedence_inlinks']:
+                raise ValueError('Descendant {} of cropobject {} does not have reciprocal inlink!'
+                                 ''.format(d_objid, c.objid))
+            d.data['precedence_inlinks'].remove(c.objid)
+            c.data['precedence_outlinks'].remove(d_objid)
+
+        # Bridge removed element
+        for p_objid in predecessors:
+            p = self._cdict[p_objid]
+            for d_objid in descendants:
+                d = self._cdict[d_objid]
+                if d_objid not in p.data['precedence_outlinks']:
+                    p.data['precedence_outlinks'].append(d_objid)
+                if p_objid not in d.data['precedence_inlinks']:
+                    d.data['precedence_inlinks'].append(p_objid)
+
 
 def group_staffs_into_systems(cropobjects,
-                              use_fallback_measure_separators=True):
+                              use_fallback_measure_separators=True,
+                              leftmost_measure_separators_only=False):
     """Returns a list of lists of ``staff`` CropObjects
     grouped into systems. Uses the outer ``staff_grouping``
     symbols (or ``measure_separator``) symbols.
@@ -314,7 +375,7 @@ def group_staffs_into_systems(cropobjects,
     # There might also be non-empty staffs that are nevertheless
     # not covered by a staff grouping, only measure separators.
 
-    if use_fallback_measure_separators: # and (len(staff_groups) == 0):
+    if use_fallback_measure_separators:  # and (len(staff_groups) == 0):
         # Collect measure separators, sort them left to right
         measure_separators = [c for c in cropobjects
                               if c.clsname in _CONST.MEASURE_SEPARATOR_CLSNAMES]
@@ -323,15 +384,19 @@ def group_staffs_into_systems(cropobjects,
         # Use only the leftmost measure separator for each staff.
         staffs = [c for c in cropobjects
                   if c.clsname in [_CONST.STAFF_CLSNAME]]
-        leftmost_measure_separators = set()
-        for s in staffs:
-            if s in empty_staffs:
-                continue
-            for m in measure_separators:
-                if graph.is_child_of(s, m):
-                    leftmost_measure_separators.add(m)
-                    break
-        staff_groups += leftmost_measure_separators
+
+        if leftmost_measure_separators_only:
+            leftmost_measure_separators = set()
+            for s in staffs:
+                if s in empty_staffs:
+                    continue
+                for m in measure_separators:
+                    if graph.is_child_of(s, m):
+                        leftmost_measure_separators.add(m)
+                        break
+            staff_groups += leftmost_measure_separators
+        else:
+            staff_groups += measure_separators
 
     if len(staff_groups) != 0:
         staffs_per_group = {c.objid: [_cdict[i] for i in sorted(c.outlinks)
