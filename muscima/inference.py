@@ -122,7 +122,10 @@ class PitchInferenceEngineState(object):
         lines.append('\tbase_pitch: {0}'.format(self.base_pitch))
         lines.append('\tbase_pitch_step: {0}'.format(self.base_pitch_step))
         lines.append('\tbase_pitch_octave: {0}'.format(self.base_pitch_octave))
-        lines.append('\t_current_clef: {0}'.format(self._current_clef.uid))
+        if self._current_clef is not None:
+            lines.append('\t_current_clef: {0}'.format(self._current_clef.uid))
+        else:
+            lines.append('\t_current_clef: None')
         lines.append('\t_current_delta_steps: {0}'.format(self._current_delta_steps))
         lines.append('\t_current_clef_delta_shift: {0}'.format(self._current_clef_delta_shift))
         lines.append('\tkey_accidentals: {0}'.format(self.key_accidentals))
@@ -210,7 +213,7 @@ class PitchInferenceEngineState(object):
 
         # The pitches (F, C, G, D, ...) have to be re-cast
         # in terms of deltas, mod 7.
-        if self._current_clef.clsname == 'g-clef':
+        if (self._current_clef is None) or (self._current_clef.clsname == 'g-clef'):
             deltas_sharp = [4, 1, 5, 2, 6, 3, 0]
             deltas_flat = [0, 3, 6, 2, 5, 1, 4]
         elif self._current_clef.clsname == 'c-clef':
