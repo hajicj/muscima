@@ -41,6 +41,15 @@ class NotationGraph(object):
             objid = cropobject_or_objid
         return objid
 
+    @property
+    def edges(self):
+        edges = set()
+        for c in self.cropobjects:
+            for t in c.outlinks:
+                if (c.objid, t) not in edges:
+                    edges.add((c.objid, t))
+        return edges
+
     def children(self, cropobject_or_objid, classes=None):
         """Find all children of the given node."""
         objid = self.__to_objid(cropobject_or_objid)

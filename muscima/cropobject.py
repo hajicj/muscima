@@ -1284,18 +1284,33 @@ def merge_cropobject_lists(*cropobject_lists):
         set the ``uid`` for the outputs correctly, if you want
         to create a new document.
 
+    .. warning::
+
+        Currently cannot handle precedence edges.
+
     """
-    lengths = [len(c) for c in cropobject_lists]
-    shift_by = [0] + [sum(lengths[:i]) for i in range(1, len(lengths))]
+    max_objids = [max([c.objid for c in c_list]) for c_list in cropobject_lists]
+    min_objids = [min([c.objid for c in c_list]) for c_list in cropobject_lists]
+    shift_by = [0] + [sum(max_objids[:i]) - min_objids[i] + 1 for i in range(1, len(max_objids))]
 
     new_lists = []
     for clist, s in zip(cropobject_lists, shift_by):
         new_list = []
         for c in clist:
             new_c = copy.deepcopy(c)
-            new_c.objid = c.objid + s
+            # UID handling
+            collection, doc, _ = new_c.parse_uid()
+            new_uid = new_c.build_uid(collection, doc, c.objid + s)
+            new_objid = c.objid + s
+            new_c.set_uid(new_uid)
+            new_c.objid = new_objid
+
+            # Graph handling
             new_c.inlinks = [i + s for i in c.inlinks]
             new_c.outlinks = [o + s for o in c.outlinks]
+
+            # Should also handle precedence...?
+
             new_list.append(new_c)
         new_lists.append(new_list)
 
