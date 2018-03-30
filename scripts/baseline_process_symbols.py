@@ -5,6 +5,7 @@ from __future__ import print_function, unicode_literals
 import argparse
 import collections
 import logging
+import os
 import pprint
 import time
 
@@ -1075,7 +1076,6 @@ def build_argument_parser():
     parser.add_argument('--vectorizer', action='store', required=True,
                         help='Read the pickled parser classifier.')
 
-
     parser.add_argument('--add_key_signatures', action='store_true',
                         help='Attempt to add key signatures. Algorithm is'
                              ' very basic: for each staff, gather all accidentals'
@@ -1148,6 +1148,14 @@ def main(args):
                     retain_onsets=True,
                     tempo=180)
 
+    logging.info('Save output')
+    docname = os.path.splitext(os.path.basename(args.output_mung))[0]
+    xml = export_cropobject_list(cropobjects,
+                                 docname=docname,
+                                 dataset_name='FNOMR_results')
+    with open(args.output_mung, 'wb') as out_stream:
+        out_stream.write(xml)
+        out_stream.write('\n')
 
 
     _end_time = time.clock()
