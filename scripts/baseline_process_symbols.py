@@ -3,6 +3,7 @@
 recognition baseline. Intended to be used on top of an object detection stage."""
 from __future__ import print_function, unicode_literals
 import argparse
+import codecs
 import collections
 import logging
 import os
@@ -967,7 +968,115 @@ def find_very_small_cropobjects(cropobjects,
 
 
 ##############################################################################
-# MIDI export
+# Precedence edges
+
+def infer_precedence_edges(cropobjects, factor_by_staff=True):
+    """Returns a list of (from_objid, to_objid) parirs. They
+    then need to be added to the cropobjects as precedence edges."""
+    _cdict = {c.objid: c for c in cropobjects}
+    _relevant_clsnames = set(list(_CONST.NONGRACE_NOTEHEAD_CLSNAMES)
+                             + list(_CONST.REST_CLSNAMES))
+    prec_cropobjects = [c for c in cropobjects
+                        if c.clsname in _relevant_clsnames]
+    logging.info('_infer_precedence: {0} total prec. cropobjects'
+                 ''.format(len(prec_cropobjects)))
+
+    # Group the objects according to the staff they are related to
+    # and infer precedence on these subgroups.
+    if factor_by_staff:
+        staffs = [c for c in cropobjects
+                  if c.clsname == _CONST.STAFF_CLSNAME]
+        logging.info('_infer_precedence: got {0} staffs'.format(len(staffs)))
+        staff_objids = {c.objid: i for i, c in enumerate(staffs)}
+        prec_cropobjects_per_staff = [[] for _ in staffs]
+        # All CropObjects relevant for precedence have a relationship
+        # to a staff.
+        for c in prec_cropobjects:
+            for o in c.outlinks:
+                if o in staff_objids:
+                    prec_cropobjects_per_staff[staff_objids[o]].append(c)
+
+        logging.info('Precedence groups: {0}'
+                     ''.format(prec_cropobjects_per_staff))
+        prec_edges = []
+        for prec_cropobjects_group in prec_cropobjects_per_staff:
+            group_prec_edges = infer_precedence_edges(prec_cropobjects_group,
+                                                      factor_by_staff=False)
+            prec_edges.extend(group_prec_edges)
+        return prec_edges
+
+    if len(prec_cropobjects) <= 1:
+        logging.info('EdgeListView._infer_precedence: less than 2'
+                     ' timed CropObjects selected, no precedence'
+                     ' edges to infer.')
+        return []
+
+    # Group into equivalence if noteheads share stems
+    _stems_to_noteheads_map = collections.defaultdict(list)
+    for c in prec_cropobjects:
+        for o in c.outlinks:
+            if o not in _cdict:
+                logging.warning('Dangling outlink: {} --> {}'.format(c.objid, o))
+                continue
+            c_o = _cdict[o]
+            if c_o.clsname == 'stem':
+                _stems_to_noteheads_map[c_o.objid].append(c.objid)
+
+    _prec_equiv_objids = []
+    _stemmed_noteheads_objids = []
+    for _stem_objid, _stem_notehead_objids in _stems_to_noteheads_map.items():
+        _stemmed_noteheads_objids = _stemmed_noteheads_objids \
+                                    + _stem_notehead_objids
+        _prec_equiv_objids.append(_stem_notehead_objids)
+    for c in prec_cropobjects:
+        if c.objid not in _stemmed_noteheads_objids:
+            _prec_equiv_objids.append([c.objid])
+
+    equiv_objs = [[_cdict[objid] for objid in equiv_objids]
+                  for equiv_objids in _prec_equiv_objids]
+
+    # Order the equivalence classes left to right
+    sorted_equiv_objs = sorted(equiv_objs,
+                               key=lambda eo: min([o.left for o in eo]))
+
+    edges = []
+    for i in xrange(len(sorted_equiv_objs) - 1):
+        fr_objs = sorted_equiv_objs[i]
+        to_objs = sorted_equiv_objs[i+1]
+        for f in fr_objs:
+            for t in to_objs:
+                edges.append((f.objid, t.objid))
+
+    return edges
+
+
+def add_precedence_edges(cropobjects, edges):
+    """Adds precedence edges to CropObjects."""
+    # Ensure unique
+    edges = set(edges)
+    _cdict = {c.objid: c for c in cropobjects}
+    
+    for f, t in edges:
+        cf, ct = _cdict[f] ,_cdict[t]
+        
+        if cf.data is None:
+            cf.data = dict()
+        if 'precedence_outlinks' not in cf.data:
+            cf.data['precedence_outlinks'] = []
+        cf.data['precedence_outlinks'].append(t)
+
+
+        if ct.data is None:
+            ct.data = dict()
+        if 'precedence_inlinks' not in ct.data:
+            ct.data['precedence_inlinks'] = []
+        ct.data['precedence_inlinks'].append(f)
+
+    return cropobjects
+
+##############################################################################
+# Build the MIDI
+
 
 def build_midi(cropobjects, selected_cropobjects=None,
                retain_pitches=True,
@@ -1140,6 +1249,10 @@ def main(args):
     wrong_edges = find_wrong_edges(cropobjects, grammar)
     for f, t in wrong_edges:
         graph.remove_edge(f, t)
+
+    logging.info('Add precedence relationships, factored only by staff')
+    prec_edges = infer_precedence_edges(cropobjects)
+    cropobjects = add_precedence_edges(cropobjects, prec_edges)
 
     logging.info('Ensuring MIDI can be built')
     mf = build_midi(cropobjects,
