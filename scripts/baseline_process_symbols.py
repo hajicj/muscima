@@ -134,7 +134,7 @@ class DependencyGrammar(object):
     >>> from muscima.io import parse_cropobject_class_list
     >>> fpath = os.path.dirname(os.path.dirname(__file__)) + u'/data/grammars/mff-muscima-mlclasses-annot.deprules'
     >>> mlpath = os.path.dirname(os.path.dirname(__file__)) + u'/data/mff-muscima-mlclasses-annot.xml'
-    >>> mlclass_dict = {m.clsid: m for m in parse_mlclass_list(mlpath)}
+    >>> mlclass_dict = {m.clsid: m for m in parse_cropobject_class_list(mlpath)}
     >>> g = DependencyGrammar(grammar_filename=fpath, mlclasses=mlclass_dict)
     >>> len(g.rules)
     444
