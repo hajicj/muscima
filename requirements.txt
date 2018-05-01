@@ -3,6 +3,7 @@ lxml>=3.6.4
 pytest
 pytest-cov
 scikit-image
+scikit-learn
 matplotlib
 
 # Libraries to integrating code-coverage reporting
