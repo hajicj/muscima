@@ -1160,6 +1160,27 @@ def cropobjects_merge(fr, to, clsname, objid):
     return output
 
 
+def cropobjects_merge_multiple(cropobjects, clsname, objid):
+    """Merge multiple cropobjects. Does not modify any of the inputs."""
+    if len(set([c.doc for c in cropobjects])) > 1:
+        raise ValueError('Cannot merge CropObjects from different documents!')
+    mt, ml, mb, mr = cropobjects_merge_bbox(cropobjects)
+    mh, mw = mb - mt, mr - ml
+    m_mask = cropobjects_merge_mask(cropobjects)
+    m_inlinks, m_outlinks = cropobjects_merge_links(cropobjects)
+
+    m_doc = cropobjects[0].doc
+    m_dataset = cropobjects[0].dataset
+    m_uid = CropObject.build_uid(m_dataset, m_doc, objid)
+
+    output = CropObject(objid, clsname,
+                        top=mt, left=ml, height=mh, width=mw,
+                        mask=m_mask,
+                        inlinks=m_inlinks, outlinks=m_outlinks,
+                        uid=m_uid)
+    return output
+
+
 def cropobjects_merge_bbox(cropobjects):
     """Computes the bounding box of a CropObject that would
     result from merging the given list of CropObjects.

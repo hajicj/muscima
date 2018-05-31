@@ -344,6 +344,9 @@ class NotationGraph(object):
                     d.data['precedence_inlinks'].append(p_objid)
 
 
+##############################################################################
+
+
 def group_staffs_into_systems(cropobjects,
                               use_fallback_measure_separators=True,
                               leftmost_measure_separators_only=False):

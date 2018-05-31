@@ -2358,3 +2358,41 @@ def play_midi(midi,
     # Here's hoping it's a blocking call. Otherwise, just leave the MIDI;
     # MUSCIMarker cleans its tmp dir whenever it exits.
     # os.unlink(tmp_midi_path)
+
+
+def align_mung_with_midi(cropobjects, midi_file):
+    """Aligns cropobjects (noteheads) with MIDI note_on
+    events. Outputs a list of pairs ``(c, m)``.
+
+    Should be agnostic w.r.t. the chosen MIDI representation?
+
+    Assumes all noteheads have corresponding pitch, onset & duration
+    information. The alignment is basically finding how beats
+    translate to time in the MIDI file. For a "dead" rendered
+    MIDI, this is easy, since (assuming a constant tempo) there
+    is a constant ratio. For a MIDI performance, this may be much
+    more difficult.
+
+    Assuming the events are at least in the correct
+    order, we can use Dynamic Time Warping, using only pitch matching
+    as the cost function as the simplest baseline.
+
+    The ``m`` element of each returned item is then the onset time
+    in the MIDI, in ticks. This way, the alignment algorithm is fully
+    independent of the representation one chooses for the MIDI data,
+    while extracting the relevant information.
+
+    For real performances with errors, one would have to use pitch *distance*
+    as the cost function, and incorprate the time differences into
+    the cost function in order to decide which events to align
+    to noteheads even though they may be errors, and which to leave
+    unaligned. Then, we would also have to output the full info of
+    the corresponding MIDI event.
+    """
+    # Read MIDI.
+    from midi import read_midifile
+    midi = read_midifile(midi_file)
+
+    # Alignment algorithm:
+    # - find in MIDI events list the closest corresponding
+    #   object for each notehead.
