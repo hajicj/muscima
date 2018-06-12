@@ -5,6 +5,8 @@ pytest-cov
 scikit-image
 scikit-learn
 matplotlib
+midiutil>=1.2.1
+midi2audio>=0.1.1
 
 # Libraries to integrating code-coverage reporting
 python-coveralls
