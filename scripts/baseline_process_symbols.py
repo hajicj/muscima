@@ -16,7 +16,7 @@ import traceback
 import numpy
 from sklearn.feature_extraction import DictVectorizer
 
-from muscima.cropobject import cropobject_distance
+from muscima.cropobject import cropobject_distance, bbox_intersection, cropobjects_merge_multiple, link_cropobjects
 from muscima.graph import find_beams_incoherent_with_stems, NotationGraph
 from muscima.graph import find_misdirected_ledger_line_edges
 from muscima.inference import OnsetsInferenceEngine, MIDIBuilder
@@ -29,11 +29,106 @@ __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
 
-# Note: the Grammar and Parser classes are all copied out of MUSCIMarker!
+##############################################################################
+
+
+def add_key_signatures(cropobjects):
+    """Heuristic for deciding which accidentals are inline,
+    and which should be interpreted as components of a key signature.
+
+    Assumes staffline relationships have already been inferred.
+
+    The heuristic is defined for each staff S as the following:
+
+    * Take the leftmost clef C.
+    * Take the leftmost notehead (incl. grace notes) N.
+    * Take all accidentals A_S that overlap the space between C and N
+      horizontally (including C, not including N), and overlap the staff.
+    * Order A_S left-to-right
+    * Set m = C
+    * Initialize key signature K_S = {}
+    * For each a_S in A_S:
+    * if it is closer to m than to N, then:
+    *   add a_S to K_S,
+    *   set m = a_S
+    * else:
+    *   break
+
+    Note that this modifies the accidentals and staffs in-place: they get inlinks
+    from their respective key signatures.
+    """
+    _g = NotationGraph(cropobjects)
+
+    _current_key_signature_objid = max([m.objid for m in cropobjects]) + 1
+
+    key_signatures = []
+
+    staffs = [m for m in cropobjects if m.clsname == _CONST.STAFF_CLSNAME]
+    for s in staffs:
+
+        # Take the leftmost clef C.
+        clefs = _g.parents(s.objid, classes=_CONST.CLEF_CLSNAMES)
+        if len(clefs) == 0:
+            continue
+        leftmost_clef = min(clefs, key=lambda x: x.left)
+
+        # Take the leftmost notehead (incl. grace notes) N.
+        noteheads = _g.parents(s.objid, classes=_CONST.NOTEHEAD_CLSNAMES)
+        if len(noteheads) == 0:
+            continue
+        leftmost_notehead = min(noteheads, key=lambda x: x.left)
+
+        # Take all accidentals A_S that fall between C and N
+        # horizontally, and overlap the staff.
+        all_accidentals = [m for m in cropobjects
+                           if m.clsname in _CONST.ACCIDENTAL_CLSNAMES]
+        relevant_acc_bbox = s.top, leftmost_clef.left, s.bottom, leftmost_notehead.left
+        relevant_accidentals = [m for m in all_accidentals
+                                if bbox_intersection(m.bounding_box,
+                                                     relevant_acc_bbox)
+                                is not None]
+
+        # Order A_S left-to-right.
+        ordered_accidentals = sorted(relevant_accidentals,
+                                     key=lambda x: x.left)
+
+        # Set m = C
+        current_lstop = leftmost_clef.right
+        key_signature_accidentals = []
+
+        # Iterate over accidentals; check if they are closer to lstop
+        # than to the first notehead
+        for a in ordered_accidentals:
+            if (a.left - current_lstop) < (leftmost_notehead.left - a.right):
+                key_signature_accidentals.append(a)
+                current_lstop = a.right
+            else:
+                break
+
+        # Build key signature and connect it to staff
+        if len(key_signature_accidentals) > 0:
+            _key_signature_clsname = list(_CONST.KEY_SIGNATURE_CLSNAMES)[0]
+            # Note: there might be spurious links from the accidentals
+            # to notheads, if they were mis-interpreted during parsing.
+            # This actually might not matter; needs testing.
+            key_signature = cropobjects_merge_multiple(
+                key_signature_accidentals,
+                clsname=_key_signature_clsname,
+                objid=_current_key_signature_objid)
+            _current_key_signature_objid += 1
+            link_cropobjects(key_signature, s)
+            for a in key_signature_accidentals:
+                link_cropobjects(key_signature, a)
+
+            key_signatures.append(key_signature)
+
+    logging.info('Adding {} key signatures'.format(len(key_signatures)))
+    return cropobjects + key_signatures
 
 
 ##############################################################################
 # Grammar: restricting allowed edges & cardinalities based on symbol classes
+# Note: the Grammar and Parser classes are all copied out of MUSCIMarker!
 
 
 class DependencyGrammar(object):
@@ -1191,7 +1286,7 @@ def build_argument_parser():
                              ' intersecting that staff. From the left, find the'
                              ' first notehead on a staff that is not contained in'
                              ' anything, and the last clef before'
-                             ' this notehead. (...) [NOT IMPLEMENTED]')
+                             ' this notehead. (...) [TESTING]')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -1242,6 +1337,9 @@ def main(args):
     logging.info('Inferring staffline & staff objects, staff relationships')
     cropobjects = process_stafflines(cropobjects)
 
+    if args.add_key_signatures:
+        cropobjects = add_key_signatures(cropobjects)
+
     logging.info('Filter invalid edges')
     graph = NotationGraph(cropobjects)
     # Operatng on the graph changes the cropobjects
@@ -1269,7 +1367,6 @@ def main(args):
     with open(args.output_mung, 'wb') as out_stream:
         out_stream.write(xml)
         out_stream.write('\n')
-
 
     _end_time = time.clock()
     logging.info('baseline_process_symbols.py done in {0:.3f} s'.format(_end_time - _start_time))
