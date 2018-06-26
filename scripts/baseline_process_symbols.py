@@ -19,6 +19,7 @@ from sklearn.feature_extraction import DictVectorizer
 from muscima.cropobject import cropobject_distance, bbox_intersection, cropobjects_merge_multiple, link_cropobjects
 from muscima.graph import find_beams_incoherent_with_stems, NotationGraph
 from muscima.graph import find_misdirected_ledger_line_edges
+from muscima.graph import find_contained_cropobjects, remove_contained_cropobjects
 from muscima.inference import OnsetsInferenceEngine, MIDIBuilder
 from muscima.inference import PitchInferenceEngine
 from muscima.inference_engine_constants import _CONST
@@ -1287,6 +1288,10 @@ def build_argument_parser():
                              ' first notehead on a staff that is not contained in'
                              ' anything, and the last clef before'
                              ' this notehead. (...) [TESTING]')
+    parser.add_argument('--filter_contained', action='store_true',
+                        help='Remove objects that are fully contained within another.'
+                             ' This should be applied *after* parsing non-staff'
+                             ' edges, but *before* inferring staffs.')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -1333,6 +1338,23 @@ def main(args):
 
     logging.info('Parsing')
     cropobjects = do_parse(cropobjects, parser=parser)
+
+    # Filter contained here.
+    if args.filter_contained:
+        logging.info('Finding contained cropobjects...')
+        contained = find_contained_cropobjects(cropobjects,
+                                               mask_threshold=0.95)
+        NEVER_DISCARD_CLASSES = ['key_signature', 'time_signature']
+        contained = [c for c in contained if c.clsname not in NEVER_DISCARD_CLASSES]
+
+        _contained_counts = collections.defaultdict(int)
+        for c in contained:
+            _contained_counts[c.clsname] += 1
+        logging.info('Found {} contained cropobjects'.format(len(contained)))
+        logging.info('Contained counts:\n{0}'.format(pprint.pformat(dict(_contained_counts))))
+        cropobjects = remove_contained_cropobjects(cropobjects,
+                                                   contained)
+        logging.info('Removed contained cropobjects: {}...'.format([m.objid for m in contained]))
 
     logging.info('Inferring staffline & staff objects, staff relationships')
     cropobjects = process_stafflines(cropobjects)

@@ -7,7 +7,7 @@ import logging
 
 import operator
 
-from muscima.cropobject import CropObject
+from muscima.cropobject import CropObject, cropobject_mask_rpf
 from muscima.inference_engine_constants import _CONST
 from muscima.utils import resolve_notehead_wrt_staffline
 
@@ -821,3 +821,61 @@ def group_by_measure(cropobjects):
     logging.debug('Assign objects to measures, based on overlap.')
 
     raise NotImplementedError()
+
+
+##############################################################################
+# Searching for MuNGOs that are contained within other MuNGOs
+# and removing them safely from the MuNG.
+
+def find_contained_cropobjects(cropobjects, mask_threshold=0.95):
+    """Find all cropobjects that are contained within other cropobjects
+    and not connected by an edge from container to contained.
+
+    Does *NOT* check for transitive edges!"""
+    graph = NotationGraph(cropobjects)
+
+    # We should have some smarter indexing structure here, but since
+    # we are just checking bounding boxes for candidates first,
+    # it does not matter too much.
+
+    nonstaff_cropobjects = [c for c in cropobjects
+                            if c.clsname not in _CONST.STAFF_CROPOBJECT_CLSNAMES]
+
+    contained_cropobjects = []
+    for c1 in nonstaff_cropobjects:
+        for c2 in nonstaff_cropobjects:
+            if c1.objid == c2.objid:
+                continue
+            if c1.contains(c2):
+                # Check mask overlap
+                r, p, f = cropobject_mask_rpf(c1, c2)
+                if r < mask_threshold:
+                    continue
+                if c2.objid in c1.outlinks:
+                    continue
+                contained_cropobjects.append(c2)
+
+    # Make unique
+    return [c for c in set(contained_cropobjects)]
+
+
+def remove_contained_cropobjects(cropobjects, contained):
+    """Removes ``contained`` cropobjects from ``cropobjects`` so that the
+    graph takes minimum damage.
+
+    * Attachment edges of contained objects are removed.
+    * For precedence edges, we link all precedence ancestors of a removed node
+      to all its descendants.
+    """
+    # Operating on a copy. Inefficient, but safe.
+    output_cropobjects = [copy.deepcopy(c) for c in cropobjects]
+
+    # The cropobjects are then edited in-place by manipulating
+    # the graph; hence we can then just return output_cropobjects.
+    graph = NotationGraph(output_cropobjects)
+    for c in contained:
+        graph.remove_from_precedence(c.objid)
+    for c in contained:
+        graph.remove_vertex(c.objid)
+
+    return list(graph._cdict.values())
