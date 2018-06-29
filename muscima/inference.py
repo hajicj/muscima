@@ -2305,8 +2305,9 @@ class MIDIBuilder:
         repeated adjacent notes are transformed into just one.
 
         :param midi_matrix: A ``128 x n_frames`` binary numpy array.
-            Expected to be in the more intuitive "plottable" format,
-            where pitch ``J`` is encoded in row ``(128 - J)``.
+            Expected to be in the less intuitive format, where pitch
+            ``J`` is encoded in row ``(128 - J)`` -- you would plot this
+            with ``origin=lower`` in the ``imshow()`` call.
 
         :param FPS: each frame in the MIDI matrix corresponds to ``1 / FPS``
             of a second. Used together with ``tempo`` to determine durations
@@ -2340,7 +2341,8 @@ class MIDIBuilder:
             # Collect onsets
             frame = midi_matrix[:, i_frame]
             for idx, entry in enumerate(frame):
-                pitch = n_pitch_classes - idx
+                # pitch = n_pitch_classes - idx
+                pitch = idx
                 if entry != 0:
                     if pitch not in currently_active:
                         # Start activity
@@ -2363,9 +2365,9 @@ class MIDIBuilder:
             onset_beats = self.frames2beats(onset_frame,
                                             framerate=framerate,
                                             tempo=tempo)
-            duration_beats =  self.frames2beats(duration_frames,
-                                                framerate=framerate,
-                                                tempo=tempo)
+            duration_beats = self.frames2beats(duration_frames,
+                                               framerate=framerate,
+                                               tempo=tempo)
             pitches[event_idx] = pitch
             durations[event_idx] = duration_beats
             onsets[event_idx] = onset_beats
