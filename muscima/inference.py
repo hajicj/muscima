@@ -2299,6 +2299,87 @@ class PrecedenceGraphNode:
 
 class MIDIBuilder:
 
+    def midi_matrix_to_pdo(self, midi_matrix, framerate=20, tempo=120):
+        """Builds the pitch, duration and onset dicts from a given MIDI
+        matrix. Does *not* take into account possible re-articulations:
+        repeated adjacent notes are transformed into just one.
+
+        :param midi_matrix: A ``128 x n_frames`` binary numpy array.
+            Expected to be in the more intuitive "plottable" format,
+            where pitch ``J`` is encoded in row ``(128 - J)``.
+
+        :param FPS: each frame in the MIDI matrix corresponds to ``1 / FPS``
+            of a second. Used together with ``tempo`` to determine durations
+            in beats.
+
+        :param tempo: The tempo in which the MIDI matrix should be interpreted.
+            This does not actually matter for the output MIDI -- you can
+            balance it out by using a different ``FPS`` value. However, it is
+            necessary to compute durations and onsets in beats, since this is
+            what the MIDI building functions in ``midiutil.MidiFile`` expect.
+
+        :returns: ``pitches, durations, onsets``. These are dicts indexed
+            by note ID (equivalent to notehead objids in MuNG context).
+            Pitches contain for each note the MIDI pitch code, durations
+            contain its duration in beats, and onsets contain its onset
+            in beats.
+        """
+        pitches = dict()
+        durations = dict()
+        onsets = dict()
+
+        # Collect pitch activities.
+
+        # For each pitch, contains a list of (start_frame, end_frame+1) pairs.
+        activities = collections.defaultdict(list)
+
+        n_frames = midi_matrix.shape[1]
+        n_pitch_classes = midi_matrix.shape[0]
+        currently_active = dict()
+        for i_frame in range(n_frames):
+            # Collect onsets
+            frame = midi_matrix[:, i_frame]
+            for idx, entry in enumerate(frame):
+                pitch = n_pitch_classes - idx
+                if entry != 0:
+                    if pitch not in currently_active:
+                        # Start activity
+                        currently_active[pitch] = i_frame
+                else:
+                    if pitch in currently_active:
+                        activities[pitch].append((currently_active[pitch], i_frame))
+                        del currently_active[pitch]
+
+        # Convert pitch activities into onset/pitch/duration dicts.
+        notes = []
+        for pitch in activities:
+            for onset_frame, end_frame in activities[pitch]:
+                notes.append((onset_frame, pitch, end_frame - onset_frame))
+        # Sort by start and from lowest to highest:
+        ordered_by_start_frame = sorted(notes)
+
+        # Distribute into pitch/duration/onset dicts
+        for event_idx, (onset_frame, pitch, duration_frames) in enumerate(notes):
+            onset_beats = self.frames2beats(onset_frame,
+                                            framerate=framerate,
+                                            tempo=tempo)
+            duration_beats =  self.frames2beats(duration_frames,
+                                                framerate=framerate,
+                                                tempo=tempo)
+            pitches[event_idx] = pitch
+            durations[event_idx] = duration_beats
+            onsets[event_idx] = onset_beats
+
+        logging.debug('{} note events, last onset: beat {} (seconds: {})'
+                      ''.format(len(notes), notes[-1][0], notes[-1][0] * tempo / 60.))
+
+        return pitches, durations, onsets
+
+    def frames2beats(self, n_frames, framerate, tempo):
+        """Converts a number of frames to duration in beats,
+        given a framerate and tempo."""
+        return (n_frames / float(framerate)) * (tempo / 60.)
+
     def build_midi(self, pitches, durations, onsets, selection=None, tempo=120):
         from midiutil.MidiFile import MIDIFile
 
@@ -2332,7 +2413,8 @@ class MIDIBuilder:
 
 def play_midi(midi,
               tmp_dir,
-              soundfont='~/.fluidsynth/FluidR3_GM.sf2'):
+              soundfont='~/.fluidsynth/FluidR3_GM.sf2',
+              cleanup=False):
     """Plays (or attempts to play) the given MIDIFile object.
 
     :param midi: A ``midiutils.MidiFile.MIDIFile`` object
@@ -2357,7 +2439,8 @@ def play_midi(midi,
     fs.play_midi(tmp_midi_path)
     # Here's hoping it's a blocking call. Otherwise, just leave the MIDI;
     # MUSCIMarker cleans its tmp dir whenever it exits.
-    # os.unlink(tmp_midi_path)
+    if cleanup:
+        os.unlink(tmp_midi_path)
 
 
 def align_mung_with_midi(cropobjects, midi_file):
