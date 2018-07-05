@@ -59,7 +59,7 @@ setup(
              'scripts/strip_staffline_symbols.py'],
     platforms='any',
     test_suite='test.test_muscima',
-    classifiers = [
+    classifiers=[
         'Programming Language :: Python',
         'Development Status :: 4 - Beta',
         'Natural Language :: English',
