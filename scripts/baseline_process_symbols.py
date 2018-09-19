@@ -276,7 +276,7 @@ class DependencyGrammar(object):
     >>> outlink_cards['notehead-empty']
     {'stem': (0, 2)}
     >>> inlink_cards['stem']
-    {'notehead-empty': (0, 10000), 'notehead-full': (0, 10000)}
+    {'notehead-full': (0, 10000), 'notehead-empty': (0, 10000)}
 
     A key signature can have any number of sharps, flats, or naturals,
     but if a given symbol is part of a key signature, it can only be part of one.
@@ -286,7 +286,7 @@ class DependencyGrammar(object):
     >>> rules
     [('key-signature', 'sharp'), ('key-signature', 'flat'), ('key-signature', 'natural')]
     >>> inlink_cards
-    {'sharp': {'key-signature': (1, 1)}, 'natural': {'key-signature': (1, 1)}, 'flat': {'key-signature': (1, 1)}}
+    {'sharp': {'key-signature': (1, 1)}, 'flat': {'key-signature': (1, 1)}, 'natural': {'key-signature': (1, 1)}}
 
     You can also give *aggregate* cardinality rules, of the style "whatever rule
     applies, there should be at least X/at most Y edges for this type of object".
@@ -302,7 +302,7 @@ class DependencyGrammar(object):
     >>> l = '| beam{1,} stem{1,} flat{1,}'
     >>> _, _, _, in_aggregate_cards, _ = g.parse_dependency_grammar_line(l)
     >>> in_aggregate_cards
-    {'beam': (1, 10000), 'flat': (1, 10000), 'stem': (1, 10000)}
+    {'beam': (1, 10000), 'stem': (1, 10000), 'flat': (1, 10000)}
 
     """
 
