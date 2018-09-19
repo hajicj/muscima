@@ -40,6 +40,9 @@ which is incidentally the real CropObjectClass list used
 for annotating MUSCIMA++.
 
 """
+from __future__ import division
+from past.utils import old_div
+from builtins import object
 import logging
 
 __version__ = "1.0"
@@ -84,7 +87,7 @@ _hex_tr = {
     'a': 10, 'b': 11, 'c': 12, 'd': 13, 'e': 14, 'f': 15,
     'A': 10, 'B': 11, 'C': 12, 'D': 13, 'E': 14, 'F': 15,
 }
-_hex_itr = {v: k for k, v in _hex_tr.items()}
+_hex_itr = {v: k for k, v in list(_hex_tr.items())}
 
 
 def parse_hex(hstr):
@@ -113,7 +116,7 @@ def hex2rgb(hstr):
         hstr = hstr[1:]
     rs, gs, bs = hstr[:2], hstr[2:4], hstr[4:]
     r, g, b = parse_hex(rs), parse_hex(gs), parse_hex(bs)
-    return r / 255.0, g / 255.0, b / 255.0
+    return old_div(r, 255.0), old_div(g, 255.0), old_div(b, 255.0)
 
 
 def rgb2hex(rgb):

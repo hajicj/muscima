@@ -250,6 +250,8 @@ file is a reference for doing that.
 """
 from __future__ import print_function, unicode_literals, division
 
+from builtins import str
+from builtins import map
 import copy
 import logging
 import os
@@ -499,7 +501,7 @@ def validate_cropobjects_graph_structure(cropobjects):
         cropobjects_by_doc[c.doc].append(c)
 
     is_valid = True
-    for doc, doc_cropobjects in cropobjects_by_doc.items():
+    for doc, doc_cropobjects in list(cropobjects_by_doc.items()):
         doc_is_valid = validate_document_graph_structure(doc_cropobjects)
         if not doc_is_valid:
             logging.warning('Document {0} has invalid cropobject graph!'

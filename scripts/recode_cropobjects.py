@@ -17,6 +17,8 @@ Example::
                           -o /my/data/recoded-cropobjects
 """
 from __future__ import print_function, unicode_literals
+from builtins import zip
+from builtins import str
 import argparse
 import copy
 import logging

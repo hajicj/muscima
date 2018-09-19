@@ -25,6 +25,7 @@ For an overview of all command-line options, call::
 
 """
 from __future__ import print_function, unicode_literals
+from builtins import zip
 import argparse
 import logging
 import os
