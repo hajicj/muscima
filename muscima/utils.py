@@ -3,7 +3,9 @@ from __future__ import print_function, unicode_literals
 
 import logging
 
+import numpy
 from skimage.measure import label
+from typing import Dict, List, Tuple
 
 from muscima.inference_engine_constants import InferenceEngineConstants as _CONST
 
@@ -15,6 +17,7 @@ __author__ = "Jan Hajic jr."
 
 
 def connected_components2bboxes(labels):
+    # type: (List[List[int]]) -> Dict[int,Tuple[int, int, int, int]]
     """Returns a dictionary of bounding boxes (upper left c., lower right c.)
     for each label.
 
@@ -37,10 +40,10 @@ def connected_components2bboxes(labels):
         lies exactly within labels[xmin:xmax, ymin:ymax].
     """
     bboxes = {}
-    for x, row in enumerate(labels):
-        for y, l in enumerate(row):
+    for x, row in enumerate(labels):  # type: int, List[int]
+        for y, l in enumerate(row):  # type: int, int
             if l not in bboxes:
-                bboxes[l] = [x, y, x+1, y+1]
+                bboxes[l] = [x, y, x + 1, y + 1]
             else:
                 box = bboxes[l]
                 if x < box[0]:
@@ -55,6 +58,7 @@ def connected_components2bboxes(labels):
 
 
 def compute_connected_components(image):
+    # type: (numpy.ndarray) -> (int, numpy.ndarray, Dict[int,Tuple[int, int, int, int]])
     labels = label(image, background=0)
     cc = int(labels.max())
     bboxes = connected_components2bboxes(labels)
@@ -62,6 +66,8 @@ def compute_connected_components(image):
 
 
 def resolve_notehead_wrt_staffline(notehead, staffline_or_ledger_line):
+    from muscima.cropobject import CropObject
+    # type: (CropObject, CropObject) -> int
     """Resolves the relative vertical position of the notehead with respect
     to the given staff_line or ledger_line object. Returns -1 if notehead
     is *below* staffline, 0 if notehead is *on* staffline, and 1 if notehead
@@ -119,17 +125,19 @@ def resolve_notehead_wrt_staffline(notehead, staffline_or_ledger_line):
             output_position = -1
 
         else:
-            logging.warn('Strange notehead {0} vs. ledger line {1}'
-                         ' situation: bbox notehead {2}, LL {3}.'
-                         ' Note that the output position is unusable;'
-                         ' pleasre re-do this attachment manually.'
-                         ''.format(notehead.uid, ll.uid,
-                                   notehead.bounding_box,
-                                   ll.bounding_box))
+            logging.warning('Strange notehead {0} vs. ledger line {1}'
+                            ' situation: bbox notehead {2}, LL {3}.'
+                            ' Note that the output position is unusable;'
+                            ' please re-do this attachment manually.'
+                            ''.format(notehead.uid, ll.uid,
+                                      notehead.bounding_box,
+                                      ll.bounding_box))
     return output_position
 
 
 def is_notehead_on_line(notehead, line_obj):
+    from muscima.cropobject import CropObject
+    # type: (CropObject, CropObject) -> bool
     """Check whether given notehead is positioned on the line object."""
     if line_obj.clsname not in _CONST.STAFFLINE_LIKE_CROPOBJECT_CLSNAMES:
         raise ValueError('Cannot resolve relative position of notehead'

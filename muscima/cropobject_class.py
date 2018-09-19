@@ -41,6 +41,7 @@ for annotating MUSCIMA++.
 
 """
 import logging
+from typing import Tuple
 
 __version__ = "1.0"
 __author__ = "Jan Hajic jr."
@@ -57,6 +58,7 @@ class CropObjectClass(object):
     out in the appropriate XML format.
     """
     def __init__(self, clsid, name, group_name, color):
+        # type: (int, str, str, str) -> None
         self.clsid = clsid
         self.name = name
         self.group_name = group_name
@@ -88,6 +90,7 @@ _hex_itr = {v: k for k, v in _hex_tr.items()}
 
 
 def parse_hex(hstr):
+    # type: (str) -> int
     """Convert a hexadecimal number string to integer.
 
     >>> parse_hex('33')
@@ -103,6 +106,7 @@ def parse_hex(hstr):
 
 
 def hex2rgb(hstr):
+    # type: (str) -> Tuple[float, float, float]
     """Parse a hex-coded color like '#AA0202' into a floating-point representation.
 
     >>> hex2rgb('#abe822')
@@ -117,6 +121,7 @@ def hex2rgb(hstr):
 
 
 def rgb2hex(rgb):
+    # type: (Tuple[float, float, float]) -> str
     """Convert a floating-point representation of R, G, B values
     between 0 and 1 (inclusive) to a hex string (strating with a
     hashmark). Will use uppercase letters for 10 - 15.

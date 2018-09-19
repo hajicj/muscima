@@ -11,12 +11,12 @@ import pprint
 import numpy
 from skimage.filters import gaussian
 from skimage.morphology import watershed
+from typing import List, Tuple
 
 from muscima.cropobject import CropObject, cropobjects_on_canvas, link_cropobjects
 from muscima.graph import NotationGraph, find_noteheads_on_staff_linked_to_ledger_line
 from muscima.inference_engine_constants import InferenceEngineConstants as _CONST
 from muscima.utils import compute_connected_components
-
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -26,6 +26,7 @@ __author__ = "Jan Hajic jr."
 
 
 def __has_parent_staff(c, cropobjects):
+    # type: (CropObject, List[CropObject]) -> bool
     _cdict = {c.objid: c for c in cropobjects}
     staff_inlinks = [_cdict[i] for i in c.inlinks
                      if _cdict[i].clsname == _CONST.STAFF_CLSNAME]
@@ -33,6 +34,7 @@ def __has_parent_staff(c, cropobjects):
 
 
 def __has_child_staffspace(staff, cropobjects):
+    # type: (CropObject, List[CropObject]) -> bool
     _cdict = {c.objid: c for c in cropobjects}
     staffline_outlinks = [_cdict[i] for i in staff.outlinks
                           if _cdict[i].clsname == _CONST.STAFFSPACE_CLSNAME]
@@ -40,6 +42,7 @@ def __has_child_staffspace(staff, cropobjects):
 
 
 def __has_neighbor_staffspace(staffline, cropobjects):
+    # type: (CropObject, List[CropObject]) -> bool
     _cdict = {c.objid: c for c in cropobjects}
     # Find parent staff
     if not __has_parent_staff(staffline, cropobjects):
@@ -57,6 +60,7 @@ def __has_neighbor_staffspace(staffline, cropobjects):
 
 
 def merge_staffline_segments(cropobjects, margin=10):
+    # type: (List[CropObject], int) -> List[CropObject]
     """Given a list of CropObjects that contain some staffline
     objects, generates a new list where the stafflines
     are merged based on their horizontal projections.
@@ -75,7 +79,7 @@ def merge_staffline_segments(cropobjects, margin=10):
     """
     already_processed_stafflines = [c for c in cropobjects
                                     if (c.clsname == _CONST.STAFFLINE_CLSNAME) and
-                                        __has_parent_staff(c, cropobjects)]
+                                    __has_parent_staff(c, cropobjects)]
     # margin is used to avoid the stafflines touching the edges,
     # which could perhaps break some assumptions down the line.
     old_staffline_cropobjects = [c for c in cropobjects
@@ -134,6 +138,7 @@ def merge_staffline_segments(cropobjects, margin=10):
 
 
 def staffline_bboxes_and_masks_from_horizontal_merge(mask):
+    # type: (numpy.ndarray) -> (List[Tuple[int,int,int,int]],List[numpy.ndarray])
     """Returns a list of staff_line bboxes and masks
      computed from the input mask, with
     each set of connected components in the mask that has at least
@@ -230,7 +235,9 @@ def staffline_bboxes_and_masks_from_horizontal_merge(mask):
     return staffline_bboxes, staffline_masks
 
 
-def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mask):
+def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, image):
+    # type: (List[Tuple[int,int,int,int]],numpy.ndarray) -> (List[Tuple[int,int,int,int]], List[numpy.ndarray])
+
     logging.warning('Creating staff bboxes and masks.')
 
     #  - Go top-down and group the stafflines by five to get staves.
@@ -240,13 +247,13 @@ def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mas
 
     n_stafflines = len(staffline_bboxes)
     for i in range(n_stafflines // 5):
-        _sbb = staffline_bboxes[5*i:5*(i+1)]
+        _sbb = staffline_bboxes[5 * i:5 * (i + 1)]
         _st = min([bb[0] for bb in _sbb])
         _sl = min([bb[1] for bb in _sbb])
         _sb = max([bb[2] for bb in _sbb])
         _sr = max([bb[3] for bb in _sbb])
         staff_bboxes.append((_st, _sl, _sb, _sr))
-        staff_masks.append(mask[_st:_sb, _sl:_sr])
+        staff_masks.append(image[_st:_sb, _sl:_sr])
 
     logging.warning('Total staffs: {0}'.format(len(staff_bboxes)))
 
@@ -254,6 +261,7 @@ def staff_bboxes_and_masks_from_staffline_bboxes_and_image(staffline_bboxes, mas
 
 
 def staffline_surroundings_mask(staffline_cropobject):
+    # type: (CropObject) -> (numpy.ndarray, numpy.ndarray)
     """Find the parts of the staffline's bounding box which lie
     above or below the actual staffline.
 
@@ -284,14 +292,15 @@ def staffline_surroundings_mask(staffline_cropobject):
 
 
 def build_staff_cropobjects(cropobjects):
-    """Derives staff objects from staffline objcets.
+    # type: (List[CropObject]) -> List[CropObject]
+    """Derives staff objects from staffline objects.
 
     Assumes each staff has 5 stafflines.
 
     Assumes the stafflines have already been merged."""
     stafflines = [c for c in cropobjects
                   if c.clsname == _CONST.STAFFLINE_CLSNAME and
-                    not __has_parent_staff(c, cropobjects)]
+                  not __has_parent_staff(c, cropobjects)]
     if len(stafflines) == 0:
         return []
 
@@ -307,13 +316,13 @@ def build_staff_cropobjects(cropobjects):
 
     n_stafflines = len(stafflines)
     for i in range(n_stafflines // 5):
-        _sbb = staffline_bboxes[5*i:5*(i+1)]
+        _sbb = staffline_bboxes[5 * i:5 * (i + 1)]
         _st = min([bb[0] for bb in _sbb])
         _sl = min([bb[1] for bb in _sbb])
         _sb = max([bb[2] for bb in _sbb])
         _sr = max([bb[3] for bb in _sbb])
         staff_bboxes.append((_st, _sl, _sb, _sr))
-        staff_masks.append(canvas[_st-_t:_sb-_t, _sl-_l:_sr-_l])
+        staff_masks.append(canvas[_st - _t:_sb - _t, _sl - _l:_sr - _l])
 
     logging.info('Creating staff CropObjects')
     next_objid = max([c.objid for c in cropobjects]) + 1
@@ -343,6 +352,7 @@ def build_staff_cropobjects(cropobjects):
 
 
 def build_staffspace_cropobjects(cropobjects):
+    # type: (List[CropObject]) -> List[CropObject]
     """Creates the staffspace objects based on stafflines
     and staffs. There is a staffspace between each two stafflines,
     one on the top side of each staff, and one on the bottom
@@ -415,8 +425,8 @@ def build_staffspace_cropobjects(cropobjects):
             logging.debug(canvas.shape)
             logging.debug('l={0}, dl1={1}, dl2={2}, r={3}, dr1={4}, dr2={5}'
                           ''.format(l, dl1, dl2, r, dr1, dr2))
-            #canvas[:s1.height, :] += s1.mask[:, dl1:s1.width-dr1]
-            #canvas[-s2.height:, :] += s2.mask[:, dl2:s2.width-dr2]
+            # canvas[:s1.height, :] += s1.mask[:, dl1:s1.width-dr1]
+            # canvas[-s2.height:, :] += s2.mask[:, dl2:s2.width-dr2]
 
             # We have to deal with staffline interruptions.
             # One way to do this
@@ -441,8 +451,8 @@ def build_staffspace_cropobjects(cropobjects):
             # We now take the intersection of s1_below and s2_above.
             # If there is empty space in the middle, we fill it in.
             staffspace_mask = numpy.ones(canvas.shape)
-            staffspace_mask[s1_t:s1_b, :] -= (1 - s1_below[:, dl1:s1.width-dr1])
-            staffspace_mask[s2_t:s2_b, :] -= (1 - s2_above[:, dl2:s2.width-dr2])
+            staffspace_mask[s1_t:s1_b, :] -= (1 - s1_below[:, dl1:s1.width - dr1])
+            staffspace_mask[s2_t:s2_b, :] -= (1 - s2_above[:, dl2:s2.width - dr2])
 
             ss_top = s1.top
             ss_bottom = s2.bottom
@@ -506,7 +516,7 @@ def build_staffspace_cropobjects(cropobjects):
         bsl = sorted_stafflines[-1]
         bsl_heights = bsl.mask.sum(axis=0)
 
-        lss_top = bss.bottom # + max(bsl_heights)
+        lss_top = bss.bottom  # + max(bsl_heights)
         lss_left = bss.left
         lss_width = bss.width
         lss_height = int(bss.height / 1.2)
@@ -535,6 +545,7 @@ def build_staffspace_cropobjects(cropobjects):
 def add_staff_relationships(cropobjects,
                             notehead_staffspace_threshold=0.2,
                             reprocess_noteheads_inside_staff_with_lls=True):
+    # type: (List[CropObject], float, bool) -> List[CropObject]
     """Adds the relationships from various symbols to staff objects:
     stafflines, staffspaces, and staffs.
 
@@ -641,7 +652,7 @@ def add_staff_relationships(cropobjects,
     stafflines = [c for c in cropobjects if c.clsname == _CONST.STAFFLINE_CLSNAME]
     stafflines = sorted(stafflines, key=lambda c: c.top)
     staffspaces = [c for c in cropobjects if c.clsname == _CONST.STAFFSPACE_CLSNAME]
-    staffspaces= sorted(staffspaces, key=lambda c: c.top)
+    staffspaces = sorted(staffspaces, key=lambda c: c.top)
     staves = [c for c in cropobjects if c.clsname == _CONST.STAFF_CLSNAME]
     staves = sorted(staves, key=lambda c: c.top)
 
@@ -732,7 +743,7 @@ def add_staff_relationships(cropobjects,
                                      key=lambda ss: min((ll_max_dist.bottom - ss.top) ** 2,
                                                         (ll_max_dist.top - ss.bottom) ** 2))
                 distance_of_closest_staff = (ll_max_dist.top + ll_max_dist.bottom) / 2 \
-                                    - (staff_min_dist.top + staff_min_dist.bottom) / 2
+                                            - (staff_min_dist.top + staff_min_dist.bottom) / 2
                 if numpy.abs(distance_of_closest_staff) > (50 + 0.5 * staff_min_dist.height):
                     logging.debug('Trying to join notehead with ledger line to staff,'
                                   ' but the distance is larger than 50. Notehead: {0},'
@@ -764,9 +775,9 @@ def add_staff_relationships(cropobjects,
 
             if c.objid < 10:
                 logging.info('Notehead {0} ({1}): overlaps {2} stafflines'.format(c.uid,
-                                                                                   c.bounding_box,
-                                                                                   len(overlapped_stafflines),
-                                                                                   ))
+                                                                                  c.bounding_box,
+                                                                                  len(overlapped_stafflines),
+                                                                                  ))
 
             if len(overlapped_stafflines) == 1:
                 s = overlapped_stafflines[0]
@@ -871,4 +882,3 @@ def add_staff_relationships(cropobjects,
 
     ##########################################################################
     return cropobjects
-

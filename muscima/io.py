@@ -255,6 +255,8 @@ import logging
 import os
 
 import collections
+from typing import List, Tuple, Optional
+
 from lxml import etree
 
 from muscima.cropobject import CropObject
@@ -268,6 +270,7 @@ __author__ = "Jan Hajic jr."
 
 
 def parse_cropobject_list(filename):
+    # type: (str) -> List[CropObject]
     """From a xml file with a CropObjectList as the top element, parse
     a list of CropObjects. (See ``CropObject`` class documentation
     for a description of the XMl format.)
@@ -410,7 +413,6 @@ def parse_cropobject_list(filename):
             if o_s_text is not None:
                 outlinks = list(map(int, o_s_text.split(' ')))
 
-
         #################################
         # Decode the data.
         data = cropobject.findall('Data')
@@ -423,7 +425,7 @@ def parse_cropobject_list(filename):
                 value_type = data_item.get('type')
                 value = data_item.text
 
-                #logging.debug('Creating data entry: key={0}, type={1},'
+                # logging.debug('Creating data entry: key={0}, type={1},'
                 #              ' value={2}'.format(key, value_type, value))
 
                 if value_type == 'int':
@@ -481,6 +483,7 @@ def parse_cropobject_list(filename):
 
 
 def validate_cropobjects_graph_structure(cropobjects):
+    # type: (List[CropObject]) -> bool
     """Check that the graph defined by the ``inlinks`` and ``outlinks``
     in the given list of CropObjects is valid: no relationships
     leading from or to objects with non-existent ``objid``s.
@@ -509,6 +512,7 @@ def validate_cropobjects_graph_structure(cropobjects):
 
 
 def validate_document_graph_structure(cropobjects):
+    # type: (List[CropObject]) -> bool
     """Check that the graph defined by the ``inlinks`` and ``outlinks``
     in the given list of CropObjects is valid: no relationships
     leading from or to objects with non-existent ``objid``s.
@@ -547,6 +551,7 @@ def validate_document_graph_structure(cropobjects):
 
 
 def export_cropobject_graph(cropobjects, validate=True):
+    # type: (List[CropObject], bool) -> List[Tuple[int, int]]
     """Collects the inlink/outlink CropObject graph
     and returns it as a list of ``(from, to)`` edges.
 
@@ -571,6 +576,7 @@ def export_cropobject_graph(cropobjects, validate=True):
 
 
 def export_cropobject_list(cropobjects, docname=None, dataset_name=None):
+    # type: (List[CropObject], Optional[str], Optional[str]) -> str
     """Writes the CropObject data as a XML string. Does not write
     to a file -- use ``with open(output_file) as out_stream:`` etc.
 
@@ -623,6 +629,7 @@ def export_cropobject_list(cropobjects, docname=None, dataset_name=None):
 # Parsing CropObjectClass lists, mostly for grammars.
 
 def parse_cropobject_class_list(filename):
+    # type: (str) -> List[CropObjectClass]
     """From a xml file with a MLClassList as the top element,
     extract the list of :class:`CropObjectClass` objects. Use
     this
@@ -640,12 +647,12 @@ def parse_cropobject_class_list(filename):
 
 
 def export_cropobject_class_list(cropobject_classes):
+    # type: (List[CropObjectClass]) -> str
     """Writes the CropObject data as a XML string. Does not write
     to a file -- use ``with open(output_file) as out_stream:`` etc.
 
-    :param cropobjects: A list of CropObject instances.
+    :param cropobject_classes: A list of CropObjectClass instances.
     """
-    # This is the data string, the rest is formalities
     cropobject_classes_string = '\n'.join([str(c) for c in cropobject_classes])
 
     lines = list()

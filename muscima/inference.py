@@ -6,8 +6,11 @@ import logging
 import os
 
 import operator
+from typing import Optional, Any, Dict, Union, List, Tuple
 
-from muscima.cropobject import bbox_dice
+from midiutil import MIDIFile
+
+from muscima.cropobject import bbox_dice, CropObject
 from muscima.graph import group_staffs_into_systems, NotationGraph, NotationGraphError
 from muscima.inference_engine_constants import InferenceEngineConstants
 
@@ -83,6 +86,7 @@ class PitchInferenceEngineState(object):
     Iterate through the relevant objects on a staff, sorted left-to-right
     by left edge.
     """
+
     def __init__(self):
 
         self.base_pitch = None
@@ -106,10 +110,11 @@ class PitchInferenceEngineState(object):
         '''If the clef is in a non-standard position, this number is added
         to the pitch computation delta.'''
 
-        self.key_accidentals = {}
-        self.inline_accidentals = {}
+        self.key_accidentals = {}  # type: Dict[int, str]
+        self.inline_accidentals = {}  # type: Dict[int, str]
 
     def reset(self):
+        # type: () -> None
         self.base_pitch = None
         self._current_clef = None
         self._current_delta_steps = None
@@ -133,12 +138,14 @@ class PitchInferenceEngineState(object):
         return '\n'.join(lines)
 
     def init_base_pitch(self, clef=None, delta=0):
+        # type: (Optional[CropObject], int) -> None
         """Initializes the base pitch while taking into account
         the displacement of the clef from its initial position."""
         self.init_base_pitch_default_staffline(clef)
         self._current_clef_delta_shift = -1 * delta
 
     def init_base_pitch_default_staffline(self, clef=None):
+        # type: (Optional[CropObject]) -> None
         """Based solely on the clef class name and assuming
         default stafflines, initialize the base pitch.
         By default, initializes as though given a g-clef."""
@@ -190,6 +197,7 @@ class PitchInferenceEngineState(object):
         self._current_delta_steps = new_delta_steps
 
     def set_key(self, n_sharps=0, n_flats=0):
+        # type: (int, int) -> None
         """Initialize the staffline delta --> key accidental map.
         Currently works only on standard key signatures, where
         there are no repeating accidentals, no double sharps/flats,
@@ -231,18 +239,21 @@ class PitchInferenceEngineState(object):
         self.key_accidentals = new_key_accidentals
 
     def set_inline_accidental(self, delta, accidental):
+        # type: (int, CropObject) -> None
         self.inline_accidentals[delta] = accidental.clsname
 
     def reset_inline_accidentals(self):
+        # type: () -> None
         self.inline_accidentals = {}
 
     def accidental(self, delta):
+        # type: (int) -> int
         """Returns the modification, in MIDI code, corresponding
         to the staffline given by the delta."""
         pitch_mod = 0
 
         step_delta = delta % 7
-        if step_delta in self.key_accidentals:
+        if step_delta in self.key_accidentals:  # type: int
             if self.key_accidentals[step_delta] == 'sharp':
                 pitch_mod = 1
             elif self.key_accidentals[step_delta] == 'double_sharp':
@@ -268,6 +279,7 @@ class PitchInferenceEngineState(object):
         return pitch_mod
 
     def pitch(self, delta):
+        # type: (int) -> int
         """Given a staffline delta, returns the current MIDI pitch code.
 
         (This method is the main interface of the PitchInferenceEngineState.)
@@ -285,7 +297,7 @@ class PitchInferenceEngineState(object):
 
         # From the base pitch and clef:
         step_pitch = self.base_pitch \
-                     + sum(self._current_delta_steps[:delta_step+1]) \
+                     + sum(self._current_delta_steps[:delta_step + 1]) \
                      + (delta_octave * 12)
         accidental_pitch = self.accidental(delta)
 
@@ -300,6 +312,7 @@ class PitchInferenceEngineState(object):
         return pitch
 
     def pitch_name(self, delta):
+        # type: (int) -> (str, int)
         """Given a staffline delta, returns the name of the corrensponding pitch."""
         delta += self._current_clef_delta_shift
 
@@ -369,6 +382,7 @@ class PitchInferenceEngine(object):
     * Staff groupings are correct, and systems are read top-down.
 
     """
+
     def __init__(self, strategy=PitchInferenceStrategy()):
         # Inference engine constants
         self._CONST = InferenceEngineConstants()
@@ -411,6 +425,7 @@ class PitchInferenceEngine(object):
         self.__init__()
 
     def infer_pitches(self, cropobjects, with_names=False):
+        # type: (List[CropObject], bool) -> Union[Dict, Tuple[Dict, Dict]]
         """The main workhorse for pitch inference.
         Gets a list of CropObjects and for each notehead-type
         symbol, outputs a MIDI code corresponding to the pitch
@@ -476,7 +491,7 @@ class PitchInferenceEngine(object):
         # self.durations_beats = {}
         # self.durations_beats_per_staff = {}
 
-        for staff in self.staves:
+        for staff in self.staves: # type: CropObject
             self.process_staff(staff)
             self.pitches.update(self.pitches_per_staff[staff.objid])
 
@@ -486,7 +501,7 @@ class PitchInferenceEngine(object):
             return copy.deepcopy(self.pitches)
 
     def process_staff(self, staff):
-
+        #type: (CropObject) -> Any
         self.pitches_per_staff[staff.objid] = {}
         self.pitch_names_per_staff[staff.objid] = {}
 
@@ -496,11 +511,11 @@ class PitchInferenceEngine(object):
         self.pitch_state.init_base_pitch()
 
         queue = sorted(
-                    self.staff_to_clef_map[staff.objid]
-                    + self.staff_to_key_map[staff.objid]
-                    + self.staff_to_msep_map[staff.objid]
-                    + self.staff_to_noteheads_map[staff.objid],
-                    key=lambda x: x.left)
+            self.staff_to_clef_map[staff.objid]
+            + self.staff_to_key_map[staff.objid]
+            + self.staff_to_msep_map[staff.objid]
+            + self.staff_to_noteheads_map[staff.objid],
+            key=lambda x: x.left)
 
         for q in queue:
             logging.info('process_staff(): processing object {0}-{1}'
@@ -662,7 +677,7 @@ class PitchInferenceEngine(object):
             #    then it would be weird to find out it is in the
             #    mini-staffspace *below* the closest ledger line,
             #    signalling a mistake in the data.
-            closest_ll = min(lls, key=lambda x: (x.top - notehead.top)**2 + (x.bottom - notehead.bottom)**2)
+            closest_ll = min(lls, key=lambda x: (x.top - notehead.top) ** 2 + (x.bottom - notehead.bottom) ** 2)
 
             # Determining whether the notehead is on a ledger
             # line or in the adjacent temp staffspace.
@@ -811,7 +826,7 @@ class PitchInferenceEngine(object):
         graph = NotationGraph(cropobjects)
 
         # Collect staves.
-        self.staves = [c for c in cropobjects if c.clsname == 'staff']
+        self.staves = [c for c in cropobjects if c.clsname == 'staff'] # type: List[CropObject]
         logging.info('We have {0} staves.'.format(len(self.staves)))
 
         # Collect clefs and key signatures per staff.
@@ -855,7 +870,7 @@ class PitchInferenceEngine(object):
 
         # Collect measure separators.
         self.measure_separators = [c for c in cropobjects
-                              if c.clsname == 'measure_separator']
+                                   if c.clsname == 'measure_separator']
         if ignore_nonstaff:
             self.measure_separators = [c for c in self.measure_separators
                                        if graph.has_child(c, ['staff'])]
@@ -997,7 +1012,7 @@ class OnsetsInferenceEngine(object):
             if len(stems) == 0:
                 self.__warning_or_error('Full notehead {0} has no stem!'.format(notehead.uid))
 
-            beat = [0.5**len(flags_and_beams)]
+            beat = [0.5 ** len(flags_and_beams)]
 
         else:
             raise ValueError('Notehead {0}: unknown clsname {1}'
@@ -1096,7 +1111,7 @@ class OnsetsInferenceEngine(object):
             for whole rests.
 
         """
-        rest_beats_dict = {'whole_rest': 4,   # !!! We should find the Time Signature.
+        rest_beats_dict = {'whole_rest': 4,  # !!! We should find the Time Signature.
                            'half_rest': 2,
                            'quarter_rest': 1,
                            '8th_rest': 0.5,
@@ -1224,8 +1239,8 @@ class OnsetsInferenceEngine(object):
                 f_and_b_below.append(c)
                 print('Appending below')
 
-        beat_above = 0.5**len(f_and_b_above)
-        beat_below = 0.5**len(f_and_b_below)
+        beat_above = 0.5 ** len(f_and_b_above)
+        beat_below = 0.5 ** len(f_and_b_below)
 
         if beat_above != beat_below:
             raise NotImplementedError('Cannot deal with multi-stem note'
@@ -1615,7 +1630,7 @@ class OnsetsInferenceEngine(object):
 
         # Create measure bins. i-th measure ENDS at i-th ordered msep.
         # We assume that every measure has a rightward separator.
-        measures = [(None, ordered_mseps[0])] + [(ordered_mseps[i], ordered_mseps[i+1])
+        measures = [(None, ordered_mseps[0])] + [(ordered_mseps[i], ordered_mseps[i + 1])
                                                  for i in range(len(ordered_mseps) - 1)]
         measure_nodes = [PrecedenceGraphNode(objid=None,
                                              cropobject=None,
@@ -1625,8 +1640,8 @@ class OnsetsInferenceEngine(object):
                                              onset=None)] + \
                         [PrecedenceGraphNode(objid=None,
                                              cropobject=None,
-                                             inlinks=[ordered_msep_nodes[i+1]],
-                                             outlinks=[ordered_msep_nodes[i+2]],
+                                             inlinks=[ordered_msep_nodes[i + 1]],
+                                             outlinks=[ordered_msep_nodes[i + 2]],
                                              duration=0,  # Durations will be filled in
                                              onset=None)
                          for i in range(len(ordered_msep_nodes) - 2)]
@@ -1773,7 +1788,7 @@ class OnsetsInferenceEngine(object):
                 msep_to_staff_projections[msep.objid][s.objid] = intersection_bbox
 
         staff_and_measure_to_objs_map = collections.defaultdict(
-                                            collections.defaultdict(list))
+            collections.defaultdict(list))
         #: Per staff (indexed by objid) and measure (by order no.), keeps a list of
         #  CropObjects from that staff that fall within that measure.
 
@@ -1784,7 +1799,7 @@ class OnsetsInferenceEngine(object):
         for s_objid, objs in ordered_objs_per_staff.items():
             # Vertically, we don't care -- the attachment to staff takes
             # care of that, we only need horizontal placement.
-            _c_m_idx = 0   # Index of current measure
+            _c_m_idx = 0  # Index of current measure
             _c_msep_right = measure_nodes[_c_m_idx].outlinks[0]
             # Left bound of current measure's right measure separator
             _c_m_right = msep_to_staff_projections[_c_msep_right.objid][s_objid][1]
@@ -2273,6 +2288,7 @@ class PrecedenceGraphNode:
     The ``inlinks`` and ``outlinks`` attributes are lists
     of other ``PrecedenceGraphNode`` instances.
     """
+
     def __init__(self, objid=None, cropobject=None, inlinks=None, outlinks=None,
                  onset=None, duration=0):
         # Optional link to CropObjects, or just a placeholder ID.
@@ -2386,10 +2402,10 @@ class MIDIBuilder:
         from midiutil.MidiFile import MIDIFile
 
         # create your MIDI object
-        mf = MIDIFile(1)     # only 1 track
-        track = 0   # the only track
+        mf = MIDIFile(1)  # only 1 track
+        track = 0  # the only track
 
-        time = 0    # start at the beginning
+        time = 0  # start at the beginning
         mf.addTrackName(track, time, "Sample Track")
         mf.addTempo(track, time, tempo)
 
@@ -2417,11 +2433,10 @@ def play_midi(midi,
               tmp_dir,
               soundfont='~/.fluidsynth/FluidR3_GM.sf2',
               cleanup=False):
+    # type: (MIDIFile, str, str, bool) -> None
     """Plays (or attempts to play) the given MIDIFile object.
-
     :param midi: A ``midiutils.MidiFile.MIDIFile`` object
         containing the data that you wish to play.
-
     :param tmp_dir: A writeable directory where the MIDI will be
         exported into a temporary file.
 
