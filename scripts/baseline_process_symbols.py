@@ -236,7 +236,7 @@ class DependencyGrammar(object):
     >>> mlclass_dict = {m.clsid: m for m in parse_cropobject_class_list(mlpath)}
     >>> g = DependencyGrammar(grammar_filename=fpath, mlclasses=mlclass_dict)
     >>> len(g.rules)
-    444
+    578
 
     Grammar I/O
     -----------
