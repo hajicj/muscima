@@ -382,12 +382,8 @@ class PitchInferenceEngine(object):
     * Staff groupings are correct, and systems are read top-down.
 
     """
-<<<<<<< HEAD
-    def __init__(self, strategy=PitchInferenceStrategy()):
-=======
 
-    def __init__(self):
->>>>>>> Auto-formatted inference.py
+    def __init__(self, strategy=PitchInferenceStrategy()):
         # Inference engine constants
         self._CONST = InferenceEngineConstants()
 
