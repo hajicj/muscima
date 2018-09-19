@@ -231,8 +231,8 @@ class DependencyGrammar(object):
     The basic role of the dependency grammar is to provide the list of rules:
 
     >>> from muscima.io import parse_cropobject_class_list
-    >>> fpath = os.path.dirname(os.path.dirname(__file__)) + u'/test/test_data/mff-muscima-classes-annot.deprules'
-    >>> mlpath = os.path.dirname(os.path.dirname(__file__)) + u'/test/test_data/mff-muscima-classes-annot.xml'
+    >>> fpath = os.path.dirname(os.path.dirname(__file__)) + '/test/test_data/mff-muscima-classes-annot.deprules'
+    >>> mlpath = os.path.dirname(os.path.dirname(__file__)) + '/test/test_data/mff-muscima-classes-annot.xml'
     >>> mlclass_dict = {m.clsid: m for m in parse_cropobject_class_list(mlpath)}
     >>> g = DependencyGrammar(grammar_filename=fpath, mlclasses=mlclass_dict)
     >>> len(g.rules)
@@ -256,53 +256,53 @@ class DependencyGrammar(object):
     minimum and maximum cardinality in the rule (defaults are ``(0, 10000)``
     if no cardinality is provided).
 
-    >>> g.parse_token(u'notehead-*')
-    (u'notehead-*', 0, 10000)
-    >>> g.parse_token(u'notehead-*{1,5}')
-    (u'notehead-*', 1, 5)
-    >>> g.parse_token(u'notehead-*{1,}')
-    (u'notehead-*', 1, 10000)
-    >>> g.parse_token(u'notehead-*{,5}')
-    (u'notehead-*', 0, 5)
-    >>> g.parse_token(u'notehead-*{1}')
-    (u'notehead-*', 1, 1)
+    >>> g.parse_token('notehead-*')
+    ('notehead-*', 0, 10000)
+    >>> g.parse_token('notehead-*{1,5}')
+    ('notehead-*', 1, 5)
+    >>> g.parse_token('notehead-*{1,}')
+    ('notehead-*', 1, 10000)
+    >>> g.parse_token('notehead-*{,5}')
+    ('notehead-*', 0, 5)
+    >>> g.parse_token('notehead-*{1}')
+    ('notehead-*', 1, 1)
 
     The wildcards are expanded at the level of a line.
 
-    >>> l = u'notehead-*{,2} | stem'
+    >>> l = 'notehead-*{,2} | stem'
     >>> rules, inlink_cards, outlink_cards, _, _ = g.parse_dependency_grammar_line(l)
     >>> rules
-    [(u'notehead-empty', u'stem'), (u'notehead-full', u'stem')]
-    >>> outlink_cards[u'notehead-empty']
-    {u'stem': (0, 2)}
-    >>> inlink_cards[u'stem']
-    {u'notehead-empty': (0, 10000), u'notehead-full': (0, 10000)}
+    [('notehead-empty', 'stem'), ('notehead-full', 'stem')]
+    >>> outlink_cards['notehead-empty']
+    {'stem': (0, 2)}
+    >>> inlink_cards['stem']
+    {'notehead-empty': (0, 10000), 'notehead-full': (0, 10000)}
 
     A key signature can have any number of sharps, flats, or naturals,
     but if a given symbol is part of a key signature, it can only be part of one.
 
-    >>> l = u'key-signature | sharp{1} flat{1} natural{1}'
+    >>> l = 'key-signature | sharp{1} flat{1} natural{1}'
     >>> rules, inlink_cards, _, _, _ = g.parse_dependency_grammar_line(l)
     >>> rules
-    [(u'key-signature', u'sharp'), (u'key-signature', u'flat'), (u'key-signature', u'natural')]
+    [('key-signature', 'sharp'), ('key-signature', 'flat'), ('key-signature', 'natural')]
     >>> inlink_cards
-    {u'sharp': {u'key-signature': (1, 1)}, u'natural': {u'key-signature': (1, 1)}, u'flat': {u'key-signature': (1, 1)}}
+    {'sharp': {'key-signature': (1, 1)}, 'natural': {'key-signature': (1, 1)}, 'flat': {'key-signature': (1, 1)}}
 
     You can also give *aggregate* cardinality rules, of the style "whatever rule
     applies, there should be at least X/at most Y edges for this type of object".
 
-    >>> l = u'key-signature{1,} |'
+    >>> l = 'key-signature{1,} |'
     >>> _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)
     >>> out_aggregate_cards
-    {u'key-signature': (1, 10000)}
-    >>> l = u'grace-notehead*{1,} |'
+    {'key-signature': (1, 10000)}
+    >>> l = 'grace-notehead*{1,} |'
     >>> _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)
     >>> out_aggregate_cards
-    {u'grace-notehead-full': (1, 10000), u'grace-notehead-empty': (1, 10000)}
-    >>> l = u'| beam{1,} stem{1,} flat{1,}'
+    {'grace-notehead-full': (1, 10000), 'grace-notehead-empty': (1, 10000)}
+    >>> l = '| beam{1,} stem{1,} flat{1,}'
     >>> _, _, _, in_aggregate_cards, _ = g.parse_dependency_grammar_line(l)
     >>> in_aggregate_cards
-    {u'beam': (1, 10000), u'flat': (1, 10000), u'stem': (1, 10000)}
+    {'beam': (1, 10000), 'flat': (1, 10000), 'stem': (1, 10000)}
 
     """
 
