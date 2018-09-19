@@ -272,7 +272,7 @@ class DependencyGrammar(object):
     >>> l = 'notehead-*{,2} | stem'
     >>> rules, inlink_cards, outlink_cards, _, _ = g.parse_dependency_grammar_line(l)
     >>> rules
-    [('notehead-empty', 'stem'), ('notehead-full', 'stem')]
+    [('notehead-full', 'stem'), ('notehead-empty', 'stem')]
     >>> outlink_cards['notehead-empty']
     {'stem': (0, 2)}
     >>> inlink_cards['stem']
