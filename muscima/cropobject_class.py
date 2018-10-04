@@ -41,7 +41,6 @@ for annotating MUSCIMA++.
 
 """
 from __future__ import division
-from past.utils import old_div
 from builtins import object
 import logging
 
@@ -116,7 +115,7 @@ def hex2rgb(hstr):
         hstr = hstr[1:]
     rs, gs, bs = hstr[:2], hstr[2:4], hstr[4:]
     r, g, b = parse_hex(rs), parse_hex(gs), parse_hex(bs)
-    return old_div(r, 255.0), old_div(g, 255.0), old_div(b, 255.0)
+    return r / 255.0, g / 255.0, b / 255.0
 
 
 def rgb2hex(rgb):
