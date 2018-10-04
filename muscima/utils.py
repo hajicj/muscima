@@ -1,6 +1,8 @@
 """This module implements a class that..."""
 from __future__ import print_function, unicode_literals
+from __future__ import division
 
+from past.utils import old_div
 import logging
 
 from skimage.measure import label
@@ -95,7 +97,7 @@ def resolve_notehead_wrt_staffline(notehead, staffline_or_ledger_line):
             dtop = ll.top - notehead.top
             dbottom = notehead.bottom - ll.bottom
 
-            if min(dtop, dbottom) / max(dtop, dbottom) \
+            if old_div(min(dtop, dbottom), max(dtop, dbottom)) \
                     < _CONST.ON_STAFFLINE_RATIO_TRHESHOLD:
                 if dtop > dbottom:
                     output_position = 1

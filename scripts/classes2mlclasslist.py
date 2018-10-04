@@ -35,6 +35,7 @@ color cycle.
 
 """
 from __future__ import print_function, unicode_literals, division
+from builtins import object
 import argparse
 import codecs
 import collections
@@ -101,7 +102,7 @@ class MLClassGenerator(object):
                 if len(self.group_colordict) == 0:
                     self.group_colordict[group] = [self.color_HSV]
                 else:
-                    last_group_color = self.group_colordict.values()[-1][0]
+                    last_group_color = list(self.group_colordict.values())[-1][0]
                     this_group_color = ((last_group_color[0] + self.delta_hue_group) % 1.0,
                                         last_group_color[1],
                                         last_group_color[2])

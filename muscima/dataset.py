@@ -17,6 +17,9 @@ these layers of MUSCIMA++.
 """
 from __future__ import print_function, unicode_literals, division
 
+from builtins import str
+from builtins import range
+from builtins import object
 import logging
 import os
 
@@ -53,7 +56,7 @@ MUSCIMA_PLUSPLUS_ROOT = _get_mff_muscima_root()
 ##############################################################################
 
 
-class CVC_MUSCIMA:
+class CVC_MUSCIMA(object):
     """The :class:`CVC_MUSCIMA` class implements a wrapper around
     the CVC-MUSCIMA dataset file structure that allows easy retrieval
     of filenames based on the page number (1 - 20), writer number

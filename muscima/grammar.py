@@ -24,6 +24,8 @@ to the specification.
 """
 from __future__ import print_function, unicode_literals
 
+from builtins import str
+from builtins import object
 import codecs
 import logging
 import os
@@ -367,7 +369,7 @@ class DependencyGrammar(object):
         reasons_o = {}
 
         # Check that vertices have labels that are in the alphabet
-        for v, clsname in vertices.items():
+        for v, clsname in list(vertices.items()):
             if clsname not in self.alphabet:
                 wrong_vertices.append(v)
                 reasons_v[v] = 'Symbol {0} not in alphabet: class {1}.' \

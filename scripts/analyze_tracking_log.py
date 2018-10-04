@@ -22,6 +22,8 @@ then: args dict, formatted as key=value,key=value
 
 """
 from __future__ import print_function, unicode_literals, division
+from builtins import str
+from builtins import range
 import argparse
 import codecs
 import collections
@@ -50,7 +52,7 @@ def freqdict(l, sort=True):
         out[item] += 1
     if sort:
         s_out = collections.OrderedDict()
-        for k, v in sorted(out.items(), key=operator.itemgetter(1), reverse=True):
+        for k, v in sorted(list(out.items()), key=operator.itemgetter(1), reverse=True):
             s_out[k] = v
         out = s_out
     return out
@@ -161,7 +163,7 @@ def unique_logs(event_logs):
     values are the event lists.
     """
     unique = collections.OrderedDict()
-    for log_file, l in event_logs.iteritems():
+    for log_file, l in event_logs.items():
         if len(l) < 1:
             logging.info('Got an empty log from file {0}'.format(log_file))
             continue
@@ -176,7 +178,7 @@ def unique_logs(event_logs):
                          ''.format(log_file, init_time, len(l), len(unique[init_time])))
         else:
             unique[init_time] = l
-    return unique.values()
+    return list(unique.values())
 
 
 ##############################################################################
@@ -241,7 +243,7 @@ def plot_events_by_time(events, type_key='-fn-'):
     fns = [e['-fn-'] for e in events]
     # Assign numbers to tracked fns
     fns_by_freq = {f: len([e for e in fns if e == f]) for f in set(fns)}
-    fn_dict = {f: i for i, f in enumerate(sorted(fns_by_freq.keys(),
+    fn_dict = {f: i for i, f in enumerate(sorted(list(fns_by_freq.keys()),
                                           reverse=True,
                                           key=lambda k: fns_by_freq[k]))}
 
@@ -273,8 +275,8 @@ def format_as_timeflow_csv(events, delimiter='\t'):
         return str(int(time) - min_second)
 
     # Collect all events that are in the data.
-    event_fields = freqdict(list(itertools.chain(*[e.keys() for e in events])))
-    output_fields = ['ID', 'Date'] + event_fields.keys()
+    event_fields = freqdict(list(itertools.chain(*[list(e.keys()) for e in events])))
+    output_fields = ['ID', 'Date'] + list(event_fields.keys())
     n_fields = len(output_fields)
 
     field2idx = {f: i+2 for i, f in enumerate(event_fields.keys())}
@@ -282,7 +284,7 @@ def format_as_timeflow_csv(events, delimiter='\t'):
     for i, e in enumerate(events):
         event_table[i][0] = str(i)
         event_table[i][1] = format_date(e)#format_date(e['-time-human-'])
-        for k, v in e.iteritems():
+        for k, v in e.items():
             event_table[i][field2idx[k]] = v
 
     # Add labels to event table to get the complete data
@@ -401,7 +403,7 @@ def main(args):
         freq_by_fn = freqdict([l.get('-fn-', None) for l in log_data])
 
         by_minute = events_by_time_units(log_data)
-        by_minute_freq = {k: len(v) for k, v in by_minute.items()}
+        by_minute_freq = {k: len(v) for k, v in list(by_minute.items())}
         n_minutes = len(by_minute)
 
         print('# minutes worked: {0}'.format(n_minutes))

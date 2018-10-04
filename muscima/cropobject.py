@@ -3,6 +3,11 @@
 the basic unit of annotation. See the :class:`CropObject` documentation."""
 from __future__ import print_function, unicode_literals, division
 
+from builtins import zip
+from builtins import map
+from builtins import str
+from builtins import range
+from builtins import object
 import copy
 import itertools
 import logging
@@ -839,7 +844,7 @@ class CropObject(object):
             return None
 
         lines = []
-        for k, v in self.data.items():
+        for k, v in list(self.data.items()):
             vtype = 'str'
             vval = v
             if isinstance(v, int):
@@ -868,7 +873,7 @@ class CropObject(object):
             return '[No data]'
 
         lines = []
-        for k, v in self.data.items():
+        for k, v in list(self.data.items()):
             lines.append('{0}:      {1}'.format(k, v))
         return '\n'.join(lines)
 
@@ -1109,7 +1114,7 @@ def split_cropobject_on_connected_components(c, next_objid):
     output = []
 
     _next_objid = next_objid
-    for label, (t, l, b, r) in bboxes.items():
+    for label, (t, l, b, r) in list(bboxes.items()):
         # Background in compute_connected_components() doesn't work?
         if label == 0:
             continue

@@ -4,6 +4,8 @@ to full staff objects and relationships; this machinery is called
 e.g. by pressing "shift+s" in MUSCIMarker."""
 from __future__ import print_function, unicode_literals, division
 
+from builtins import zip
+from builtins import range
 import collections
 import logging
 import pprint
@@ -151,7 +153,7 @@ def staffline_bboxes_and_masks_from_horizontal_merge(mask):
     n_rows, n_cols = mask.shape
     # For each row of the image: which CCs have pxs on that row?
     intervals = [[] for _ in range(n_rows)]
-    for label, (t, l, b, r) in bboxes.items():
+    for label, (t, l, b, r) in list(bboxes.items()):
         if label == 0:
             continue
         # Ignore very short staffline segments that can easily be artifacts
@@ -607,7 +609,7 @@ def add_staff_relationships(cropobjects,
     # Symbol -> staff?
     # It does not really matter, but it's more intuitive to attach symbols
     # onto a pre-existing staff. So, symbol -> staff.
-    for clsname, cs in staff_related_symbols.items():
+    for clsname, cs in list(staff_related_symbols.items()):
         for c in cs:
             # Find the related staff. Relatedness is measured by row overlap.
             # That means we have to modify the staff bounding box to lead
@@ -622,7 +624,7 @@ def add_staff_relationships(cropobjects,
 
     ##########################################################################
     logging.info('Adding rest --> staff relationships.')
-    for clsname, cs in rest_symbols.items():
+    for clsname, cs in list(rest_symbols.items()):
         for c in cs:
             closest_staff = min([s for s in staffs],
                                 key=lambda x: ((x.bottom + x.top) / 2. - (c.bottom + c.top) / 2.) ** 2)
@@ -703,7 +705,7 @@ def add_staff_relationships(cropobjects,
     #     dt, dl, db, dr = s.top - t, s.left - l, s.bottom - t, s.right - l
     #     staffline_canvas[dt:db, dl:dr] += s.mask
 
-    for clsname, cs in notehead_symbols.items():
+    for clsname, cs in list(notehead_symbols.items()):
         for c in cs:
 
             ct, cl, cb, cr = c.bounding_box
@@ -829,7 +831,7 @@ def add_staff_relationships(cropobjects,
                                  ''.format(c.uid))
                     continue
 
-                _ss_i_max = max(overlapped_staffspaces.keys(),
+                _ss_i_max = max(list(overlapped_staffspaces.keys()),
                                 key=lambda x: overlapped_staffspaces[x])
                 max_overlap_staffspace = staffspaces[_ss_i_max]
                 link_cropobjects(c, max_overlap_staffspace, check_docname=False)

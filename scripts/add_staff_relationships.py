@@ -96,7 +96,7 @@ def add_staff_relationships(cropobjects,
     # Symbol -> staff?
     # It does not really matter, but it's more intuitive to attach symbols
     # onto a pre-existing staff. So, symbol -> staff.
-    for clsname, cs in staff_related_symbols.items():
+    for clsname, cs in list(staff_related_symbols.items()):
         for c in cs:
             # Find the related staff. Relatedness is measured by row overlap.
             # That means we have to modify the staff bounding box to lead
@@ -111,7 +111,7 @@ def add_staff_relationships(cropobjects,
 
     ##########################################################################
     logging.info('Adding rest --> staff relationships.')
-    for clsname, cs in rest_symbols.items():
+    for clsname, cs in list(rest_symbols.items()):
         for c in cs:
             closest_staff = min([s for s in staffs],
                                 key=lambda x: ((x.bottom + x.top) / 2. - (c.bottom + c.top) / 2.) ** 2)
@@ -188,7 +188,7 @@ def add_staff_relationships(cropobjects,
     #     dt, dl, db, dr = s.top - t, s.left - l, s.bottom - t, s.right - l
     #     staffline_canvas[dt:db, dl:dr] += s.mask
 
-    for clsname, cs in notehead_symbols.items():
+    for clsname, cs in list(notehead_symbols.items()):
         for c in cs:
 
             ct, cl, cb, cr = c.bounding_box
@@ -302,7 +302,7 @@ def add_staff_relationships(cropobjects,
                 if len(overlapped_staffspaces) == 0:
                     logging.warn('Notehead {0}: no overlapped staffline object, no ledger line!'
                                  ''.format(c.uid))
-                _ss_i_max = max(overlapped_staffspaces.keys(),
+                _ss_i_max = max(list(overlapped_staffspaces.keys()),
                                 key=lambda x: overlapped_staffspaces[x])
                 max_overlap_staffspace = staffspaces[_ss_i_max]
                 link_cropobjects(c, max_overlap_staffspace)

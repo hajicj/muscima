@@ -2,6 +2,8 @@
 duration and onset inference algorithm."""
 from __future__ import print_function, unicode_literals, division
 
+from builtins import range
+from builtins import object
 import operator
 
 __version__ = "0.0.1"

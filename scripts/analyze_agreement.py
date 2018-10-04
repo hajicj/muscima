@@ -41,6 +41,8 @@ also contribute a zero to the overall f-score.
 
 """
 from __future__ import print_function, unicode_literals
+from __future__ import division
+from past.utils import old_div
 import argparse
 import collections
 import logging
@@ -139,8 +141,8 @@ def pixel_metrics(truth, prediction):
         recall = 0.0
         precision = 0.0
     else:
-        recall = n_common / n_truth
-        precision = n_common / n_pred
+        recall = old_div(n_common, n_truth)
+        precision = old_div(n_common, n_pred)
 
     if (recall == 0) or (precision == 0):
         fscore = 0

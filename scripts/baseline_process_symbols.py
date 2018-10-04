@@ -2,6 +2,9 @@
 """This is a script that processes a set of symbols in order to obtain the pitch
 recognition baseline. Intended to be used on top of an object detection stage."""
 from __future__ import print_function, unicode_literals
+from builtins import str
+from builtins import range
+from builtins import object
 import argparse
 import codecs
 import collections
@@ -228,12 +231,12 @@ class DependencyGrammar(object):
     The basic role of the dependency grammar is to provide the list of rules:
 
     >>> from muscima.io import parse_cropobject_class_list
-    >>> fpath = os.path.dirname(os.path.dirname(__file__)) + u'/test/test_data/mff-muscima-classes-annot.deprules'
-    >>> mlpath = os.path.dirname(os.path.dirname(__file__)) + u'/test/test_data/mff-muscima-classes-annot.xml'
+    >>> fpath = os.path.dirname(os.path.dirname(__file__)) + '/test/test_data/mff-muscima-classes-annot.deprules'
+    >>> mlpath = os.path.dirname(os.path.dirname(__file__)) + '/test/test_data/mff-muscima-classes-annot.xml'
     >>> mlclass_dict = {m.clsid: m for m in parse_cropobject_class_list(mlpath)}
     >>> g = DependencyGrammar(grammar_filename=fpath, mlclasses=mlclass_dict)
     >>> len(g.rules)
-    444
+    578
 
     Grammar I/O
     -----------
@@ -253,53 +256,53 @@ class DependencyGrammar(object):
     minimum and maximum cardinality in the rule (defaults are ``(0, 10000)``
     if no cardinality is provided).
 
-    >>> g.parse_token(u'notehead-*')
-    (u'notehead-*', 0, 10000)
-    >>> g.parse_token(u'notehead-*{1,5}')
-    (u'notehead-*', 1, 5)
-    >>> g.parse_token(u'notehead-*{1,}')
-    (u'notehead-*', 1, 10000)
-    >>> g.parse_token(u'notehead-*{,5}')
-    (u'notehead-*', 0, 5)
-    >>> g.parse_token(u'notehead-*{1}')
-    (u'notehead-*', 1, 1)
+    >>> g.parse_token('notehead-*')
+    ('notehead-*', 0, 10000)
+    >>> g.parse_token('notehead-*{1,5}')
+    ('notehead-*', 1, 5)
+    >>> g.parse_token('notehead-*{1,}')
+    ('notehead-*', 1, 10000)
+    >>> g.parse_token('notehead-*{,5}')
+    ('notehead-*', 0, 5)
+    >>> g.parse_token('notehead-*{1}')
+    ('notehead-*', 1, 1)
 
     The wildcards are expanded at the level of a line.
 
-    >>> l = u'notehead-*{,2} | stem'
+    >>> l = 'notehead-*{,2} | stem'
     >>> rules, inlink_cards, outlink_cards, _, _ = g.parse_dependency_grammar_line(l)
     >>> rules
-    [(u'notehead-empty', u'stem'), (u'notehead-full', u'stem')]
-    >>> outlink_cards[u'notehead-empty']
-    {u'stem': (0, 2)}
-    >>> inlink_cards[u'stem']
-    {u'notehead-empty': (0, 10000), u'notehead-full': (0, 10000)}
+    [('notehead-full', 'stem'), ('notehead-empty', 'stem')]
+    >>> outlink_cards['notehead-empty']
+    {'stem': (0, 2)}
+    >>> inlink_cards['stem']
+    {'notehead-full': (0, 10000), 'notehead-empty': (0, 10000)}
 
     A key signature can have any number of sharps, flats, or naturals,
     but if a given symbol is part of a key signature, it can only be part of one.
 
-    >>> l = u'key-signature | sharp{1} flat{1} natural{1}'
+    >>> l = 'key-signature | sharp{1} flat{1} natural{1}'
     >>> rules, inlink_cards, _, _, _ = g.parse_dependency_grammar_line(l)
     >>> rules
-    [(u'key-signature', u'sharp'), (u'key-signature', u'flat'), (u'key-signature', u'natural')]
+    [('key-signature', 'sharp'), ('key-signature', 'flat'), ('key-signature', 'natural')]
     >>> inlink_cards
-    {u'sharp': {u'key-signature': (1, 1)}, u'natural': {u'key-signature': (1, 1)}, u'flat': {u'key-signature': (1, 1)}}
+    {'sharp': {'key-signature': (1, 1)}, 'flat': {'key-signature': (1, 1)}, 'natural': {'key-signature': (1, 1)}}
 
     You can also give *aggregate* cardinality rules, of the style "whatever rule
     applies, there should be at least X/at most Y edges for this type of object".
 
-    >>> l = u'key-signature{1,} |'
+    >>> l = 'key-signature{1,} |'
     >>> _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)
     >>> out_aggregate_cards
-    {u'key-signature': (1, 10000)}
-    >>> l = u'grace-notehead*{1,} |'
+    {'key-signature': (1, 10000)}
+    >>> l = 'grace-notehead*{1,} |'
     >>> _, _, _, _, out_aggregate_cards = g.parse_dependency_grammar_line(l)
     >>> out_aggregate_cards
-    {u'grace-notehead-full': (1, 10000), u'grace-notehead-empty': (1, 10000)}
-    >>> l = u'| beam{1,} stem{1,} flat{1,}'
+    {'grace-notehead-full': (1, 10000), 'grace-notehead-empty': (1, 10000)}
+    >>> l = '| beam{1,} stem{1,} flat{1,}'
     >>> _, _, _, in_aggregate_cards, _ = g.parse_dependency_grammar_line(l)
     >>> in_aggregate_cards
-    {u'beam': (1, 10000), u'flat': (1, 10000), u'stem': (1, 10000)}
+    {'beam': (1, 10000), 'stem': (1, 10000), 'flat': (1, 10000)}
 
     """
 
@@ -309,7 +312,7 @@ class DependencyGrammar(object):
 
     def __init__(self, grammar_filename, mlclasses):
         """Initialize the Grammar: fill in alphabet and parse rules."""
-        self.alphabet = {unicode(m.name): m for m in mlclasses.values()}
+        self.alphabet = {str(m.name): m for m in list(mlclasses.values())}
         # logging.info('DependencyGrammar: got alphabet:\n{0}'
         #              ''.format(pprint.pformat(self.alphabet)))
         self.rules = []
@@ -408,7 +411,7 @@ class DependencyGrammar(object):
         reasons_o = {}
 
         # Check that vertices have labels that are in the alphabet
-        for v, clsname in vertices.iteritems():
+        for v, clsname in vertices.items():
             if clsname not in self.alphabet:
                 wrong_vertices.append(v)
                 reasons_v[v] = 'Symbol {0} not in alphabet: class {1}.' \
@@ -416,7 +419,7 @@ class DependencyGrammar(object):
 
         # Check that all edges are allowed
         for f, t in edges:
-            nf, nt = unicode(vertices[f]), unicode(vertices[t])
+            nf, nt = str(vertices[f]), str(vertices[t])
             if (nf, nt) not in self.rules:
                 logging.warning('Wrong edge: {0} --> {1}, rules:\n{2}'
                                 ''.format(nf, nt, pprint.pformat(self.rules)))
@@ -647,7 +650,7 @@ class DependencyGrammar(object):
 
         :return: token, cmin, cmax
         """
-        l = unicode(l)
+        l = str(l)
         cmin, cmax = 0, self._MAX_CARD
         if '{' not in l:
             token = l
@@ -686,7 +689,7 @@ class DependencyGrammar(object):
         # logging.info('DependencyGrammar._matching_names: token {0}, pref={1}, suff={2}'
         #              ''.format(token, prefix, suffix))
 
-        matching_names = self.alphabet.keys()
+        matching_names = list(self.alphabet.keys())
         if len(prefix) > 0:
             matching_names = [n for n in matching_names if n.startswith(prefix)]
         if len(suffix) > 0:
@@ -722,7 +725,7 @@ class DependencyGrammar(object):
 ##############################################################################
 # Feature extraction
 
-class PairwiseClfFeatureExtractor:
+class PairwiseClfFeatureExtractor(object):
     def __init__(self, vectorizer=None):
         """Initialize the feature extractor.
 
@@ -915,13 +918,13 @@ class PairwiseClassificationParser(object):
         # To each notehead, assign the closest stem that is not yet taken.
         closest_stem_per_notehead = {objid: min(stems_without_noteheads,
                                             key=lambda x: cropobject_distance(_cdict[x], n))
-                                     for objid, n in noteheads_without_stems.items()}
+                                     for objid, n in list(noteheads_without_stems.items())}
 
         # Filter edges that are too long
         _n_before_filter = len(closest_stem_per_notehead)
         closest_stem_threshold_distance = 80
         closest_stem_per_notehead = {n_objid: s_objid
-                                     for n_objid, s_objid in closest_stem_per_notehead.items()
+                                     for n_objid, s_objid in list(closest_stem_per_notehead.items())
                                      if cropobject_distance(_cdict[n_objid],
                                                             _cdict[s_objid])
                                          < closest_stem_threshold_distance
@@ -975,7 +978,7 @@ def do_parse(cropobjects, parser):
                 cf.outlinks.append(t)
                 ct.inlinks.append(f)
 
-    return [c for c in _cdict.values()]
+    return [c for c in list(_cdict.values())]
 
 
 ##############################################################################
@@ -1118,7 +1121,7 @@ def infer_precedence_edges(cropobjects, factor_by_staff=True):
 
     _prec_equiv_objids = []
     _stemmed_noteheads_objids = []
-    for _stem_objid, _stem_notehead_objids in _stems_to_noteheads_map.items():
+    for _stem_objid, _stem_notehead_objids in list(_stems_to_noteheads_map.items()):
         _stemmed_noteheads_objids = _stemmed_noteheads_objids \
                                     + _stem_notehead_objids
         _prec_equiv_objids.append(_stem_notehead_objids)
@@ -1134,7 +1137,7 @@ def infer_precedence_edges(cropobjects, factor_by_staff=True):
                                key=lambda eo: min([o.left for o in eo]))
 
     edges = []
-    for i in xrange(len(sorted_equiv_objs) - 1):
+    for i in range(len(sorted_equiv_objs) - 1):
         fr_objs = sorted_equiv_objs[i]
         to_objs = sorted_equiv_objs[i+1]
         for f in fr_objs:
@@ -1192,11 +1195,11 @@ def build_midi(cropobjects, selected_cropobjects=None,
     _cdict = {c.objid: c for c in cropobjects}
 
     pitch_inference_engine = PitchInferenceEngine()
-    time_inference_engine = OnsetsInferenceEngine(cropobjects=_cdict.values())
+    time_inference_engine = OnsetsInferenceEngine(cropobjects=list(_cdict.values()))
 
     try:
         logging.info('Running pitch inference.')
-        pitches, pitch_names = pitch_inference_engine.infer_pitches(_cdict.values(),
+        pitches, pitch_names = pitch_inference_engine.infer_pitches(list(_cdict.values()),
                                                                     with_names=True)
     except Exception as e:
         logging.warning('Model: Pitch inference failed!')
@@ -1213,7 +1216,7 @@ def build_midi(cropobjects, selected_cropobjects=None,
 
     try:
         logging.info('Running durations inference.')
-        durations = time_inference_engine.durations(_cdict.values())
+        durations = time_inference_engine.durations(list(_cdict.values()))
     except Exception as e:
         logging.warning('Model: Duration inference failed!')
         logging.exception(traceback.format_exc(e))
@@ -1226,7 +1229,7 @@ def build_midi(cropobjects, selected_cropobjects=None,
 
     try:
         logging.info('Running onsets inference.')
-        onsets = time_inference_engine.onsets(_cdict.values())
+        onsets = time_inference_engine.onsets(list(_cdict.values()))
     except Exception as e:
         logging.warning('Model: Onset inference failed!')
         logging.exception(traceback.format_exc(e))
@@ -1238,12 +1241,12 @@ def build_midi(cropobjects, selected_cropobjects=None,
             c.data['onset_beats'] = onsets[objid]
 
     # Process ties
-    durations, onsets = time_inference_engine.process_ties(_cdict.values(),
+    durations, onsets = time_inference_engine.process_ties(list(_cdict.values()),
                                                            durations, onsets)
 
     # Prepare selection subset
     if selected_cropobjects is None:
-        selected_cropobjects = _cdict.values()
+        selected_cropobjects = list(_cdict.values())
     selection_objids = [c.objid for c in selected_cropobjects]
 
     # Build the MIDI data

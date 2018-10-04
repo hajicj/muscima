@@ -1,5 +1,9 @@
 """This module implements a class that..."""
 from __future__ import print_function, unicode_literals, division
+from builtins import str
+from builtins import zip
+from builtins import range
+from builtins import object
 import collections
 import copy
 import logging
@@ -174,11 +178,11 @@ class PitchInferenceEngineState(object):
             if transposition_delta != 0:
                 new_key_accidentals = {
                     (d + transposition_delta) % 7: v
-                    for d, v in self.key_accidentals.items()
+                    for d, v in list(self.key_accidentals.items())
                 }
                 new_inline_accidentals = {
                     d + transposition_delta: v
-                    for d, v in self.inline_accidentals.items()
+                    for d, v in list(self.inline_accidentals.items())
                 }
                 self.key_accidentals = new_key_accidentals
                 self.inline_accidentals = new_inline_accidentals
@@ -1153,7 +1157,7 @@ class OnsetsInferenceEngine(object):
         If any assumption is broken, will return the default measure duration:
         4 beats."""
         # Find rightmost preceding time signature on the staff.
-        graph = NotationGraph(self._cdict.values())
+        graph = NotationGraph(list(self._cdict.values()))
 
         # Find current time signature
         staffs = graph.children(cropobject, classes=[_CONST.STAFF_CLSNAME])
@@ -1329,7 +1333,7 @@ class OnsetsInferenceEngine(object):
 
         if len(systems) == 1:
             logging.info('Single-system score, no staff chaining needed.')
-            source_nodes = [n for n in p_nodes.values() if len(n.inlinks) == 0]
+            source_nodes = [n for n in list(p_nodes.values()) if len(n.inlinks) == 0]
             return source_nodes
 
         # Check all systems same no. of staffs
@@ -1355,7 +1359,7 @@ class OnsetsInferenceEngine(object):
         # - Assign staffs to sink nodes
         sink_nodes2staff = {}
         staff2sink_nodes = collections.defaultdict(list)
-        for node in p_nodes.values():
+        for node in list(p_nodes.values()):
             if len(node.outlinks) == 0:
                 try:
                     staff = self.__children(node.obj, ['staff'])[0]
@@ -1379,7 +1383,7 @@ class OnsetsInferenceEngine(object):
         # - Assign staffs to source nodes
         source_nodes2staff = {}
         staff2source_nodes = collections.defaultdict(list)
-        for node in p_nodes.values():
+        for node in list(p_nodes.values()):
             if len(node.inlinks) == 0:
                 staff = self.__children(node.obj, ['staff'])[0]
                 source_nodes2staff[node.obj.objid] = staff.objid
@@ -1397,7 +1401,7 @@ class OnsetsInferenceEngine(object):
                         sink.outlinks.append(source)
                         source.inlinks.append(sink)
 
-        source_nodes = [n for n in p_nodes.values() if len(n.inlinks) == 0]
+        source_nodes = [n for n in list(p_nodes.values()) if len(n.inlinks) == 0]
         return source_nodes
 
     def infer_precedence(self, cropobjects):
@@ -1690,8 +1694,8 @@ class OnsetsInferenceEngine(object):
         time_signatures_sorted = sorted(time_signatures,
                                         key=lambda x: time_signatures_to_first_measure[x.objid])
         for t1, t2 in zip(time_signatures_sorted[:-1], time_signatures_sorted[1:]):
-            affected_measures = range(time_signatures_to_first_measure[t1.objid],
-                                      time_signatures_to_first_measure[t2.objid])
+            affected_measures = list(range(time_signatures_to_first_measure[t1.objid],
+                                      time_signatures_to_first_measure[t2.objid]))
             for i in affected_measures:
                 # Check for conflicting time signatures previously
                 # assigned to this measure.
@@ -1780,8 +1784,8 @@ class OnsetsInferenceEngine(object):
         # Iterate over objects left to right, shift measure if next object
         # over bound of current measure.
         ordered_objs_per_staff = {s_objid: sorted(s_objs, key=lambda x: x.left)
-                                  for s_objid, s_objs in staff_to_objs_map.items()}
-        for s_objid, objs in ordered_objs_per_staff.items():
+                                  for s_objid, s_objs in list(staff_to_objs_map.items())}
+        for s_objid, objs in list(ordered_objs_per_staff.items()):
             # Vertically, we don't care -- the attachment to staff takes
             # care of that, we only need horizontal placement.
             _c_m_idx = 0   # Index of current measure
@@ -2061,7 +2065,7 @@ class OnsetsInferenceEngine(object):
             numerals_topdown = sorted(numerals, key=lambda c: (c.top + c.bottom) / 2)
             gaps = [((c2.bottom + c2.top) / 2) - ((c1.bottom + c2.top) / 2)
                     for c1, c2 in zip(numerals_topdown[:-1], numerals_topdown[1:])]
-            largest_gap_idx = max(range(len(gaps)), key=lambda i: gaps[i]) + 1
+            largest_gap_idx = max(list(range(len(gaps))), key=lambda i: gaps[i]) + 1
             numerator = numerals[:largest_gap_idx]
             denominator = numerals[largest_gap_idx:]
             beat_count = _CONST.interpret_numerals(numerator)
@@ -2268,7 +2272,7 @@ class OnsetsInferenceEngine(object):
         return new_durations, new_onsets
 
 
-class PrecedenceGraphNode:
+class PrecedenceGraphNode(object):
     """A helper plain-old-data class for onset extraction.
     The ``inlinks`` and ``outlinks`` attributes are lists
     of other ``PrecedenceGraphNode`` instances.
@@ -2297,7 +2301,7 @@ class PrecedenceGraphNode:
         of its descendants in the precedence graph?'''
 
 
-class MIDIBuilder:
+class MIDIBuilder(object):
 
     def midi_matrix_to_pdo(self, midi_matrix, framerate=20, tempo=120):
         """Builds the pitch, duration and onset dicts from a given MIDI
@@ -2396,7 +2400,7 @@ class MIDIBuilder:
         channel = 0
         volume = 100
 
-        keys = pitches.keys()
+        keys = list(pitches.keys())
 
         min_onset = 0
         if selection is not None:

@@ -2,6 +2,8 @@
 functions for manipulating notation graphs."""
 from __future__ import print_function, unicode_literals
 
+from builtins import range
+from builtins import object
 import copy
 import logging
 
