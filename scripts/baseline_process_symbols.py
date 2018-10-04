@@ -719,8 +719,6 @@ class DependencyGrammar(object):
         return (head, child) in self.rules
 
 
-
-
 ##############################################################################
 # Feature extraction
 

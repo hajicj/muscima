@@ -2481,3 +2481,5 @@ def align_mung_with_midi(cropobjects, midi_file):
     # Alignment algorithm:
     # - find in MIDI events list the closest corresponding
     #   object for each notehead.
+
+    raise NotImplementedError()
