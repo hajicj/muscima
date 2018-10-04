@@ -6,7 +6,6 @@ from __future__ import print_function, unicode_literals
 from __future__ import division
 from builtins import zip
 from builtins import range
-from past.utils import old_div
 import argparse
 import logging
 import os
@@ -420,7 +419,7 @@ def main(args):
             uss_width = tss.width
             # We use 1.5, so that large noteheads
             # do not "hang out" of the staffspace.
-            uss_height = int(old_div(tss.height, 1.2))
+            uss_height = int(tss.height / 1.2)
             # Shift because of height downscaling:
             uss_top += tss.height - uss_height
             uss_mask = tss.mask[:uss_height, :] * 1
@@ -446,7 +445,7 @@ def main(args):
             lss_top = bss.bottom # + max(bsl_heights)
             lss_left = bss.left
             lss_width = bss.width
-            lss_height = int(old_div(bss.height, 1.2))
+            lss_height = int(bss.height / 1.2)
             lss_mask = bss.mask[:lss_height, :] * 1
 
             uid = CropObject.build_uid(dataset_namespace, docname, next_objid)
