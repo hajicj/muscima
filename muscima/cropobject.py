@@ -1086,22 +1086,27 @@ class CropObject(object):
 
     def scale(self, zoom=1.0):
         """Re-compute the CropObject with the given scaling factor."""
-        mask = self.mask * 1
-        import cv2
-        new_mask = cv2.resize(mask.astype('float32'), dsize=None, fx=zoom, fy=zoom)
-                              # interpolation=cv2.INTER_AREA)
+        mask = self.mask * 1.0
+        import skimage.transform
+        new_mask_shape = max(int(self.height * zoom), 1), max(int(self.width * zoom), 1)
+        new_mask = skimage.transform.resize(mask,
+                                            output_shape=new_mask_shape)
         new_mask[new_mask >= 0.5] = 1
         new_mask[new_mask < 0.5] = 0
 
         new_height, new_width = new_mask.shape
-        new_top = self.top * zoom
-        new_left = self.left * zoom
+        new_top = int(self.top * zoom)
+        new_left = int(self.left * zoom)
+
+        print('Cropobject {}:\n\tbefore rescale: {}'.format(self.uid, self.bounding_box))
 
         self.x = new_top
         self.y = new_left
         self.height = new_height
         self.width = new_width
 
+        print('\tafter rescale:  {}'.format(self.bounding_box))
+        print('\tnew mask shape: {}'.format(new_mask_shape))
         self.mask = new_mask
 
 
