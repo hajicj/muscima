@@ -1098,15 +1098,10 @@ class CropObject(object):
         new_top = int(self.top * zoom)
         new_left = int(self.left * zoom)
 
-        print('Cropobject {}:\n\tbefore rescale: {}'.format(self.uid, self.bounding_box))
-
         self.x = new_top
         self.y = new_left
         self.height = new_height
         self.width = new_width
-
-        print('\tafter rescale:  {}'.format(self.bounding_box))
-        print('\tnew mask shape: {}'.format(new_mask_shape))
         self.mask = new_mask
 
 
