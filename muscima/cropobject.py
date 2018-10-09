@@ -1088,8 +1088,8 @@ class CropObject(object):
         """Re-compute the CropObject with the given scaling factor."""
         mask = self.mask * 1
         import cv2
-        new_mask = cv2.resize(mask.astype('float32'), dsize=None, fx=zoom, fy=zoom,
-                              interpolation=cv2.INTER_AREA)
+        new_mask = cv2.resize(mask.astype('float32'), dsize=None, fx=zoom, fy=zoom)
+                              # interpolation=cv2.INTER_AREA)
         new_mask[new_mask >= 0.5] = 1
         new_mask[new_mask < 0.5] = 0
 
