@@ -20,7 +20,6 @@ Functionality
 """
 from __future__ import print_function, unicode_literals
 from __future__ import division
-from past.utils import old_div
 import argparse
 import collections
 import json
@@ -134,7 +133,7 @@ def main(args):
         _n_parsed_cropobjects += len(cs)
         if i % 10 == 0 and i > 0:
             _time_parsing = time.clock() - _start_time
-            _cropobjects_per_second = old_div(_n_parsed_cropobjects, _time_parsing)
+            _cropobjects_per_second = _n_parsed_cropobjects / _time_parsing
             logging.info('Parsed {0} cropobjects in {1:.2f} s ({2:.2f} objs/s)'
                          ''.format(_n_parsed_cropobjects,
                                    _time_parsing, _cropobjects_per_second))

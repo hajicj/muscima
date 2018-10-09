@@ -42,7 +42,6 @@ also contribute a zero to the overall f-score.
 """
 from __future__ import print_function, unicode_literals
 from __future__ import division
-from past.utils import old_div
 import argparse
 import collections
 import logging
@@ -121,7 +120,6 @@ def pixel_metrics(truth, prediction):
                   ' p={1}'.format(truth.bounding_box,
                                   prediction.bounding_box))
 
-
     tt, tl, tb, tr = intersection_truth
     pt, pl, pb, pr = intersection_pred
     crop_truth = truth.mask[tt:tb, tl:tr]
@@ -141,8 +139,8 @@ def pixel_metrics(truth, prediction):
         recall = 0.0
         precision = 0.0
     else:
-        recall = old_div(n_common, n_truth)
-        precision = old_div(n_common, n_pred)
+        recall = n_common / n_truth
+        precision = n_common / n_pred
 
     if (recall == 0) or (precision == 0):
         fscore = 0
@@ -202,7 +200,7 @@ def align_cropobjects(truth, prediction, fscore=None):
     # it only acts as a tie-breaker in case one prediction overlaps
     # to the same degree multiple truth objects (e.g. a single sharp
     # in a key signature).
-    closest_truth_distance = [fscore[ct,j]
+    closest_truth_distance = [fscore[ct, j]
                               for j, ct in enumerate(closest_truths)]
     equidistant_closest_truths = [[i for i, x in enumerate(fscore[:, j])
                                    if x == ct]
@@ -228,7 +226,7 @@ def align_cropobjects(truth, prediction, fscore=None):
 
 
 def rpf_given_alignment(alignment, r, p,
-                        n_not_aligned = 0,
+                        n_not_aligned=0,
                         strict_clsnames=True,
                         truths=None, predictions=None):
     if strict_clsnames:
@@ -398,10 +396,9 @@ def main(args):
         ])))
         print('Truth, not aligned:\n{0}'.format('\n'.join(['({0}: {1})'.format(truth[t].objid, truth[t].clsname)
                                                            for t in truth_not_aligned])))
-        print('Preds, not aligned:\n{0}'.format('\n'.join(['({0}: {1})'.format(prediction[p].objid, prediction[p].clsname)
-                                                           for p in preds_not_aligned])))
-
-
+        print(
+            'Preds, not aligned:\n{0}'.format('\n'.join(['({0}: {1})'.format(prediction[p].objid, prediction[p].clsname)
+                                                         for p in preds_not_aligned])))
 
     ##########################################################################
     # Check if the alignment is a pairing -- find truth objects
@@ -420,8 +417,8 @@ def main(args):
         print('Truth multi-aligned CropObject classes:\n{0}'
               ''.format(pprint.pformat(
             {(truth[t].objid, truth[t].clsname): [(p.objid, p.clsname)
-                          for p in t_aln_dict[t]]
-                         for t in multiple_truths_aln_dict})))
+                                                  for p in t_aln_dict[t]]
+             for t in multiple_truths_aln_dict})))
 
     ##########################################################################
     # Check if the aligned objects have the same classes
@@ -434,8 +431,6 @@ def main(args):
               ''.format('\n'.join(['{0}.{1}\t{2}.{3}'
                                    ''.format(t.objid, t.clsname, p.objid, p.clsname)
                                    for t, p in different_clsnames_pairs])))
-
-
 
     _end_time = time.clock()
     logging.info('analyze_agreement.py done in {0:.3f} s'.format(_end_time - _start_time))
