@@ -1084,6 +1084,26 @@ class CropObject(object):
         self.x += down
         self.y += right
 
+    def scale(self, zoom=1.0):
+        """Re-compute the CropObject with the given scaling factor."""
+        mask = self.mask * 1
+        import cv2
+        new_mask = cv2.resize(mask.astype('float32'), dsize=None, fx=zoom, fy=zoom,
+                              interpolation=cv2.INTER_AREA)
+        new_mask[new_mask >= 0.5] = 1
+        new_mask[new_mask < 0.5] = 0
+
+        new_height, new_width = new_mask.shape
+        new_top = self.top * zoom
+        new_left = self.left * zoom
+
+        self.x = new_top
+        self.y = new_left
+        self.height = new_height
+        self.width = new_width
+
+        self.mask = new_mask
+
 
 ##############################################################################
 # Functions for merging CropObjects and CropObjectLists
