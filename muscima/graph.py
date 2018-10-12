@@ -345,6 +345,54 @@ class NotationGraph(object):
                 if p_objid not in d.data['precedence_inlinks']:
                     d.data['precedence_inlinks'].append(p_objid)
 
+    def has_edge(self, fr, to):
+        if fr not in self._cdict:
+            logging.warning('Asking for object {}, which is not in graph.'
+                            ''.format(fr))
+        if to not in self._cdict:
+            logging.warning('Asking for object {}, which is not in graph.'
+                            ''.format(to))
+
+        if to in self._cdict[fr].outlinks:
+            if fr in self._cdict[to].inlinks:
+                return True
+            else:
+                raise NotationGraphError('has_edge({}, {}): found {} in outlinks'
+                                         ' of {}, but not {} in inlinks of {}!'
+                                         ''.format(fr, to, to, fr, fr, to))
+        elif fr in self._cdict[to].inlinks:
+            raise NotationGraphError('has_edge({}, {}): found {} in inlinks'
+                                     ' of {}, but not {} in outlinks of {}!'
+                                     ''.format(fr, to, fr, to, to, fr))
+        else:
+            return False
+
+    def add_edge(self, fr, to):
+        """Add an edge between the MuNGOs with objids ``fr --> to``.
+        If the edge is already in the graph, warns and does nothing."""
+        if fr not in self._cdict:
+            raise NotationGraphError('Cannot remove edge from objid {0}: not in graph!'
+                                     ''.format(fr))
+        if to not in self._cdict:
+            raise NotationGraphError('Cannot remove edge to objid {0}: not in graph!'
+                                     ''.format(to))
+
+        if to in self._cdict[fr].outlinks:
+            if fr in self._cdict[to].inlinks:
+                logging.info('Adding edge that is alredy in the graph: {} --> {}'
+                             ' -- doing nothing'.format(fr, to))
+                return
+            else:
+                raise NotationGraphError('add_edge({}, {}): found {} in outlinks'
+                                         ' of {}, but not {} in inlinks of {}!'
+                                         ''.format(fr, to, to, fr, fr, to))
+        elif fr in self._cdict[to].inlinks:
+            raise NotationGraphError('add_edge({}, {}): found {} in inlinks'
+                                     ' of {}, but not {} in outlinks of {}!'
+                                     ''.format(fr, to, fr, to, to, fr))
+
+        self._cdict[fr].outlinks.append(to)
+        self._cdict[to].inlinks.append(fr)
 
 ##############################################################################
 
