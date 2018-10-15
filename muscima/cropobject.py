@@ -1093,6 +1093,7 @@ class CropObject(object):
                                             output_shape=new_mask_shape)
         new_mask[new_mask >= 0.5] = 1
         new_mask[new_mask < 0.5] = 0
+        new_mask = new_mask.astype('uint8')
 
         new_height, new_width = new_mask.shape
         new_top = int(self.top * zoom)
