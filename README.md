@@ -28,3 +28,14 @@ The dataset itself is available for download
 
 [![abc](https://img.shields.io/badge/Dataset_Version-1.0-brightgreen.svg)](https://lindat.mff.cuni.cz/repository/xmlui/handle/11372/LRT-2372)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+
+## MuNG
+The ``mung`` (Music Notation Graph) package is the successor of this project,
+updated to accommodate MUSCIMA++ v2.0 and with lots of improvements, such as
+performance enhancements, a more consistent naming convention, class-names 
+that are close to SMuFL and type hints. 
+
+More information can be found [here](https://github.com/OMR-Research/mung).
+For future updates and improvements, consider migrating to MuNG.
+
