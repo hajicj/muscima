@@ -104,12 +104,12 @@ class CVC_MUSCIMA(object):
                             ' a valid root: the path {0} does not lead to'
                             ' a directory.'.format(root))
 
+        self.root = root
+        
         if validate and not self.validate(fail_early=True):
             raise ValueError('CVC_MUSCIMA innstance with root {0} does not'
                              ' represent a valid CVC-MUSCIMA dataset copy.'
                              ''.format(self.root))
-
-        self.root = root
 
     def imfile(self, page, writer, distortion='ideal', mode='full'):
         # type: (int, int, str, str) -> str
