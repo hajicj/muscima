@@ -1,5 +1,7 @@
 # MUSCIMA
 
+**NOTE: THIS PACKAGE HAS BEEN SUPERSEDED BY THE [mung](https://github.com/OMR-Research/mung) LIBRARY. IT IS OBSOLETE. DO NOT USE IT.**
+
 The ``muscima`` (**Mu**sic **Sc**ore **Ima**ges) package implements a data model for the [MUSCIMA++](https://ufal.mff.cuni.cz/muscima)
 dataset of music notation.
 
